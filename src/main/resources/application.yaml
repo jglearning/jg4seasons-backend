@@ -1,0 +1,3 @@
+spring:
+  application:
+    name: jg4seasons-backend

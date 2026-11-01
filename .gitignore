@@ -1,0 +1,35 @@
+# 내부 문서 (로컬 전용)
+docs-internal/
+
+# Gradle
+.gradle/
+build/
+out/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# 환경·비밀값
+.env
+.env.*
+*.pem
+*.key
+application-local.yml
+application-local.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
+logs/
+
+# 클로드 코드 개인 설정 (프로젝트 설정 .claude/settings.json 은 커밋)
+.claude/settings.local.json
