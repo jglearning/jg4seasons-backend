@@ -1,5 +1,7 @@
 # 내부 문서 (로컬 전용)
 docs-internal/
+CLAUDE.md
+CLAUDE.local.md
 
 # Gradle
 .gradle/
