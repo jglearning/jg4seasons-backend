@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,6 +19,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
 /**
  * 모든 오류를 Problem Details + code·requestId로 응답한다(API 명세 §0.4, ADR-17).
@@ -61,6 +65,57 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(CommonErrorCode.VALIDATION.status())
                 .headers(headers)
                 .body(problem);
+    }
+
+    /**
+     * 요청 JSON을 읽지 못함(깨진 JSON, 타입 불일치, 명세에 없는 필드, 뒤에 붙은 값): 400 VALIDATION. Jackson 예외의 경로로 문제 칸을 알리고, 경로가
+     * 없으면(문법 오류) field는 body.
+     */
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        DatabindException databind = findCause(ex, DatabindException.class);
+        String field = databind != null ? pathOf(databind) : BODY;
+        String message;
+        if (findCause(ex, UnrecognizedPropertyException.class) != null) {
+            message = "명세에 없는 항목이에요";
+        } else if (databind != null && !BODY.equals(field)) {
+            message = "형식이 맞지 않아요";
+        } else {
+            message = "JSON 형식이 올바르지 않아요";
+        }
+        ProblemDetail problem = Problems.of(CommonErrorCode.VALIDATION, message, servletRequest(request));
+        problem.setProperty(Problems.ERRORS, List.of(fieldError(field, message)));
+        return ResponseEntity.status(CommonErrorCode.VALIDATION.status())
+                .headers(headers)
+                .body(problem);
+    }
+
+    private static final String BODY = "body";
+
+    /** Jackson 경로를 `items[0].count` 형태로. 경로가 없으면 body */
+    static String pathOf(DatabindException ex) {
+        StringBuilder path = new StringBuilder();
+        for (JacksonException.Reference reference : ex.getPath()) {
+            if (reference.getPropertyName() != null) {
+                if (!path.isEmpty()) {
+                    path.append('.');
+                }
+                path.append(reference.getPropertyName());
+            } else if (reference.getIndex() >= 0) {
+                path.append('[').append(reference.getIndex()).append(']');
+            }
+        }
+        return path.isEmpty() ? BODY : path.toString();
+    }
+
+    private static <T extends Throwable> T findCause(Throwable ex, Class<T> type) {
+        for (Throwable current = ex; current != null; current = current.getCause()) {
+            if (type.isInstance(current)) {
+                return type.cast(current);
+            }
+        }
+        return null;
     }
 
     /** 나머지 프레임워크 예외(없는 경로·메서드·형식·읽기 실패 등): Spring이 만든 ProblemDetail에 code·title·requestId를 채운다 */
