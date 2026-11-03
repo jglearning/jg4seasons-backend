@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.java|*.kt|*.kts) [ -f ./gradlew ] && ./gradlew spotlessApply -q --offline >/dev/null 2>&1 || true ;; esac"
+            "command": "command -v jq >/dev/null 2>&1 || { echo '포맷 훅: jq가 없어 건너뜀 (winget install jqlang.jq 후 재시작)' >&2; exit 1; }; f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.java|*.kt|*.kts) if [ -f ./gradlew ] && ! ./gradlew spotlessApply -q --offline >/dev/null 2>&1; then echo '포맷 훅: spotlessApply 실패. ./gradlew spotlessApply 로 원인 확인' >&2; exit 2; fi ;; esac; exit 0"
           }
         ]
       }
