@@ -8,5 +8,62 @@
     "url" : "/"
   } ],
   "paths" : { },
-  "components" : { }
+  "components" : {
+    "schemas" : {
+      "Problem" : {
+        "type" : "object",
+        "description" : "RFC 9457 Problem Details + 확장 code·requestId",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "분기용 오류 code(예: VALIDATION, INVALID_CREDENTIALS)"
+          },
+          "detail" : {
+            "type" : "string",
+            "description" : "사용자에게 보여 줄 설명(한국어)"
+          },
+          "errors" : {
+            "type" : "array",
+            "description" : "400 VALIDATION일 때만. 칸별 오류",
+            "items" : {
+              "type" : "object",
+              "properties" : {
+                "field" : {
+                  "type" : "string",
+                  "description" : "문제 칸 이름. JSON 문법 오류는 body"
+                },
+                "message" : {
+                  "type" : "string",
+                  "description" : "사용자에게 보여 줄 한국어 문구"
+                }
+              },
+              "required" : [ "field", "message" ]
+            }
+          },
+          "instance" : {
+            "type" : "string",
+            "description" : "요청 경로"
+          },
+          "requestId" : {
+            "type" : "string",
+            "description" : "응답 헤더 X-Request-Id와 같은 값. 로그 대조용"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "HTTP 상태"
+          },
+          "title" : {
+            "type" : "string",
+            "description" : "사용자에게 보여 줄 제목(한국어)"
+          },
+          "type" : {
+            "type" : "string",
+            "description" : "/problems/{code 소문자-하이픈}"
+          }
+        },
+        "required" : [ "code", "requestId", "status", "title" ]
+      }
+    }
+  }
 }

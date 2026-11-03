@@ -28,3 +28,5 @@ springdoc:
   # openapi.json이 실행마다 같게(키 정렬) 그리고 읽기 좋게
   writer-with-order-by-keys: true
   writer-with-default-pretty-printer: true
+  # 오류 응답은 OpenApiConfig가 Problem 스키마로 직접 싣는다(예외 처리기에서 추론하지 않음)
+  override-with-generic-response: false

@@ -53,6 +53,25 @@ class OpenApiSpecTest {
     }
 
     @Test
+    void 오류_응답_형식이_명세에_있다() {
+        MvcTestResult result = apiDocs();
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.components.schemas.Problem.required")
+                .asArray()
+                .contains("title", "status", "code", "requestId");
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.components.schemas.Problem.properties.errors.type")
+                .isEqualTo("array");
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.components.schemas.Problem.properties.errors.items.required")
+                .asArray()
+                .contains("field", "message");
+    }
+
+    @Test
     void 인증_없이_다른_경로는_막힌다() {
         int status =
                 mvc.get().uri("/api/v1/student/home").exchange().getResponse().getStatus();
