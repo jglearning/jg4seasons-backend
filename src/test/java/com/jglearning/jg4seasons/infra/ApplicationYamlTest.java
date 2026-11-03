@@ -22,4 +22,17 @@ class ApplicationYamlTest {
         assertThat(mainApplicationYaml().getProperty("springdoc.api-docs.enabled"))
                 .isEqualTo("false");
     }
+
+    @Test
+    void 운영_JDBC_시간대는_UTC다() {
+        // 서버 기본 시간대(KST)로 저장되면 시점 비교와 날짜 판정이 9시간 어긋난다
+        assertThat(mainApplicationYaml().getProperty("spring.jpa.properties.hibernate.jdbc.time_zone"))
+                .isEqualTo("UTC");
+    }
+
+    @Test
+    void 스키마는_Flyway가_만들고_JPA는_검증만_한다() {
+        assertThat(mainApplicationYaml().getProperty("spring.jpa.hibernate.ddl-auto"))
+                .isEqualTo("validate");
+    }
 }

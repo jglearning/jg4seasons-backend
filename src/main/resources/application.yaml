@@ -1,6 +1,16 @@
 spring:
   application:
     name: jg4seasons-backend
+  jpa:
+    # 스키마는 Flyway로만 만든다. JPA는 엔티티와 테이블이 맞는지 검증만 한다
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        # 시각은 UTC로 저장한다. 서버 기본 시간대(KST)로 저장되면 9시간 어긋난다
+        jdbc:
+          time_zone: UTC
 
 springdoc:
   api-docs:
