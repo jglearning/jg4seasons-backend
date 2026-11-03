@@ -62,7 +62,8 @@ tasks.withType<Test> {
 
 // openapi.json 재생성: ./gradlew test --tests '*OpenApiSpecTest' -PwriteOpenApi=true
 tasks.test {
-	systemProperty("openapi.write", (project.findProperty("writeOpenApi") ?: "false").toString())
+	// -P로 준 값만 받는다. findProperty는 gradle.properties·환경 변수도 읽어 쓰기 모드가 조용히 켜질 수 있다
+	systemProperty("openapi.write", gradle.startParameter.projectProperties["writeOpenApi"] ?: "false")
 	// 파일이 없어도 되도록 files(최초 생성 전). 커밋본이 바뀌면 테스트를 다시 돈다
 	inputs.files("docs/api/openapi.json").withPropertyName("openapiSpec")
 }

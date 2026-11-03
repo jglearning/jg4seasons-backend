@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -38,7 +39,8 @@ class OpenApiSpecTest {
 
         if (Boolean.getBoolean("openapi.write")) {
             Files.writeString(SPEC, generated + "\n", StandardCharsets.UTF_8);
-            return;
+            // 비교하지 않았다는 것이 결과에 보이도록 통과가 아니라 건너뜀으로 끝낸다
+            Assumptions.abort("openapi.json을 다시 썼다. 비교하지 않음");
         }
         String message = "openapi.json이 생성한 명세와 다르다. 의도한 변경이면 재생성: " + REGENERATE;
         assertThat(SPEC).as(message).exists();
