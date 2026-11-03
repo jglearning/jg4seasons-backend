@@ -32,5 +32,8 @@ class ArchitectureTest {
     static final ArchRule 모듈은_다른_모듈의_api_패키지만_참조한다 = ArchitectureRules.modulesUseOnlyOtherModulesApi(BASE);
 
     @ArchTest
+    static final ArchRule 데이터_직접_접근은_persistence_패키지에서만 = ArchitectureRules.dataAccessOnlyInPersistencePackages();
+
+    @ArchTest
     static final ArchRule content는_listening에_의존하지_않는다 = ArchitectureRules.contentDoesNotDependOnListening(BASE);
 }

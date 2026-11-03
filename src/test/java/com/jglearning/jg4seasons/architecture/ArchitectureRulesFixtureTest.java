@@ -20,11 +20,14 @@ import com.jglearning.archfixture.listening.ClockCaller;
 import com.jglearning.archfixture.listening.FixtureRepository;
 import com.jglearning.archfixture.listening.NowCaller;
 import com.jglearning.archfixture.listening.NowReferenceCaller;
+import com.jglearning.archfixture.listening.RawEntityManagerService;
+import com.jglearning.archfixture.listening.RawJdbcService;
 import com.jglearning.archfixture.listening.SystemClockCaller;
 import com.jglearning.archfixture.listening.YearNowCaller;
 import com.jglearning.archfixture.listening.ZoneNowCaller;
 import com.jglearning.archfixture.listening.api.PlayCountQuery;
 import com.jglearning.archfixture.listening.apix.Lookalike;
+import com.jglearning.archfixture.listening.persistence.CustomQueryRepository;
 import com.jglearning.archfixture.listening.session.SessionStore;
 import com.jglearning.archfixture.listening.web.DtoController;
 import com.jglearning.archfixture.listening.web.EntityListController;
@@ -194,6 +197,26 @@ class ArchitectureRulesFixtureTest {
                         ArchitectureRules.academyScopedEntitiesUseAcademyScopedRepository(),
                         ScopedRepository.class,
                         FixtureRepository.class))
+                .isFalse();
+    }
+
+    // 데이터 직접 접근
+
+    @Test
+    void 서비스가_JdbcTemplate을_쓰면_잡는다() {
+        assertThat(violates(ArchitectureRules.dataAccessOnlyInPersistencePackages(), RawJdbcService.class))
+                .isTrue();
+    }
+
+    @Test
+    void 서비스가_EntityManager를_쓰면_잡는다() {
+        assertThat(violates(ArchitectureRules.dataAccessOnlyInPersistencePackages(), RawEntityManagerService.class))
+                .isTrue();
+    }
+
+    @Test
+    void persistence_패키지의_JDBC는_통과한다() {
+        assertThat(violates(ArchitectureRules.dataAccessOnlyInPersistencePackages(), CustomQueryRepository.class))
                 .isFalse();
     }
 

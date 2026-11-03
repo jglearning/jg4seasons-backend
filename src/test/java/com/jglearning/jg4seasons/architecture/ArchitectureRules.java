@@ -19,6 +19,7 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityManager;
 import java.lang.reflect.Parameter;
 import java.time.Clock;
 import java.time.Instant;
@@ -44,6 +45,9 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.QueryByExampleExecutor;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
@@ -75,6 +79,11 @@ final class ArchitectureRules {
             PagingAndSortingRepository.class,
             QueryByExampleExecutor.class,
             JpaSpecificationExecutor.class);
+
+    /** 리포지토리 규칙을 거치지 않고 쿼리할 수 있는 타입. */
+    private static final Class<?>[] DIRECT_DATA_ACCESS_TYPES = {
+        EntityManager.class, JdbcTemplate.class, NamedParameterJdbcTemplate.class, JdbcClient.class
+    };
 
     private static final Pattern ACADEMY_ID_PARAMETER_IN_QUERY = Pattern.compile(":academyId\\b");
     private static final Pattern DERIVED_CRITERIA_STARTS_WITH_ACADEMY_ID = Pattern.compile("^AcademyId(?![a-z]).*");
@@ -252,6 +261,21 @@ final class ArchitectureRules {
                         }
                     }
                 })
+                .allowEmptyShould(true);
+    }
+
+    /**
+     * EntityManager·JDBC 직접 사용은 `..persistence..` 패키지에서만. 서비스·컨트롤러가 리포지토리 규칙(학원 조건)을 우회해 쿼리하지
+     * 못하게 한다. 모듈의 커스텀 리포지토리 구현은 그 모듈의 persistence 패키지에 둔다.
+     */
+    static ArchRule dataAccessOnlyInPersistencePackages() {
+        return noClasses()
+                .that()
+                .resideOutsideOfPackage("..persistence..")
+                .should()
+                .dependOnClassesThat()
+                .belongToAnyOf(DIRECT_DATA_ACCESS_TYPES)
+                .because("데이터 직접 접근은 persistence 패키지에서만 한다(학원 조건 우회 방지)")
                 .allowEmptyShould(true);
     }
 
