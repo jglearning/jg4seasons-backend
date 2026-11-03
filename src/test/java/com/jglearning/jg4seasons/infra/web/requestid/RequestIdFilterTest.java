@@ -1,15 +1,20 @@
 package com.jglearning.jg4seasons.infra.web.requestid;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.MDC;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 /** 요청 처리 중에는 MDC·요청 속성에 같은 ID가 있고, 끝나면 MDC가 비워진다(스레드 재사용 시 다른 요청에 섞이지 않게). */
+@ExtendWith(OutputCaptureExtension.class)
 class RequestIdFilterTest {
 
     @Test
@@ -31,5 +36,21 @@ class RequestIdFilterTest {
         assertThat(inMdc.get()).isNotNull().isEqualTo(inAttribute.get());
         assertThat(response.getHeader(RequestIds.HEADER)).isEqualTo(inMdc.get());
         assertThat(MDC.get(RequestIds.MDC_KEY)).isNull();
+    }
+
+    @Test
+    void 필터_체인의_예외는_요청_ID와_함께_로그에_남기고_다시_던진다(CapturedOutput output) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/any");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain() {
+            @Override
+            public void doFilter(jakarta.servlet.ServletRequest req, jakarta.servlet.ServletResponse res) {
+                throw new IllegalStateException("filter-boom-xyz");
+            }
+        };
+
+        assertThatThrownBy(() -> new RequestIdFilter().doFilter(request, response, chain))
+                .hasMessage("filter-boom-xyz");
+        assertThat(output.getOut()).contains("filter-boom-xyz").contains(response.getHeader(RequestIds.HEADER));
     }
 }

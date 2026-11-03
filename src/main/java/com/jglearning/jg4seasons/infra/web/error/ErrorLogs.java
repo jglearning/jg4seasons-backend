@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.infra.web.error;
 
 import com.jglearning.jg4seasons.infra.web.requestid.RequestIds;
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,13 @@ public final class ErrorLogs {
 
     private ErrorLogs() {}
 
+    /** ERROR 디스패치(/error)면 원래 요청 경로 */
+    static String path(HttpServletRequest request) {
+        return request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI) instanceof String original
+                ? original
+                : request.getRequestURI();
+    }
+
     public static void clientError(ErrorCode errorCode, HttpServletRequest request, Throwable ex) {
         int status = errorCode.status().value();
         String type = ex != null ? ex.getClass().getSimpleName() : "-";
@@ -23,7 +31,7 @@ public final class ErrorLogs {
                     "{} {} {} requestId={} exception={}",
                     errorCode.code(),
                     request.getMethod(),
-                    request.getRequestURI(),
+                    path(request),
                     RequestIds.current(request),
                     type);
         } else {
@@ -31,7 +39,7 @@ public final class ErrorLogs {
                     "{} {} {} requestId={} exception={}",
                     errorCode.code(),
                     request.getMethod(),
-                    request.getRequestURI(),
+                    path(request),
                     RequestIds.current(request),
                     type);
         }
@@ -42,7 +50,7 @@ public final class ErrorLogs {
                 "{} {} {} requestId={}",
                 errorCode.code(),
                 request.getMethod(),
-                request.getRequestURI(),
+                path(request),
                 RequestIds.current(request),
                 ex);
     }

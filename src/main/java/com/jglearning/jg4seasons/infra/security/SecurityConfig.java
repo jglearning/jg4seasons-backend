@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.infra.security;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -23,7 +24,13 @@ public class SecurityConfig {
             ProblemAuthenticationEntryPoint authenticationEntryPoint,
             ProblemAccessDeniedHandler accessDeniedHandler)
             throws Exception {
-        http.authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**")
+        http.authorizeHttpRequests(auth -> auth
+                        // MVC 밖 오류는 ERROR 디스패치로 /error에 온다. 막으면 원래 400·500이 401로 바뀐다
+                        .dispatcherTypeMatchers(DispatcherType.ERROR)
+                        .permitAll()
+                        .requestMatchers("/error")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health")
                         .permitAll()
