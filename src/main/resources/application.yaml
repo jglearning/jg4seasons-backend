@@ -12,6 +12,11 @@ spring:
         jdbc:
           time_zone: UTC
 
+logging:
+  pattern:
+    # 로그 줄마다 요청 ID(MDC requestId). 오류 응답의 requestId로 로그를 찾는다
+    level: "%5p [%X{requestId:-}]"
+
 springdoc:
   api-docs:
     # 운영에서는 API 목록을 공개하지 않는다. test·local 프로파일에서만 켠다
