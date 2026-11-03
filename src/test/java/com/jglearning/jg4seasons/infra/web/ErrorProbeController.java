@@ -14,8 +14,10 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.springframework.security.access.AccessDeniedException;
@@ -41,6 +43,23 @@ class ErrorProbeController {
 
     record ModelProbe(@Min(1) int count) {}
 
+    enum Kind {
+        A,
+        B
+    }
+
+    record Item(@Min(1) int count) {}
+
+    /** 래퍼 숫자·불리언·실수·enum·날짜·중첩 리스트가 있는 본문. 모든 칸은 선택(빠지면 null) */
+    record WideProbe(
+            Long id,
+            Boolean active,
+            BigDecimal ratio,
+            Kind kind,
+            LocalDate date,
+            @Valid List<Item> items,
+            String name) {}
+
     /** 객체 단위 제약(두 값이 같아야 함) — 칸이 아닌 전체 오류 */
     @SameValues
     record ConsistentProbe(String first, String second) {}
@@ -59,6 +78,11 @@ class ErrorProbeController {
 
     @PostMapping("/json")
     Map<String, Boolean> json(@RequestBody JsonProbe request) {
+        return Map.of("ok", true);
+    }
+
+    @PostMapping("/json-wide")
+    Map<String, Boolean> jsonWide(@Valid @RequestBody WideProbe request) {
         return Map.of("ok", true);
     }
 
