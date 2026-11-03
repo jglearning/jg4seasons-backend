@@ -26,6 +26,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.flywaydb:flyway-mysql")
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-api:3.2.0")
 	compileOnly("org.projectlombok:lombok")
 	runtimeOnly("com.mysql:mysql-connector-j")
 	annotationProcessor("org.projectlombok:lombok")
@@ -57,4 +58,11 @@ spotless {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+// openapi.json 재생성: ./gradlew test --tests '*OpenApiSpecTest' -PwriteOpenApi=true
+tasks.test {
+	systemProperty("openapi.write", (project.findProperty("writeOpenApi") ?: "false").toString())
+	// 파일이 없어도 되도록 files(최초 생성 전). 커밋본이 바뀌면 테스트를 다시 돈다
+	inputs.files("docs/api/openapi.json").withPropertyName("openapiSpec")
 }

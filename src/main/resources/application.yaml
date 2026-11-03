@@ -1,3 +1,11 @@
 spring:
   application:
     name: jg4seasons-backend
+
+springdoc:
+  api-docs:
+    # 운영에서는 API 목록을 공개하지 않는다. test·local 프로파일에서만 켠다
+    enabled: false
+  # openapi.json이 실행마다 같게(키 정렬) 그리고 읽기 좋게
+  writer-with-order-by-keys: true
+  writer-with-default-pretty-printer: true

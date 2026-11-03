@@ -1,0 +1,12 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "jg4seasons API",
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "/"
+  } ],
+  "paths" : { },
+  "components" : { }
+}
