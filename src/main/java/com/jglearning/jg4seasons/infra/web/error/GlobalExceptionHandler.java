@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -50,6 +52,26 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = Problems.of(ex.errorCode(), ex.detail(), request);
         ex.extensions().forEach(problem::setProperty);
         return ResponseEntity.status(ex.errorCode().status()).body(problem);
+    }
+
+    /**
+     * 컨트롤러 안(메서드 보안 등)에서 난 Security 예외. 아래 Exception 처리기가 잡으면 500이 되므로 여기서 401·403으로 응답한다(필터 단계 거부는
+     * Security의 진입점·거부 처리기가 같은 형식으로 응답한다).
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        return securityProblem(CommonErrorCode.FORBIDDEN, request, ex);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    ResponseEntity<ProblemDetail> handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
+        return securityProblem(CommonErrorCode.UNAUTHORIZED, request, ex);
+    }
+
+    private static ResponseEntity<ProblemDetail> securityProblem(
+            CommonErrorCode errorCode, HttpServletRequest request, Exception ex) {
+        ErrorLogs.clientError(errorCode, request, ex);
+        return ResponseEntity.status(errorCode.status()).body(Problems.of(errorCode, null, request));
     }
 
     @ExceptionHandler(Exception.class)

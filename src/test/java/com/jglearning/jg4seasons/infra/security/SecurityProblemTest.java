@@ -72,4 +72,25 @@ class SecurityProblemTest {
                 .extractingPath("$.requestId")
                 .isEqualTo(result.getResponse().getHeader("X-Request-Id"));
     }
+
+    @Test
+    @WithMockUser
+    void 컨트롤러_안의_권한_거부는_500이_아니라_FORBIDDEN이다(CapturedOutput output) {
+        MvcTestResult result = mvc.get().uri("/test-support/errors/denied").exchange();
+
+        assertThat(result).hasStatus(403).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("FORBIDDEN");
+        assertThat(output.getOut())
+                .doesNotContain("ERROR [" + result.getResponse().getHeader("X-Request-Id"));
+    }
+
+    @Test
+    @WithMockUser
+    void 컨트롤러_안의_인증_실패는_500이_아니라_UNAUTHORIZED다() {
+        MvcTestResult result =
+                mvc.get().uri("/test-support/errors/unauthenticated").exchange();
+
+        assertThat(result).hasStatus(401).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("UNAUTHORIZED");
+    }
 }

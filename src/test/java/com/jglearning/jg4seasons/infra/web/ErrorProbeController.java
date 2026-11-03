@@ -18,6 +18,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -95,6 +97,17 @@ class ErrorProbeController {
     Map<String, Boolean> upstream() {
         throw new ApiException(
                 ProbeErrorCode.PROBE_UPSTREAM, "잠시 후 다시 시도해 주세요", new IllegalStateException("cause-xyz"));
+    }
+
+    /** 메서드 보안(@PreAuthorize 등)이 컨트롤러 안에서 던지는 거부 예외를 흉내 낸다 */
+    @GetMapping("/denied")
+    Map<String, Boolean> denied() {
+        throw new AccessDeniedException("probe");
+    }
+
+    @GetMapping("/unauthenticated")
+    Map<String, Boolean> unauthenticated() {
+        throw new InsufficientAuthenticationException("probe");
     }
 
     @GetMapping("/boom")
