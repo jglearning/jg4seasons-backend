@@ -9,10 +9,10 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 class TestcontainersConfiguration {
 
-	@Bean
-	@ServiceConnection
-	MySQLContainer mysqlContainer() {
-		return new MySQLContainer(DockerImageName.parse("mysql:latest"));
-	}
-
+    @Bean
+    @ServiceConnection
+    MySQLContainer mysqlContainer() {
+        // 운영과 같은 8.x LTS. latest는 9.x가 받아질 수 있다
+        return new MySQLContainer(DockerImageName.parse("mysql:8.4"));
+    }
 }

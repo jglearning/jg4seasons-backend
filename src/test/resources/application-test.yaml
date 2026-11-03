@@ -1,0 +1,4 @@
+springdoc:
+  api-docs:
+    # OpenApiSpecTest가 명세를 받아 docs/api/openapi.json과 비교한다
+    enabled: true
