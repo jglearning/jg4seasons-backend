@@ -22,6 +22,6 @@ class ProblemAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(
             HttpServletRequest request, HttpServletResponse response, AuthenticationException authException)
             throws IOException {
-        writer.write(request, response, CommonErrorCode.UNAUTHORIZED);
+        writer.write(request, response, CommonErrorCode.UNAUTHORIZED, authException);
     }
 }

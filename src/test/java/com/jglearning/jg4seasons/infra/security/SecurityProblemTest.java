@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -12,6 +15,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 /** Spring Security가 막은 요청(MVC 전)도 같은 Problem Details 형식과 요청 ID로 응답한다. */
 @IntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class SecurityProblemTest {
 
     @Autowired
@@ -29,6 +33,27 @@ class SecurityProblemTest {
                 .bodyJson()
                 .extractingPath("$.requestId")
                 .isEqualTo(result.getResponse().getHeader("X-Request-Id"));
+    }
+
+    @Test
+    void 인증_없는_요청은_요청_ID와_함께_INFO로_남는다(CapturedOutput output) {
+        MvcTestResult result = mvc.get().uri("/api/v1/student/home").exchange();
+
+        String id = result.getResponse().getHeader("X-Request-Id");
+        assertThat(output.getOut()).containsPattern("INFO \\[" + id + "\\].*UNAUTHORIZED");
+    }
+
+    @Test
+    @WithMockUser
+    void CSRF_거부는_WARN으로_남는다(CapturedOutput output) {
+        MvcTestResult result = mvc.post()
+                .uri("/test-support/errors/json")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"count\":5,\"flag\":true,\"name\":\"a\"}")
+                .exchange();
+
+        String id = result.getResponse().getHeader("X-Request-Id");
+        assertThat(output.getOut()).containsPattern("WARN \\[" + id + "\\].*FORBIDDEN");
     }
 
     @Test

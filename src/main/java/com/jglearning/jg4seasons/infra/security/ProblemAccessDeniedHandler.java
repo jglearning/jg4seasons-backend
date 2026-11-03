@@ -21,6 +21,6 @@ class ProblemAccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException exception)
             throws IOException {
-        writer.write(request, response, CommonErrorCode.FORBIDDEN);
+        writer.write(request, response, CommonErrorCode.FORBIDDEN, exception);
     }
 }

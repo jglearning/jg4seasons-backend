@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.infra.security;
 
 import com.jglearning.jg4seasons.infra.web.error.ErrorCode;
+import com.jglearning.jg4seasons.infra.web.error.ErrorLogs;
 import com.jglearning.jg4seasons.infra.web.error.Problems;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,7 +21,9 @@ class ProblemResponseWriter {
         this.jsonMapper = jsonMapper;
     }
 
-    void write(HttpServletRequest request, HttpServletResponse response, ErrorCode errorCode) throws IOException {
+    void write(HttpServletRequest request, HttpServletResponse response, ErrorCode errorCode, Throwable cause)
+            throws IOException {
+        ErrorLogs.clientError(errorCode, request, cause);
         ProblemDetail problem = Problems.of(errorCode, null, request);
         response.setStatus(errorCode.status().value());
         // MVC 오류 응답과 같은 Content-Type(charset 없음). JSON은 UTF-8로 쓴다

@@ -52,7 +52,7 @@ class ProblemResponseTest {
                 .bodyJson()
                 .extractingPath("$.errors[*].field")
                 .asArray()
-                .contains("name", "count");
+                .containsExactlyInAnyOrder("name", "count");
         assertThat(result).bodyJson().extractingPath("$.requestId").isEqualTo(requestIdHeader(result));
     }
 
