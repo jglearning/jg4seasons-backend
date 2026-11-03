@@ -56,7 +56,7 @@ class OpenApiSpecTest {
     void 인증_없이_다른_경로는_막힌다() {
         int status =
                 mvc.get().uri("/api/v1/student/home").exchange().getResponse().getStatus();
-        assertThat(status).isIn(401, 403);
+        assertThat(status).isEqualTo(401);
     }
 
     @Test
