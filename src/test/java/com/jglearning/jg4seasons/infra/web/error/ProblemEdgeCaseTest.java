@@ -52,6 +52,28 @@ class ProblemEdgeCaseTest {
     }
 
     @Test
+    void 모듈_오류_code는_그_상태와_type과_시각_확장_필드로_나간다() {
+        MvcTestResult result = mvc.get().uri(BASE + "/locked").exchange();
+
+        assertThat(result).hasStatus(423).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("PROBE_LOCKED");
+        assertThat(result).bodyJson().extractingPath("$.type").isEqualTo("/problems/probe-locked");
+        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo(423);
+        assertThat(result).bodyJson().extractingPath("$.until").isEqualTo("2026-11-04T01:10:00Z");
+        assertThat(result).bodyJson().extractingPath("$.requestId").isEqualTo(requestId(result));
+    }
+
+    @Test
+    void 서버_오류_code의_ApiException은_원인과_함께_로그에_남고_응답에는_없다(CapturedOutput output) throws Exception {
+        MvcTestResult result = mvc.get().uri(BASE + "/upstream").exchange();
+
+        assertThat(result).hasStatus(502);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("PROBE_UPSTREAM");
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("cause-xyz");
+        assertThat(output.getOut()).contains("cause-xyz").contains("[" + requestId(result) + "]");
+    }
+
+    @Test
     void 경로_변수_타입_오류는_칸_이름이다() {
         assertValidationField(
                 mvc.get().uri(BASE + "/typed/abc?date=2026-11-04&page=1").exchange(), "id");

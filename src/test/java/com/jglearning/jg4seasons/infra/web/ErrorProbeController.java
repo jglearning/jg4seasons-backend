@@ -14,6 +14,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Objects;
@@ -82,6 +83,18 @@ class ErrorProbeController {
     @GetMapping("/api-exception")
     Map<String, Boolean> apiException() {
         throw new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요").with("lessonCode", "L2-B1-99");
+    }
+
+    @GetMapping("/locked")
+    Map<String, Boolean> locked() {
+        throw new ApiException(ProbeErrorCode.PROBE_LOCKED, "10분 뒤에 다시 시도해 주세요")
+                .with("until", Instant.parse("2026-11-04T01:10:00Z"));
+    }
+
+    @GetMapping("/upstream")
+    Map<String, Boolean> upstream() {
+        throw new ApiException(
+                ProbeErrorCode.PROBE_UPSTREAM, "잠시 후 다시 시도해 주세요", new IllegalStateException("cause-xyz"));
     }
 
     @GetMapping("/boom")

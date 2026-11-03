@@ -42,6 +42,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ProblemDetail> handleApiException(ApiException ex, HttpServletRequest request) {
+        if (ex.errorCode().status().is5xxServerError()) {
+            ErrorLogs.serverError(ex.errorCode(), request, ex);
+        } else {
+            ErrorLogs.clientError(ex.errorCode(), request, ex);
+        }
         ProblemDetail problem = Problems.of(ex.errorCode(), ex.detail(), request);
         ex.extensions().forEach(problem::setProperty);
         return ResponseEntity.status(ex.errorCode().status()).body(problem);

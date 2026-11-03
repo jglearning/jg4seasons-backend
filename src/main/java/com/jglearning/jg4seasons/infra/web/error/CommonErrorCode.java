@@ -26,11 +26,6 @@ public enum CommonErrorCode implements ErrorCode {
     }
 
     @Override
-    public String code() {
-        return name();
-    }
-
-    @Override
     public String title() {
         return title;
     }
