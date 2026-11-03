@@ -1,0 +1,28 @@
+# 로컬 개발용 MySQL. 운영·테스트와 같은 8.4(테스트는 Testcontainers가 따로 띄운다)
+# 실행: docker compose up -d   /   정지: docker compose down   /   데이터까지 지우기: docker compose down -v
+# 호스트 3306은 다른 MySQL이 쓰고 있을 수 있어 3307로 연다. 이 PC 안(127.0.0.1)에서만 접속할 수 있다
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: jg4seasons
+      MYSQL_USER: ${LOCAL_DB_USER:-jg4seasons}
+      MYSQL_PASSWORD: ${LOCAL_DB_PASSWORD:-local-only}
+      # 앱은 root를 쓰지 않는다. root 비밀번호는 무작위(공개된 기본값을 두지 않음)
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      TZ: UTC
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  mysql-data:
