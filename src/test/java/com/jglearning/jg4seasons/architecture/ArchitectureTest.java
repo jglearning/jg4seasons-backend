@@ -18,11 +18,15 @@ class ArchitectureTest {
     static final ArchRule 컨트롤러는_엔티티를_반환하지_않는다 = ArchitectureRules.controllersDoNotReturnEntities();
 
     @ArchTest
-    static final ArchRule 시간은_주입된_Clock으로만_얻는다 = ArchitectureRules.noArgNowIsForbidden();
+    static final ArchRule 시간은_주입된_Clock으로만_얻는다 = ArchitectureRules.timeComesOnlyFromInjectedClock(BASE);
 
     @ArchTest
     static final ArchRule 학원_범위_리포지토리_메서드는_academyId를_받는다 =
             ArchitectureRules.academyScopedRepositoryMethodsTakeAcademyId();
+
+    @ArchTest
+    static final ArchRule 학원_범위_엔티티는_AcademyScopedRepository로만_다룬다 =
+            ArchitectureRules.academyScopedEntitiesUseAcademyScopedRepository();
 
     @ArchTest
     static final ArchRule 모듈은_다른_모듈의_api_패키지만_참조한다 = ArchitectureRules.modulesUseOnlyOtherModulesApi(BASE);
