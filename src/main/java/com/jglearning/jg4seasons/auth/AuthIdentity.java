@@ -8,6 +8,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.regex.Pattern;
 
 /**
  * 사용자의 인증 수단(ADR-05). 개인 코드는 identifier = HMAC 값(PersonalCodeHasher), 평문 없음.
@@ -38,9 +39,15 @@ public class AuthIdentity {
     @Column(name = "last_used_at")
     private Instant lastUsedAt;
 
+    private static final Pattern HMAC_HEX = Pattern.compile("^[0-9a-f]{64}$");
+
     protected AuthIdentity() {}
 
+    /** @param hashedCode PersonalCodeHasher가 만든 소문자 hex 64자. 평문 개인 코드를 넘기면 IllegalArgumentException(값은 메시지에 넣지 않음) */
     public static AuthIdentity personalCode(long userId, String hashedCode, Instant issuedAt) {
+        if (hashedCode == null || !HMAC_HEX.matcher(hashedCode).matches()) {
+            throw new IllegalArgumentException("개인 코드 저장값은 HMAC(소문자 hex 64자)이어야 한다");
+        }
         AuthIdentity identity = new AuthIdentity();
         identity.userId = userId;
         identity.provider = AuthProvider.PERSONAL_CODE;
