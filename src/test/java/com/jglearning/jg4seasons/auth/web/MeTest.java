@@ -3,8 +3,12 @@ package com.jglearning.jg4seasons.auth.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.AuthCookieSupport;
+import jakarta.servlet.http.Cookie;
+import java.time.Duration;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +30,9 @@ class MeTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    MutableClock clock;
 
     long academyId;
     long studentId;
@@ -54,6 +61,24 @@ class MeTest {
         assertThat(result).bodyJson().extractingPath("$.role").isEqualTo("student");
         assertThat(result).bodyJson().extractingPath("$.academy.id").asNumber().isEqualTo((int) academyId);
         assertThat(result).bodyJson().extractingPath("$.academy.name").isEqualTo("테스트 학원");
+    }
+
+    @Test
+    void access는_30분까지_되고_그_뒤에는_401이다() {
+        Cookie access = cookies.studentAccess(studentId, academyId);
+
+        clock.advance(Duration.ofMinutes(30).minusSeconds(1));
+        assertThat(mvc.get().uri("/api/v1/me").cookie(access)).as("29분 59초").hasStatusOk();
+
+        clock.advance(Duration.ofSeconds(2));
+        MvcTestResult expired = mvc.get().uri("/api/v1/me").cookie(access).exchange();
+        assertThat(expired).as("30분 1초").hasStatus(401);
+        assertThat(expired).bodyJson().extractingPath("$.code").isEqualTo("UNAUTHORIZED");
+    }
+
+    @AfterEach
+    void resetClock() {
+        clock.reset();
     }
 
     @Test

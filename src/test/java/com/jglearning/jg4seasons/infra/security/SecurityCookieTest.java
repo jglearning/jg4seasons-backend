@@ -38,12 +38,17 @@ class SecurityCookieTest {
     JdbcTemplate jdbc;
 
     String accessCode;
+    long academyId;
+    long studentId;
 
     @BeforeEach
     void setUp() {
         TestData data = new TestData(jdbc);
         accessCode = TestData.uniqueAccessCode();
-        data.clazz(data.academy("테스트 학원"), "L2-B1", "A반", accessCode, "active");
+        academyId = data.academy("테스트 학원");
+        data.clazz(academyId, "L2-B1", "A반", accessCode, "active");
+        // 실제 학생: 토큰이 유효하면 /me가 200이어야 만료·깨짐 판정을 따로 볼 수 있다
+        studentId = data.student(academyId, "학생");
     }
 
     @AfterEach
@@ -118,7 +123,8 @@ class SecurityCookieTest {
 
     @Test
     void 만료된_access는_401_UNAUTHORIZED() {
-        Cookie access = cookies.studentAccess(1L, 1L);
+        Cookie access = cookies.studentAccess(studentId, academyId);
+        assertThat(mvc.get().uri("/api/v1/me").cookie(access)).as("만료 전").hasStatusOk();
         clock.advance(Duration.ofMinutes(31));
 
         MvcTestResult result = mvc.get().uri("/api/v1/me").cookie(access).exchange();
@@ -164,6 +170,9 @@ class SecurityCookieTest {
 
     @Test
     void 깨진_access_쿠키로_보호된_경로는_401() {
+        assertThat(mvc.get().uri("/api/v1/me").cookie(cookies.studentAccess(studentId, academyId)))
+                .as("정상 토큰은 200")
+                .hasStatusOk();
         MvcTestResult result = mvc.get()
                 .uri("/api/v1/me")
                 .cookie(new Cookie("access", "not-a-jwt"))
