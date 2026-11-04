@@ -11,6 +11,11 @@ import java.util.List;
  */
 public interface StaffAccounts {
 
+    /** 요청의 로그인 아이디 형식(앞뒤 공백 허용). 요청 DTO의 @Pattern에 쓴다 */
+    String LOGIN_ID_REQUEST_REGEXP = "^\\s*[A-Za-z0-9._-]{3,30}\\s*$";
+
+    String LOGIN_ID_MESSAGE = "아이디는 영문·숫자·.·_·- 3~30자예요";
+
     List<StaffAccount> list(long academyId);
 
     StaffAccount find(long academyId, long staffId);

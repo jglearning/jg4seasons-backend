@@ -8,6 +8,123 @@
     "url" : "/"
   } ],
   "paths" : {
+    "/api/v1/admin/teachers" : {
+      "get" : {
+        "description" : "id 순",
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "교사·관리자 목록",
+        "tags" : [ "teacher-admin-controller" ]
+      },
+      "post" : {
+        "description" : "아이디가 이미 있으면(전체 학원, 대소문자 무관) 409 LOGIN_ID_TAKEN, 다른 학원 반이 있으면 404. X-CSRF 필요",
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TeacherCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "교사 생성",
+        "tags" : [ "teacher-admin-controller" ]
+      }
+    },
+    "/api/v1/admin/teachers/{id}" : {
+      "patch" : {
+        "description" : "빠진 칸은 그대로. 자기 비활성화는 409 SELF_CHANGE_NOT_ALLOWED, 다른 학원 교사·반은 404. 비활성화·비밀번호 재설정이면 그 교사의 refresh를 모두 끊음. X-CSRF 필요",
+        "operationId" : "update",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TeacherUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "교사 변경",
+        "tags" : [ "teacher-admin-controller" ]
+      }
+    },
     "/api/v1/auth/code/verify" : {
       "post" : {
         "description" : "IP당 1분에 10회. 반이 없거나 비활성이거나 학원이 정지면 404 INVALID_CODE, 넘으면 429 RATE_LIMITED. CSRF 검사 없음",
@@ -452,6 +569,127 @@
           }
         },
         "required" : [ "class", "user" ]
+      },
+      "TeacherCreateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "classIds" : {
+            "type" : "array",
+            "description" : "담당 반 id. 없으면 빈 배열",
+            "items" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          },
+          "loginId" : {
+            "type" : "string",
+            "description" : "영문·숫자·.·_·- 3~30자. 대소문자 구분 없음(소문자로 저장), 전체 학원에서 고유",
+            "pattern" : "^\\s*[A-Za-z0-9._-]{3,30}\\s*$"
+          },
+          "name" : {
+            "type" : "string",
+            "description" : "1~30자",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "password" : {
+            "type" : "string",
+            "description" : "8자 이상, 72바이트 이하",
+            "maxLength" : 72,
+            "minLength" : 8
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "teacher", "admin" ],
+            "pattern" : "^(teacher|admin)$"
+          }
+        },
+        "required" : [ "classIds", "loginId", "name", "password", "role" ]
+      },
+      "TeacherListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherResponse"
+            }
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "items", "total" ]
+      },
+      "TeacherResponse" : {
+        "type" : "object",
+        "properties" : {
+          "classIds" : {
+            "type" : "array",
+            "description" : "담당 반 id(오름차순)",
+            "items" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "lastLoginAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "한 번도 로그인하지 않았으면 null(UTC)"
+          },
+          "loginId" : {
+            "type" : [ "string", "null" ],
+            "description" : "로그인 수단이 없으면 null"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "teacher", "admin" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "active", "inactive" ]
+          }
+        },
+        "required" : [ "classIds", "id", "lastLoginAt", "loginId", "name", "role", "status" ]
+      },
+      "TeacherUpdateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "classIds" : {
+            "type" : "array",
+            "description" : "담당 반 id 전체(교체). 빈 배열이면 모두 해제",
+            "items" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          },
+          "name" : {
+            "type" : "string",
+            "description" : "1~30자",
+            "maxLength" : 30,
+            "minLength" : 1
+          },
+          "password" : {
+            "type" : "string",
+            "description" : "비밀번호 재설정(8자 이상, 72바이트 이하). 잠금이 풀리고 그 교사의 refresh를 모두 끊음",
+            "maxLength" : 72,
+            "minLength" : 8
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "inactive면 로그인·refresh 불가, 그 교사의 refresh를 모두 끊음",
+            "enum" : [ "active", "inactive" ],
+            "pattern" : "^(active|inactive)$"
+          }
+        }
       },
       "UserInfo" : {
         "type" : "object",

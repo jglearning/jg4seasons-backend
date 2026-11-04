@@ -1,10 +1,8 @@
 package com.jglearning.jg4seasons.auth.web;
 
 import com.jglearning.jg4seasons.auth.MeService;
-import com.jglearning.jg4seasons.auth.token.JwtIssuer;
 import com.jglearning.jg4seasons.auth.web.dto.MeResponse;
-import com.jglearning.jg4seasons.infra.web.error.ApiException;
-import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
+import com.jglearning.jg4seasons.infra.security.Principals;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.security.RolesAllowed;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,10 +24,6 @@ public class MeController {
     @RolesAllowed({"STUDENT", "TEACHER"}) // TEACHER는 역할 계층으로 admin·superadmin 포함(superadmin은 학원이 없어 401)
     @GetMapping("/api/v1/me")
     public MeResponse me(@AuthenticationPrincipal Jwt jwt) {
-        Object academy = jwt.getClaim(JwtIssuer.ACADEMY);
-        if (!(academy instanceof Number academyId)) {
-            throw new ApiException(CommonErrorCode.UNAUTHORIZED);
-        }
-        return meService.me(Long.parseLong(jwt.getSubject()), academyId.longValue());
+        return meService.me(Principals.userId(jwt), Principals.academyId(jwt));
     }
 }
