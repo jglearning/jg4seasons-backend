@@ -68,6 +68,19 @@ public final class TestData {
                 name);
     }
 
+    /** 교사·관리자 사용자. role은 'teacher' 또는 'admin' */
+    public long staff(long academyId, String name, String role) {
+        return insert(
+                "insert into `user` (academy_id, role, name, status) values (?, ?, ?, 'active')",
+                academyId,
+                role,
+                name);
+    }
+
+    public void assignTeacher(long classId, long teacherId) {
+        jdbc.update("insert into class_teacher (class_id, user_id) values (?, ?)", classId, teacherId);
+    }
+
     public void enroll(long classId, long studentId) {
         jdbc.update(
                 "insert into enrollment (class_id, student_id, joined_at) values (?, ?, ?)",

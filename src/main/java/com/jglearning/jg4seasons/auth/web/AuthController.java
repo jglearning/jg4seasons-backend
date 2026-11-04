@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.auth.web;
 import com.jglearning.jg4seasons.auth.CodeVerifyService;
 import com.jglearning.jg4seasons.auth.SessionService;
 import com.jglearning.jg4seasons.auth.SessionService.RefreshResult;
+import com.jglearning.jg4seasons.auth.StaffLoginService;
 import com.jglearning.jg4seasons.auth.StudentLoginService;
 import com.jglearning.jg4seasons.auth.StudentLoginService.LoginResult;
 import com.jglearning.jg4seasons.auth.ratelimit.ClientIpResolver;
@@ -10,6 +11,8 @@ import com.jglearning.jg4seasons.auth.token.AuthCookies;
 import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyRequest;
 import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyResponse;
 import com.jglearning.jg4seasons.auth.web.dto.MeResponse;
+import com.jglearning.jg4seasons.auth.web.dto.StaffLoginRequest;
+import com.jglearning.jg4seasons.auth.web.dto.StaffLoginResponse;
 import com.jglearning.jg4seasons.auth.web.dto.StudentLoginRequest;
 import com.jglearning.jg4seasons.auth.web.dto.StudentLoginResponse;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
@@ -40,6 +43,7 @@ public class AuthController {
     private final CodeVerifyService codeVerifyService;
     private final StudentLoginService studentLoginService;
     private final SessionService sessionService;
+    private final StaffLoginService staffLoginService;
     private final ClientIpResolver clientIps;
     private final AuthCookies cookies;
 
@@ -47,11 +51,13 @@ public class AuthController {
             CodeVerifyService codeVerifyService,
             StudentLoginService studentLoginService,
             SessionService sessionService,
+            StaffLoginService staffLoginService,
             ClientIpResolver clientIps,
             AuthCookies cookies) {
         this.codeVerifyService = codeVerifyService;
         this.studentLoginService = studentLoginService;
         this.sessionService = sessionService;
+        this.staffLoginService = staffLoginService;
         this.clientIps = clientIps;
         this.cookies = cookies;
     }
@@ -78,6 +84,20 @@ public class AuthController {
                 request.personalCode(),
                 clientIps.resolve(http),
                 http.getHeader(HttpHeaders.USER_AGENT));
+        return withCookies(ResponseEntity.ok(), cookies.issue(result.tokens())).body(result.body());
+    }
+
+    @Operation(
+            summary = "교사·관리자 로그인",
+            description = "성공하면 Set-Cookie access·refresh(14일)·csrf. 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를"
+                    + " 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 없는 아이디는 IP당 1분 10회(429)."
+                    + " 아이디는 대소문자 구분 없음. CSRF 검사 없음")
+    @PermitAll
+    @PostMapping("/staff/login")
+    public ResponseEntity<StaffLoginResponse> staffLogin(
+            @Valid @RequestBody StaffLoginRequest request, HttpServletRequest http) {
+        StaffLoginService.LoginResult result = staffLoginService.login(
+                request.loginId(), request.password(), clientIps.resolve(http), http.getHeader(HttpHeaders.USER_AGENT));
         return withCookies(ResponseEntity.ok(), cookies.issue(result.tokens())).body(result.body());
     }
 
