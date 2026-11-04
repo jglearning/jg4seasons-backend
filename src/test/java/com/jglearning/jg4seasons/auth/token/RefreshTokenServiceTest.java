@@ -109,6 +109,20 @@ class RefreshTokenServiceTest {
     }
 
     @Test
+    void 회전이_소수_초에_일어나도_유예는_10초_이상이다() {
+        // 12:00:00.900에 회전 → 저장은 초 단위. 내림이면 유예가 12:00:10에 끝나 실제로는 9.1초가 된다
+        clock.advance(Duration.ofMillis(900));
+        String plain = refreshTokens.create(studentId, null);
+        refreshTokens.rotate(plain);
+        entityManager.flush();
+        entityManager.clear();
+
+        clock.advance(GRACE);
+
+        assertThat(refreshTokens.rotate(plain)).as("회전 뒤 정확히 10초").isInstanceOf(GraceReuse.class);
+    }
+
+    @Test
     void 유예가_지난_옛_토큰이면_그_사용자_refresh를_전부_끊는다() {
         String plain = refreshTokens.create(studentId, null);
         String otherDevice = refreshTokens.create(studentId, null);

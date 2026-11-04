@@ -13,7 +13,7 @@ import java.time.temporal.ChronoUnit;
  * refresh 토큰. token_hash = 쿠키 값의 SHA-256 hex(평문 없음).
  *
  * <p>폐기는 두 가지다. 회전: revoked_at만 기록 — 유예 안에 다시 오면 GraceReuse. 끊기(로그아웃·재사용 감지): revoked_at과 expires_at을 함께
- * 지금으로 — 만료로 먼저 걸려 유예 없이 거부. 폐기 사유 칸이 없어 이렇게 구분한다. DB DATETIME은 초 단위(반올림)라 저장하는 시각은 초를 내린다.
+ * 지금으로 — 만료로 먼저 걸려 유예 없이 거부. 폐기 사유 칸이 없어 이렇게 구분한다. DB DATETIME은 초 단위(반올림)라 끊기 시각은 초를 내리고(바로 만료되게) 회전 시각은 올린다(유예가 줄지 않게).
  */
 @Entity
 @Table(name = "refresh_token")
@@ -67,9 +67,9 @@ public class RefreshToken {
         return userAgent;
     }
 
-    /** 회전: 유예 판정을 위해 폐기 시각만(초 내림) */
+    /** 회전: 유예 판정을 위해 폐기 시각만. 초를 올려 저장한다 — 내리면 유예가 최대 1초 짧아진다(올리면 최대 1초 길어짐, 안전한 쪽) */
     void markRotated(Instant now) {
-        this.revokedAt = floorToSecond(now);
+        this.revokedAt = ceilToSecond(now);
     }
 
     /** 끊기: 유예 없이 바로 거부되게 만료도 지금으로(초 내림) */
@@ -86,5 +86,10 @@ public class RefreshToken {
      */
     static Instant floorToSecond(Instant instant) {
         return instant.truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    static Instant ceilToSecond(Instant instant) {
+        Instant floor = floorToSecond(instant);
+        return floor.equals(instant) ? floor : floor.plusSeconds(1);
     }
 }
