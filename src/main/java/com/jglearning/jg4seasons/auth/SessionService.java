@@ -8,7 +8,6 @@ import com.jglearning.jg4seasons.auth.token.RandomTokens;
 import com.jglearning.jg4seasons.auth.token.RefreshOutcome;
 import com.jglearning.jg4seasons.auth.token.RefreshTokenService;
 import com.jglearning.jg4seasons.auth.web.dto.MeResponse;
-import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,15 +16,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class SessionService {
 
-    /**
-     * refresh 결과. 성공이면 body가 있고, 회전했으면 tokens(새 쿠키)도 있다. 유예 안 재사용이면 tokens가 비어 있다(다른 탭이 받은 쿠키를 같이 쓴다).
-     * 거부면 body·tokens 모두 비어 있다.
-     */
-    public record RefreshResult(Optional<MeResponse> body, Optional<IssuedTokens> tokens) {
+    /** refresh 결과. 만들 수 있는 조합은 이 셋뿐이다. */
+    public sealed interface RefreshResult {
 
-        static RefreshResult rejected() {
-            return new RefreshResult(Optional.empty(), Optional.empty());
-        }
+        /** 회전: 새 쿠키 3개와 내 정보 */
+        record Rotated(MeResponse body, IssuedTokens tokens) implements RefreshResult {}
+
+        /** 유예 안 재사용: 내 정보만, 쿠키는 그대로(다른 탭이 받은 쿠키를 같이 쓴다) */
+        record Reused(MeResponse body) implements RefreshResult {}
+
+        /** 거부: 401 + 쿠키 만료 */
+        record Rejected() implements RefreshResult {}
     }
 
     private final RefreshTokenService refreshTokens;
@@ -40,23 +41,23 @@ public class SessionService {
 
     public RefreshResult refresh(String presented) {
         if (presented == null || presented.isBlank()) {
-            return RefreshResult.rejected();
+            return new RefreshResult.Rejected();
         }
+        // 소유자(활성 사용자 + 학원 있음 + 정지 아님)는 RefreshTokenService가 회전 전에 확인한다
         RefreshOutcome outcome = refreshTokens.rotate(presented);
-        if (outcome instanceof RefreshOutcome.Rotated rotated && rotated.owner().academyId() != null) {
+        if (outcome instanceof RefreshOutcome.Rotated rotated) {
             RefreshOwner owner = rotated.owner();
             IssuedTokens tokens = new IssuedTokens(
                     jwtIssuer.issueAccess(owner.id(), owner.role(), owner.academyId()),
                     rotated.newRefresh(),
                     RandomTokens.next(),
                     rotated.refreshTtl());
-            return new RefreshResult(Optional.of(me(owner)), Optional.of(tokens));
+            return new RefreshResult.Rotated(me(owner), tokens);
         }
-        if (outcome instanceof RefreshOutcome.GraceReuse grace && grace.owner().academyId() != null) {
-            return new RefreshResult(Optional.of(me(grace.owner())), Optional.empty());
+        if (outcome instanceof RefreshOutcome.GraceReuse grace) {
+            return new RefreshResult.Reused(me(grace.owner()));
         }
-        // 거부, 또는 학원이 없는 사용자(시스템 관리자 — 1차는 학생만 refresh)
-        return RefreshResult.rejected();
+        return new RefreshResult.Rejected();
     }
 
     /** 이 refresh를 유예 없이 끊는다. 쿠키가 없거나 모르는 값이면 아무것도 하지 않는다 */

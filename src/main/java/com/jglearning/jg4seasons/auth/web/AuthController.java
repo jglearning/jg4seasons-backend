@@ -91,14 +91,16 @@ public class AuthController {
             @Parameter(hidden = true) @CookieValue(name = AuthCookies.REFRESH, required = false) String refresh,
             HttpServletResponse http) {
         RefreshResult result = sessionService.refresh(refresh);
-        if (result.body().isEmpty()) {
-            // 쿠키 없음(MissingRequestCookieException이 400이 되지 않게 직접 확인)·무효 → 401 + 쿠키 3개 만료
-            cookies.expireAll().forEach(cookie -> http.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
-            throw new ApiException(CommonErrorCode.UNAUTHORIZED, "다시 들어와 주세요");
+        if (result instanceof RefreshResult.Rotated rotated) {
+            return withCookies(ResponseEntity.ok(), cookies.issue(rotated.tokens()))
+                    .body(rotated.body());
         }
-        ResponseEntity.BodyBuilder response = ResponseEntity.ok();
-        result.tokens().ifPresent(tokens -> withCookies(response, cookies.issue(tokens)));
-        return response.body(result.body().get());
+        if (result instanceof RefreshResult.Reused reused) {
+            return ResponseEntity.ok(reused.body());
+        }
+        // 쿠키 없음(MissingRequestCookieException이 400이 되지 않게 직접 확인)·무효 → 401 + 쿠키 3개 만료
+        cookies.expireAll().forEach(cookie -> http.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
+        throw new ApiException(CommonErrorCode.UNAUTHORIZED, "다시 들어와 주세요");
     }
 
     @Operation(summary = "로그아웃", description = "refresh를 폐기하고 쿠키 3개를 만료시킨다. 헤더 X-CSRF 필요")

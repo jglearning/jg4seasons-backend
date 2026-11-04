@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.auth.web;
 
 import com.jglearning.jg4seasons.auth.MeService;
+import com.jglearning.jg4seasons.auth.token.JwtIssuer;
 import com.jglearning.jg4seasons.auth.web.dto.MeResponse;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
@@ -25,7 +26,7 @@ public class MeController {
     @RolesAllowed("STUDENT")
     @GetMapping("/api/v1/me")
     public MeResponse me(@AuthenticationPrincipal Jwt jwt) {
-        Object academy = jwt.getClaim("aca");
+        Object academy = jwt.getClaim(JwtIssuer.ACADEMY);
         if (!(academy instanceof Number academyId)) {
             throw new ApiException(CommonErrorCode.UNAUTHORIZED);
         }
