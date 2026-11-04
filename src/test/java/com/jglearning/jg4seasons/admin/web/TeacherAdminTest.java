@@ -221,6 +221,13 @@ class TeacherAdminTest {
     }
 
     @Test
+    void 학원이_없는_토큰으로는_교사_API를_못_쓴다() {
+        // 역할 계층으로 superadmin은 ADMIN을 통과하지만, 학원 범위 API는 JWT aca가 있어야 한다
+        assertThat(mvc.get().uri(URL).cookie(cookies.access(adminId, UserRole.SUPERADMIN, null)))
+                .hasStatus(401);
+    }
+
+    @Test
     void 자기_자신을_비활성화하면_409() {
         MvcTestResult result = update(adminCookies(), adminId, "{\"status\":\"inactive\"}");
 

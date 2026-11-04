@@ -177,6 +177,13 @@ class StaffAccountsTest {
     }
 
     @Test
+    void 비밀번호_수단이_없는_계정의_재설정은_404() {
+        assertCode(
+                () -> accounts.change(academyId, adminId, adminId, StaffChange.password("new-password-1")),
+                CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
     void 바꿀_것이_없으면_그대로_돌려준다() {
         StaffAccount teacher = create("no-change");
 

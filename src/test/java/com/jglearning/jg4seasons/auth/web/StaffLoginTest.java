@@ -228,6 +228,17 @@ class StaffLoginTest {
     }
 
     @Test
+    void 시스템_관리자는_비밀번호_수단이_있어도_staff_로그인을_못_한다() {
+        jdbc.update("insert into `user` (academy_id, role, name, status) values (null, 'superadmin', '시스템', 'active')");
+        long superId = jdbc.queryForObject("select max(id) from `user`", Long.class);
+        identities.save(AuthIdentity.password(superId, "super" + superId, encoder.encode(PASSWORD), clock.instant()));
+
+        assertThat(login("super" + superId, PASSWORD))
+                .as("1차는 학원 없는 사용자 로그인 없음")
+                .hasStatus(401);
+    }
+
+    @Test
     void 없는_아이디_11번째는_429() {
         for (int i = 0; i < 10; i++) {
             assertThat(login("nobody-" + i, PASSWORD)).hasStatus(401);
