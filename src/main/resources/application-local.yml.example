@@ -13,3 +13,11 @@ springdoc:
   api-docs:
     # 로컬에서는 /v3/api-docs로 명세를 볼 수 있다(운영은 꺼짐)
     enabled: true
+
+jg4seasons:
+  auth:
+    # 로컬 전용 값(비밀 아님). 운영은 환경 변수 JG4SEASONS_PERSONAL_CODE_PEPPER·JG4SEASONS_JWT_SECRET
+    personal-code-pepper: ${JG4SEASONS_PERSONAL_CODE_PEPPER:local-only-pepper-0123456789abcdef}
+    jwt-secret: ${JG4SEASONS_JWT_SECRET:local-only-jwt-secret-0123456789abcdef}
+    # 로컬은 http라 Secure 쿠키를 끈다
+    cookie-secure: false

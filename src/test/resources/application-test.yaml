@@ -2,3 +2,9 @@ springdoc:
   api-docs:
     # OpenApiSpecTest가 명세를 받아 docs/api/openapi.json과 비교한다
     enabled: true
+
+jg4seasons:
+  auth:
+    # 테스트 전용 값(비밀 아님). 운영 값은 환경 변수로만 넣는다
+    personal-code-pepper: test-pepper-0123456789abcdef0123456789
+    jwt-secret: test-jwt-secret-0123456789abcdef0123

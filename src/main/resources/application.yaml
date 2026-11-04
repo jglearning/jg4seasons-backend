@@ -30,3 +30,11 @@ springdoc:
   writer-with-default-pretty-printer: true
   # 오류 응답은 OpenApiConfig가 Problem 스키마로 직접 싣는다(예외 처리기에서 추론하지 않음)
   override-with-generic-response: false
+
+jg4seasons:
+  auth:
+    # 비밀값은 환경 변수로만. 비어 있거나 32바이트 미만이면 서버가 뜨지 않는다(AuthProperties)
+    personal-code-pepper: ${JG4SEASONS_PERSONAL_CODE_PEPPER:}
+    jwt-secret: ${JG4SEASONS_JWT_SECRET:}
+    # 운영 프록시가 클라이언트 IP를 넣는 헤더. 비우면 연결 주소만 믿는다
+    client-ip-header: ${JG4SEASONS_CLIENT_IP_HEADER:}

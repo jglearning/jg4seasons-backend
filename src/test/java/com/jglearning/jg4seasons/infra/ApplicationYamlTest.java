@@ -31,6 +31,15 @@ class ApplicationYamlTest {
     }
 
     @Test
+    void 운영_설정의_비밀값은_기본값_없는_환경_변수_자리뿐이다() {
+        // 기본값이 있으면 환경 변수를 빠뜨린 운영 서버가 그 값으로 뜬다. 비어 있으면 AuthProperties가 기동을 막는다
+        Properties yaml = mainApplicationYaml();
+        assertThat(yaml.getProperty("jg4seasons.auth.personal-code-pepper"))
+                .isEqualTo("${JG4SEASONS_PERSONAL_CODE_PEPPER:}");
+        assertThat(yaml.getProperty("jg4seasons.auth.jwt-secret")).isEqualTo("${JG4SEASONS_JWT_SECRET:}");
+    }
+
+    @Test
     void 스키마는_Flyway가_만들고_JPA는_검증만_한다() {
         assertThat(mainApplicationYaml().getProperty("spring.jpa.hibernate.ddl-auto"))
                 .isEqualTo("validate");
