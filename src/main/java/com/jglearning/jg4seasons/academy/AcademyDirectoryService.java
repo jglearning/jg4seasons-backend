@@ -24,6 +24,11 @@ class AcademyDirectoryService implements AcademyDirectory {
     }
 
     @Override
+    public boolean isActive(long academyId) {
+        return academies.findById(academyId).map(Academy::isActive).orElse(false);
+    }
+
+    @Override
     public Optional<Long> findIdBySlug(String slug) {
         return academies.findBySlug(slug).map(Academy::getId);
     }

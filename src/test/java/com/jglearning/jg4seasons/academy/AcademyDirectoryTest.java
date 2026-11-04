@@ -34,6 +34,17 @@ class AcademyDirectoryTest {
     }
 
     @Test
+    void 정지된_학원은_활성이_아니다() {
+        long active = new TestData(jdbc).academy("운영 학원");
+        long suspended = new TestData(jdbc).academy("정지 학원");
+        jdbc.update("update academy set status = 'suspended' where id = ?", suspended);
+
+        assertThat(academies.isActive(active)).isTrue();
+        assertThat(academies.isActive(suspended)).isFalse();
+        assertThat(academies.isActive(-1L)).as("없는 학원").isFalse();
+    }
+
+    @Test
     void slug로_학원_id를_찾는다() {
         long id = new TestData(jdbc).academy("테스트 학원");
         String slug = jdbc.queryForObject("select slug from academy where id = ?", String.class, id);

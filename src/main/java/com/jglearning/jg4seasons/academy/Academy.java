@@ -17,7 +17,15 @@ public class Academy {
     @Column(nullable = false)
     private String slug;
 
+    /** 'active' · 'suspended'. 정지된 학원은 입장·세션 갱신이 안 된다 */
+    @Column(nullable = false, columnDefinition = "enum('active','suspended')")
+    private String status;
+
     protected Academy() {}
+
+    public boolean isActive() {
+        return "active".equals(status);
+    }
 
     public Long getId() {
         return id;
