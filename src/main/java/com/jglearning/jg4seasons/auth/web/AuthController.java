@@ -1,5 +1,7 @@
 package com.jglearning.jg4seasons.auth.web;
 
+import com.jglearning.jg4seasons.auth.CodeVerifyService;
+import com.jglearning.jg4seasons.auth.ratelimit.ClientIpResolver;
 import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyRequest;
 import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyResponse;
 import com.jglearning.jg4seasons.auth.web.dto.MeResponse;
@@ -8,6 +10,7 @@ import com.jglearning.jg4seasons.auth.web.dto.StudentLoginResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.annotation.security.PermitAll;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,13 +24,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
+    private final CodeVerifyService codeVerifyService;
+    private final ClientIpResolver clientIps;
+
+    AuthController(CodeVerifyService codeVerifyService, ClientIpResolver clientIps) {
+        this.codeVerifyService = codeVerifyService;
+        this.clientIps = clientIps;
+    }
+
     @Operation(
             summary = "가입 코드로 반 확인(S-01 입력 중 표시용)",
-            description = "IP당 1분에 10회. 반이 없거나 비활성이면 404 INVALID_CODE, 넘으면 429 RATE_LIMITED. CSRF 검사 없음")
+            description = "IP당 1분에 10회. 반이 없거나 비활성이거나 학원이 정지면 404 INVALID_CODE, 넘으면 429 RATE_LIMITED. CSRF 검사 없음")
     @PermitAll
     @PostMapping("/code/verify")
-    public CodeVerifyResponse verify(@Valid @RequestBody CodeVerifyRequest request) {
-        throw new UnsupportedOperationException("Task 4");
+    public CodeVerifyResponse verify(@Valid @RequestBody CodeVerifyRequest request, HttpServletRequest http) {
+        return codeVerifyService.verify(request.code(), clientIps.resolve(http));
     }
 
     @Operation(

@@ -10,7 +10,7 @@
   "paths" : {
     "/api/v1/auth/code/verify" : {
       "post" : {
-        "description" : "IP당 1분에 10회. 반이 없거나 비활성이면 404 INVALID_CODE, 넘으면 429 RATE_LIMITED. CSRF 검사 없음",
+        "description" : "IP당 1분에 10회. 반이 없거나 비활성이거나 학원이 정지면 404 INVALID_CODE, 넘으면 429 RATE_LIMITED. CSRF 검사 없음",
         "operationId" : "verify",
         "requestBody" : {
           "content" : {

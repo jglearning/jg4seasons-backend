@@ -4,7 +4,6 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
@@ -17,6 +16,8 @@ import org.springframework.security.web.SecurityFilterChain;
  */
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfig {
+
+    private static final String CODE_VERIFY = "/api/v1/auth/code/verify";
 
     @Bean
     public SecurityFilterChain securityFilterChain(
@@ -34,11 +35,15 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health")
                         .permitAll()
+                        // 로그인 전 공개 경로(03 §1.1). 쿠키 JWT·메서드 보안으로 바꿀 때(이슈 #9 Task 6) 정리한다
+                        .requestMatchers(HttpMethod.POST, CODE_VERIFY)
+                        .permitAll()
                         .anyRequest()
                         .authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-                .csrf(Customizer.withDefaults())
+                // 로그인 전 요청은 CSRF 검사 제외(03 §0.2)
+                .csrf(csrf -> csrf.ignoringRequestMatchers(CODE_VERIFY))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler));
