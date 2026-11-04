@@ -102,6 +102,18 @@ class RefreshTokenServiceTest {
     }
 
     @Test
+    void 교사_refresh는_14일로_회전한다() {
+        long teacherId = data.staff(academyId, "교사", "teacher");
+        String plain = refreshTokens.create(teacherId, null, SessionTtl.STAFF_REFRESH);
+
+        RefreshOutcome outcome = refreshTokens.rotate(plain);
+
+        assertThat(outcome).isInstanceOf(Rotated.class);
+        assertThat(((Rotated) outcome).owner().role()).isEqualTo(UserRole.TEACHER);
+        assertThat(((Rotated) outcome).refreshTtl()).isEqualTo(Duration.ofDays(14));
+    }
+
+    @Test
     void 유예_안의_옛_토큰은_GraceReuse() {
         String plain = refreshTokens.create(studentId, null);
         refreshTokens.rotate(plain);

@@ -23,7 +23,7 @@ public class MeController {
     }
 
     @Operation(summary = "내 정보", description = "access 쿠키가 없거나 만료면 401 UNAUTHORIZED")
-    @RolesAllowed("STUDENT")
+    @RolesAllowed({"STUDENT", "TEACHER"}) // TEACHER는 역할 계층으로 admin·superadmin 포함(superadmin은 학원이 없어 401)
     @GetMapping("/api/v1/me")
     public MeResponse me(@AuthenticationPrincipal Jwt jwt) {
         Object academy = jwt.getClaim(JwtIssuer.ACADEMY);
