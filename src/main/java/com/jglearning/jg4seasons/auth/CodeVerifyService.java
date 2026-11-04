@@ -6,7 +6,6 @@ import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyResponse;
 import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyResponse.BookInfo;
 import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyResponse.ClassInfo;
 import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyResponse.LevelInfo;
-import com.jglearning.jg4seasons.clazz.api.ClassDirectory;
 import com.jglearning.jg4seasons.clazz.api.ClassEntry;
 import com.jglearning.jg4seasons.content.api.BookDirectory;
 import com.jglearning.jg4seasons.content.api.BookSummary;
@@ -20,17 +19,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class CodeVerifyService {
 
     private final CodeGuessLimiter codeGuessLimiter;
-    private final ClassDirectory classes;
+    private final EnterableClasses enterableClasses;
     private final AcademyDirectory academies;
     private final BookDirectory books;
 
     CodeVerifyService(
             CodeGuessLimiter codeGuessLimiter,
-            ClassDirectory classes,
+            EnterableClasses enterableClasses,
             AcademyDirectory academies,
             BookDirectory books) {
         this.codeGuessLimiter = codeGuessLimiter;
-        this.classes = classes;
+        this.enterableClasses = enterableClasses;
         this.academies = academies;
         this.books = books;
     }
@@ -38,8 +37,8 @@ public class CodeVerifyService {
     /** 반이 없거나 비활성이거나 학원이 정지면 404 INVALID_CODE. IP당 1분 10회를 넘으면 429 RATE_LIMITED */
     public CodeVerifyResponse verify(String rawCode, String clientIp) {
         codeGuessLimiter.acquire(clientIp);
-        ClassEntry clazz = classes.findActiveByAccessCode(AccessCodes.normalize(rawCode))
-                .filter(found -> academies.isActive(found.academyId()))
+        ClassEntry clazz = enterableClasses
+                .find(rawCode)
                 .orElseThrow(() -> new ApiException(AuthErrorCode.INVALID_CODE, "가입 코드를 다시 확인해 주세요"));
         BookSummary book = books.summaryOf(clazz.bookId());
         return new CodeVerifyResponse(new ClassInfo(

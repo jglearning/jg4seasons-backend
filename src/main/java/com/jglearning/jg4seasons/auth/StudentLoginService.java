@@ -1,6 +1,5 @@
 package com.jglearning.jg4seasons.auth;
 
-import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import com.jglearning.jg4seasons.auth.ratelimit.CodeGuessLimiter;
 import com.jglearning.jg4seasons.auth.token.IssuedTokens;
 import com.jglearning.jg4seasons.auth.token.JwtIssuer;
@@ -34,7 +33,7 @@ public class StudentLoginService {
     private static final String LOCKED = "잠시 쉬었다가 다시 시도해 주세요";
 
     private final ClassDirectory classes;
-    private final AcademyDirectory academies;
+    private final EnterableClasses enterableClasses;
     private final CodeGuessLimiter codeGuessLimiter;
     private final LoginAttemptLimiter attempts;
     private final PersonalCodeHasher hasher;
@@ -46,7 +45,7 @@ public class StudentLoginService {
 
     StudentLoginService(
             ClassDirectory classes,
-            AcademyDirectory academies,
+            EnterableClasses enterableClasses,
             CodeGuessLimiter codeGuessLimiter,
             LoginAttemptLimiter attempts,
             PersonalCodeHasher hasher,
@@ -56,7 +55,7 @@ public class StudentLoginService {
             RefreshTokenService refreshTokens,
             Clock clock) {
         this.classes = classes;
-        this.academies = academies;
+        this.enterableClasses = enterableClasses;
         this.codeGuessLimiter = codeGuessLimiter;
         this.attempts = attempts;
         this.hasher = hasher;
@@ -68,8 +67,7 @@ public class StudentLoginService {
     }
 
     public LoginResult login(String rawCode, String personalCode, String clientIp, String userAgent) {
-        Optional<ClassEntry> found = classes.findActiveByAccessCode(AccessCodes.normalize(rawCode))
-                .filter(entry -> academies.isActive(entry.academyId()));
+        Optional<ClassEntry> found = enterableClasses.find(rawCode);
         if (found.isEmpty()) {
             codeGuessLimiter.acquire(clientIp);
             throw new ApiException(AuthErrorCode.INVALID_CREDENTIALS, WRONG);
