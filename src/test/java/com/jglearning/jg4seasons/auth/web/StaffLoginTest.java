@@ -233,6 +233,32 @@ class StaffLoginTest {
     }
 
     @Test
+    void 있는_계정들에_비밀번호를_대입해도_IP당_11번째는_429() {
+        // password spraying: 계정마다 5회 미만으로 나눠 찍으면 계정 잠금에 걸리지 않는다 → IP 한도가 모든 시도를 센다
+        long[] others = new long[3];
+        for (int i = 0; i < 3; i++) {
+            others[i] = data.staff(academyId, "교사" + i, "teacher");
+            identities.save(
+                    AuthIdentity.password(others[i], "spray" + others[i], encoder.encode(PASSWORD), clock.instant()));
+        }
+        for (int i = 0; i < 10; i++) {
+            assertThat(login("spray" + others[i % 3], WRONG)).as("%d번째", i + 1).hasStatus(401);
+        }
+
+        assertThat(login("spray" + others[0], WRONG)).hasStatus(429);
+    }
+
+    @Test
+    void 한도를_넘으면_있는_아이디도_없는_아이디도_같은_429() {
+        for (int i = 0; i < 10; i++) {
+            login("nobody-" + i, PASSWORD);
+        }
+
+        assertThat(login(loginId, PASSWORD)).as("있는 계정·맞는 비밀번호도").hasStatus(429);
+        assertThat(login("nobody-x", PASSWORD)).hasStatus(429);
+    }
+
+    @Test
     void 형식이_틀리면_400() {
         assertThat(login(loginId, "1234567")).as("비밀번호 7자").hasStatus(400);
         assertThat(login("ab", PASSWORD)).as("아이디 2자").hasStatus(400);

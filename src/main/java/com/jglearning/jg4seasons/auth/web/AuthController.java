@@ -90,7 +90,7 @@ public class AuthController {
     @Operation(
             summary = "교사·관리자 로그인",
             description = "성공하면 Set-Cookie access·refresh(14일)·csrf. 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를"
-                    + " 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 없는 아이디는 IP당 1분 10회(429)."
+                    + " 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 시도는 IP당 1분 10회(429, 성공·실패 모두)."
                     + " 아이디는 대소문자 구분 없음. CSRF 검사 없음")
     @PermitAll
     @PostMapping("/staff/login")

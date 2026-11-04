@@ -3,7 +3,10 @@ package com.jglearning.jg4seasons.auth.ratelimit;
 import com.jglearning.jg4seasons.auth.AuthErrorCode;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 
-/** 없는 로그인 아이디 찍기 한도(IP당 1분 10회). 학생 가입 코드 한도와 따로 센다 — 교무실 IP 하나에서 섞이지 않게. */
+/**
+ * 교사·관리자 로그인 시도 한도(IP당 1분 10회, 성공·실패·없는 아이디 모두). 있는 계정들에 나눠 찍는 대입을 막고 429가 계정 존재와 무관하게 나오게.
+ * 학생 가입 코드 한도와 따로 센다 — 교무실 IP 하나에서 섞이지 않게.
+ */
 public class StaffLoginGuessLimiter {
 
     private final FixedWindowCounter counter;

@@ -21,8 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 1.4 교사·관리자 로그인(아이디 + 비밀번호).
  *
- * <p>순서: 아이디 정리 → 비밀번호 수단을 행 잠금으로 읽음(같은 계정 동시 실패가 5회를 넘지 못하게). 없으면 더미 해시와 비교(응답 시간을 맞춰 아이디 존재를
- * 드러내지 않음) + IP 한도 → 401 · 사용자(활성, teacher·admin, 학원 있고 정지 아님) · 잠겼으면 423 · 비밀번호 틀림 → 실패 1회(5번째면 423) · 맞으면
+ * <p>순서: IP 한도(모든 시도, 1분 10회) → 아이디 정리 → 비밀번호 수단을 행 잠금으로 읽음(같은 계정 동시 실패가 5회를 넘지 못하게). 없으면 더미 해시와 비교(응답 시간을 맞춰 아이디 존재를
+ * 드러내지 않음) → 401 · 사용자(활성, teacher·admin, 학원 있고 정지 아님) · 잠겼으면 423 · 비밀번호 틀림 → 실패 1회(5번째면 423) · 맞으면
  * 실패 0, 토큰 발급.
  *
  * <p>틀린 비밀번호의 실패 횟수는 401·423을 던져도 남아야 한다 → ApiException에는 롤백하지 않는다(이 서비스가 쓰는 것은 실패 횟수·잠금·로그인 시각뿐).
@@ -67,10 +67,12 @@ public class StaffLoginService {
     }
 
     public LoginResult login(String rawLoginId, String password, String clientIp, String userAgent) {
+        // 모든 시도를 확인 전에 센다: 있는 계정마다 5회 미만으로 나눠 찍는 대입(password spraying)도 막고,
+        // 429가 계정 존재 여부와 무관하게 나오게(아이디 존재를 드러내지 않음)
+        guessLimiter.acquire(clientIp);
         Optional<AuthIdentity> found = identities.findPasswordIdentityForUpdate(LoginIds.normalize(rawLoginId));
         if (found.isEmpty()) {
             passwordEncoder.matches(password, PasswordConfig.DUMMY_HASH);
-            guessLimiter.acquire(clientIp);
             throw wrong();
         }
         AuthIdentity identity = found.get();
