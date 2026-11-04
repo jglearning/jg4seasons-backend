@@ -230,6 +230,19 @@ class RefreshTokenServiceTest {
     }
 
     @Test
+    void 학원이_없는_사용자의_refresh는_회전하지_않고_Rejected() {
+        // 1차는 학생만 refresh한다. 학원 없는 사용자(시스템 관리자)는 회전한 뒤 거부하면 아무도 안 가진 새 토큰이 남는다
+        jdbc.update("insert into `user` (academy_id, role, name, status) values (null, 'superadmin', '시스템', 'active')");
+        long adminId = jdbc.queryForObject("select max(id) from `user`", Long.class);
+        String plain = refreshTokens.create(adminId, null);
+
+        assertThat(refreshTokens.rotate(plain)).isInstanceOf(Rejected.class);
+        assertThat(jdbc.queryForObject("select count(*) from refresh_token where user_id = ?", Integer.class, adminId))
+                .as("새 토큰을 만들지 않음")
+                .isEqualTo(1);
+    }
+
+    @Test
     void 정지된_학원_사용자의_refresh는_Rejected() {
         String plain = refreshTokens.create(studentId, null);
         jdbc.update("update academy set status = 'suspended' where id = ?", academyId);

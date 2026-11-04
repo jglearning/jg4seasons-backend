@@ -100,8 +100,9 @@ public class RefreshTokenService {
     }
 
     private Optional<RefreshOwner> activeOwner(long userId) {
+        // 1차는 학원에 속한 사용자만 refresh한다(학원 없는 시스템 관리자는 HTTP 로그인이 2차). 회전 전에 걸러 부수효과 없이 거부
         return owners.findActiveOwner(userId)
-                .filter(owner -> owner.academyId() == null || academies.isActive(owner.academyId()));
+                .filter(owner -> owner.academyId() != null && academies.isActive(owner.academyId()));
     }
 
     private static String truncate(String userAgent) {
