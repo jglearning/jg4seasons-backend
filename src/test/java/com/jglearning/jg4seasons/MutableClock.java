@@ -19,6 +19,11 @@ public final class MutableClock extends Clock {
         now = now.plus(duration);
     }
 
+    /** 현재 시스템 시각으로 되돌린다. 공유 컨텍스트의 시계를 움직인 테스트는 끝에 부른다 */
+    public void reset() {
+        now = Clock.systemUTC().instant();
+    }
+
     public void set(Instant instant) {
         now = instant;
     }
