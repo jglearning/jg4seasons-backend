@@ -68,7 +68,7 @@ public class RefreshTokenService {
                         .<RefreshOutcome>map(RefreshOutcome.GraceReuse::new)
                         .orElseGet(RefreshOutcome.Rejected::new);
             }
-            tokens.killAllOf(token.userId(), now);
+            tokens.killAllOf(token.userId(), RefreshTokenRepository.floor(now));
             return new RefreshOutcome.Rejected();
         }
         Optional<RefreshOwner> owner = activeOwner(token.userId());
@@ -89,7 +89,7 @@ public class RefreshTokenService {
 
     /** 그 사용자의 refresh를 모두 끊는다(개인 코드 재발급·퇴원 등) */
     public void killAllOf(long userId) {
-        tokens.killAllOf(userId, clock.instant());
+        tokens.killAllOf(userId, RefreshTokenRepository.floor(clock.instant()));
     }
 
     private Optional<RefreshOwner> activeOwner(long userId) {

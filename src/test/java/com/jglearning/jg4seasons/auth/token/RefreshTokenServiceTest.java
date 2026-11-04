@@ -161,6 +161,35 @@ class RefreshTokenServiceTest {
     }
 
     @Test
+    void 로그아웃_직후_DB_초_반올림이_있어도_바로_Rejected() {
+        // DATETIME은 소수 초를 반올림한다: 12:00:00.600에 끊으면 12:00:01로 저장돼 0.4초 동안 "만료 전·유예 안"으로 보일 수 있다
+        clock.advance(Duration.ofMillis(600));
+        String plain = refreshTokens.create(studentId, null);
+        refreshTokens.revoke(plain);
+        entityManager.flush();
+        entityManager.clear();
+
+        clock.advance(Duration.ofMillis(200));
+
+        assertThat(refreshTokens.rotate(plain)).isInstanceOf(Rejected.class);
+    }
+
+    @Test
+    void 재사용_감지_직후_DB_초_반올림이_있어도_새_토큰은_Rejected() {
+        clock.advance(Duration.ofMillis(600));
+        String plain = refreshTokens.create(studentId, null);
+        String rotated = ((Rotated) refreshTokens.rotate(plain)).newRefresh();
+        clock.advance(GRACE.plusSeconds(1));
+        refreshTokens.rotate(plain); // 유예 뒤 재사용 → 전부 끊기
+        entityManager.flush();
+        entityManager.clear();
+
+        clock.advance(Duration.ofMillis(200));
+
+        assertThat(refreshTokens.rotate(rotated)).isInstanceOf(Rejected.class);
+    }
+
+    @Test
     void 비활성_사용자의_refresh는_Rejected() {
         String plain = refreshTokens.create(studentId, null);
         jdbc.update("update `user` set status = 'inactive' where id = ?", studentId);

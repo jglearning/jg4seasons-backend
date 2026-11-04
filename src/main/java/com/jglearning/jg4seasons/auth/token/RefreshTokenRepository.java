@@ -23,5 +23,10 @@ interface RefreshTokenRepository extends Repository<RefreshToken, Long> {
             + " where t.userId = :userId and t.expiresAt > :now")
     int killAllOf(@Param("userId") long userId, @Param("now") Instant now);
 
+    /** killAllOf에 넘기는 시각은 초를 내린다(RefreshToken.floorToSecond 참고) */
+    static Instant floor(Instant now) {
+        return RefreshToken.floorToSecond(now);
+    }
+
     RefreshToken save(RefreshToken token);
 }

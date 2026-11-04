@@ -7,12 +7,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 /**
  * refresh 토큰. token_hash = 쿠키 값의 SHA-256 hex(평문 없음).
  *
  * <p>폐기는 두 가지다. 회전: revoked_at만 기록 — 유예 안에 다시 오면 GraceReuse. 끊기(로그아웃·재사용 감지): revoked_at과 expires_at을 함께
- * 지금으로 — 만료로 먼저 걸려 유예 없이 거부. 폐기 사유 칸이 없어 이렇게 구분한다. DB DATETIME은 초 단위다.
+ * 지금으로 — 만료로 먼저 걸려 유예 없이 거부. 폐기 사유 칸이 없어 이렇게 구분한다. DB DATETIME은 초 단위(반올림)라 저장하는 시각은 초를 내린다.
  */
 @Entity
 @Table(name = "refresh_token")
@@ -66,16 +67,24 @@ public class RefreshToken {
         return userAgent;
     }
 
-    /** 회전: 유예 판정을 위해 폐기 시각만 */
+    /** 회전: 유예 판정을 위해 폐기 시각만(초 내림) */
     void markRotated(Instant now) {
-        this.revokedAt = now;
+        this.revokedAt = floorToSecond(now);
     }
 
-    /** 끊기: 유예 없이 바로 거부되게 만료도 지금으로 */
+    /** 끊기: 유예 없이 바로 거부되게 만료도 지금으로(초 내림) */
     void kill(Instant now) {
         if (revokedAt == null) {
-            this.revokedAt = now;
+            this.revokedAt = floorToSecond(now);
         }
-        this.expiresAt = now;
+        this.expiresAt = floorToSecond(now);
+    }
+
+    /**
+     * DB DATETIME은 소수 초를 반올림한다. 12:00:00.600에 끊으면 12:00:01로 저장돼 0.4초 동안 "만료 전"으로 보인다. 저장 전에 초를 내려 저장값이 항상 지금
+     * 이하가 되게 한다.
+     */
+    static Instant floorToSecond(Instant instant) {
+        return instant.truncatedTo(ChronoUnit.SECONDS);
     }
 }
