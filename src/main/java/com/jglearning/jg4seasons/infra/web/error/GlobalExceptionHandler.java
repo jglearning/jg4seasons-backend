@@ -51,6 +51,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         ProblemDetail problem = Problems.of(ex.errorCode(), ex.detail(), request);
         ex.extensions().forEach(problem::setProperty);
+        if (ex.errorCode() == CommonErrorCode.VALIDATION) {
+            // 400 VALIDATION은 언제나 칸별 errors[] — 서비스 검사에서 던진 것도 같은 형식
+            String message = ex.detail() != null ? ex.detail() : ex.errorCode().title();
+            problem.setProperty(Problems.ERRORS, List.of(fieldError(ex.field() != null ? ex.field() : BODY, message)));
+        }
         return ResponseEntity.status(ex.errorCode().status()).body(problem);
     }
 

@@ -152,7 +152,7 @@ class StaffAccountService implements StaffAccounts {
     private static String loginId(String raw) {
         String loginId = raw == null ? "" : LoginIds.normalize(raw);
         if (!LOGIN_ID.matcher(loginId).matches()) {
-            throw new ApiException(CommonErrorCode.VALIDATION, LoginIds.MESSAGE);
+            throw ApiException.validation("loginId", LoginIds.MESSAGE);
         }
         return loginId;
     }
@@ -161,7 +161,7 @@ class StaffAccountService implements StaffAccounts {
         if (password == null
                 || password.length() < MIN_PASSWORD
                 || password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
-            throw new ApiException(CommonErrorCode.VALIDATION, "비밀번호는 8자 이상, 72바이트 이하예요");
+            throw ApiException.validation("password", "비밀번호는 8자 이상, 72바이트 이하예요");
         }
         return passwordEncoder.encode(password);
     }
@@ -169,7 +169,7 @@ class StaffAccountService implements StaffAccounts {
     private static String name(String name) {
         String trimmed = name == null ? "" : name.strip();
         if (trimmed.isEmpty() || trimmed.length() > 30) {
-            throw new ApiException(CommonErrorCode.VALIDATION, "이름은 1~30자예요");
+            throw ApiException.validation("name", "이름은 1~30자예요");
         }
         return trimmed;
     }

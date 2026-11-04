@@ -113,6 +113,16 @@ class ErrorProbeController {
         throw new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요").with("lessonCode", "L2-B1-99");
     }
 
+    @GetMapping("/service-validation")
+    Map<String, Boolean> serviceValidation() {
+        throw ApiException.validation("password", "비밀번호는 72바이트 이하예요");
+    }
+
+    @GetMapping("/service-validation-no-field")
+    Map<String, Boolean> serviceValidationNoField() {
+        throw new ApiException(CommonErrorCode.VALIDATION, "입력이 맞지 않아요");
+    }
+
     @GetMapping("/locked")
     Map<String, Boolean> locked() {
         throw new ApiException(ProbeErrorCode.PROBE_LOCKED, "10분 뒤에 다시 시도해 주세요")

@@ -22,6 +22,7 @@ public class ApiException extends RuntimeException {
     private final ErrorCode errorCode;
     private final String detail;
     private final Map<String, Object> extensions = new LinkedHashMap<>();
+    private String field;
 
     public ApiException(ErrorCode errorCode) {
         this(errorCode, null, null);
@@ -35,6 +36,17 @@ public class ApiException extends RuntimeException {
         super(errorCode.code(), cause);
         this.errorCode = errorCode;
         this.detail = detail;
+    }
+
+    /**
+     * 400 VALIDATION: 서비스 검사에서 걸린 칸. 응답 errors[]에 {field, message}로 나간다(Bean Validation과 같은 형식).
+     *
+     * @param field 요청 칸 이름(예: password). 입력값은 넣지 않는다
+     */
+    public static ApiException validation(String field, String message) {
+        ApiException exception = new ApiException(CommonErrorCode.VALIDATION, message);
+        exception.field = field;
+        return exception;
     }
 
     /** 확장 필드 추가(예: LOCKED의 until). 예약어(code·requestId·errors·표준 필드)와 null 값은 거부한다 */
@@ -56,6 +68,11 @@ public class ApiException extends RuntimeException {
     /** 사용자 문구. null이면 응답 detail은 code의 title */
     public String detail() {
         return detail;
+    }
+
+    /** VALIDATION일 때 문제 칸. 모르면 null(응답에는 body) */
+    public String field() {
+        return field;
     }
 
     public Map<String, Object> extensions() {

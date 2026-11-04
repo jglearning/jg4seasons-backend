@@ -270,6 +270,22 @@ class TeacherAdminTest {
     }
 
     @Test
+    void 서비스_검사에서_걸린_400도_어느_칸인지_알려_준다() {
+        // DTO는 글자 수(72자)만 보고, 72바이트 초과(한글 25자 = 75바이트)·공백뿐인 이름은 서비스가 거른다
+        MvcTestResult longPassword = create(
+                adminCookies(),
+                "{\"name\":\"김교사\",\"loginId\":\"byte-teacher\",\"password\":\"" + "가".repeat(25)
+                        + "\",\"role\":\"teacher\",\"classIds\":[]}");
+        long teacherId = createdId(create(adminCookies(), newTeacher("blank-name")));
+        MvcTestResult blankName = update(adminCookies(), teacherId, "{\"name\":\"   \"}");
+
+        assertThat(longPassword).hasStatus(400);
+        assertThat(longPassword).bodyJson().extractingPath("$.errors[0].field").isEqualTo("password");
+        assertThat(blankName).hasStatus(400);
+        assertThat(blankName).bodyJson().extractingPath("$.errors[0].field").isEqualTo("name");
+    }
+
+    @Test
     void 형식이_틀리면_400() {
         assertThat(
                         create(
