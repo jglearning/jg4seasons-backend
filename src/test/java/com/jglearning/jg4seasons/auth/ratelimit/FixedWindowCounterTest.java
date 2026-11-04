@@ -55,6 +55,40 @@ class FixedWindowCounterTest {
     }
 
     @Test
+    void 끝난_창_정리는_창마다_한_번만_한다() {
+        // 정리 기준 2개, 상한 넉넉히. 키가 많을 때 호출마다 전체를 훑지 않게(CPU 증폭 방지)
+        FixedWindowCounter small = new FixedWindowCounter(clock, 10, Duration.ofMinutes(1), 2, 1_000);
+        small.tryAcquire("a");
+        small.tryAcquire("b");
+        small.tryAcquire("c");
+        clock.advance(Duration.ofMillis(1));
+        small.tryAcquire("d"); // 기준 초과 → 정리(끝난 창 없음). 다음 정리는 1분 뒤부터
+        clock.advance(Duration.ofMinutes(1).minusMillis(1).plusNanos(500_000)); // a·b·c 끝남, d는 아직
+
+        small.tryAcquire("e");
+        assertThat(small.size()).as("정리한 지 1분이 안 돼 a·b·c가 남는다").isEqualTo(5);
+
+        clock.advance(Duration.ofMillis(1));
+        small.tryAcquire("f");
+        assertThat(small.size()).as("1분이 지나 끝난 창(a·b·c·d)을 지운다").isEqualTo(2);
+    }
+
+    @Test
+    void 키가_상한에_차면_새_키는_거부하고_있던_키는_센다() {
+        FixedWindowCounter capped = new FixedWindowCounter(clock, 10, Duration.ofMinutes(1), 1, 3);
+        capped.tryAcquire("a");
+        capped.tryAcquire("b");
+        capped.tryAcquire("c");
+
+        assertThat(capped.tryAcquire("d")).as("상한 3개, 끝난 창 없음").isFalse();
+        assertThat(capped.tryAcquire("a")).isTrue();
+        assertThat(capped.size()).isEqualTo(3);
+
+        clock.advance(Duration.ofMinutes(1));
+        assertThat(capped.tryAcquire("d")).as("창이 끝나 정리되면 다시 받는다").isTrue();
+    }
+
+    @Test
     void 창이_지난_키는_count가_0이다() {
         counter.tryAcquire("ip");
         clock.advance(Duration.ofMinutes(1));
