@@ -26,7 +26,7 @@ public class StudentLoginService {
 
     public record LoginResult(StudentLoginResponse body, IssuedTokens tokens) {}
 
-    private static final String WRONG = "가입 코드와 개인 코드를 다시 확인해 주세요";
+    private static final String WRONG = "가입 코드 또는 개인 코드가 맞지 않아요";
     private static final String LOCKED = "잠시 쉬었다가 다시 시도해 주세요";
 
     private final ClassDirectory classes;

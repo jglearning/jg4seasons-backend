@@ -202,7 +202,8 @@ class StudentLoginTest {
 
         assertThat(result).hasStatus(401).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("INVALID_CREDENTIALS");
-        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo("가입 코드 또는 개인 코드가 맞지 않아요");
+        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo("입력한 정보가 맞지 않아요");
+        assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("가입 코드 또는 개인 코드가 맞지 않아요");
         assertThat(setCookies(result)).isEmpty();
     }
 
