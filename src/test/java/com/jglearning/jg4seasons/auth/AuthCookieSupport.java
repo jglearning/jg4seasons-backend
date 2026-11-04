@@ -17,12 +17,12 @@ public class AuthCookieSupport {
         this.issuer = issuer;
     }
 
-    public Cookie access(long userId, String role, Long academyId) {
+    public Cookie access(long userId, UserRole role, Long academyId) {
         return new Cookie("access", issuer.issueAccess(userId, role, academyId));
     }
 
     public Cookie studentAccess(long userId, long academyId) {
-        return access(userId, "student", academyId);
+        return access(userId, UserRole.STUDENT, academyId);
     }
 
     public static Cookie csrf() {

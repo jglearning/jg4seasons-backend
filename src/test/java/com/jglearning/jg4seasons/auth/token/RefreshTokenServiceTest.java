@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
+import com.jglearning.jg4seasons.auth.UserRole;
 import com.jglearning.jg4seasons.auth.token.RefreshOutcome.GraceReuse;
 import com.jglearning.jg4seasons.auth.token.RefreshOutcome.Rejected;
 import com.jglearning.jg4seasons.auth.token.RefreshOutcome.Rotated;
@@ -88,7 +89,7 @@ class RefreshTokenServiceTest {
         Rotated rotated = (Rotated) outcome;
         assertThat(rotated.owner().id()).isEqualTo(studentId);
         assertThat(rotated.owner().academyId()).isEqualTo(academyId);
-        assertThat(rotated.owner().role()).isEqualTo("student");
+        assertThat(rotated.owner().role()).isEqualTo(UserRole.STUDENT);
         assertThat(rotated.refreshTtl()).isEqualTo(Duration.ofDays(90));
         assertThat(rotated.newRefresh()).isNotEqualTo(plain);
         entityManager.flush(); // 같은 트랜잭션 안에서 JDBC로 읽기 전에 JPA 변경을 내보낸다

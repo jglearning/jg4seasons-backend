@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.auth.token;
 
+import com.jglearning.jg4seasons.auth.UserRole;
 import java.time.Duration;
 
 /** 세션 수명(API 명세 §0.1): access 30분, refresh 학생 90일 · 교사·관리자 14일. */
@@ -11,8 +12,11 @@ public final class SessionTtl {
 
     private SessionTtl() {}
 
-    /** @param role user.role 값(소문자) */
-    public static Duration refreshFor(String role) {
-        return "student".equals(role) ? STUDENT_REFRESH : STAFF_REFRESH;
+    /** 역할이 늘면 컴파일러가 여기를 짚는다(default 없음) */
+    public static Duration refreshFor(UserRole role) {
+        return switch (role) {
+            case STUDENT -> STUDENT_REFRESH;
+            case TEACHER, ADMIN, SUPERADMIN -> STAFF_REFRESH;
+        };
     }
 }

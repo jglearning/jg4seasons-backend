@@ -2,10 +2,7 @@ package com.jglearning.jg4seasons.auth;
 
 import com.jglearning.jg4seasons.auth.ratelimit.CodeGuessLimiter;
 import com.jglearning.jg4seasons.auth.token.IssuedTokens;
-import com.jglearning.jg4seasons.auth.token.JwtIssuer;
-import com.jglearning.jg4seasons.auth.token.RandomTokens;
-import com.jglearning.jg4seasons.auth.token.RefreshTokenService;
-import com.jglearning.jg4seasons.auth.token.SessionTtl;
+import com.jglearning.jg4seasons.auth.token.TokenIssuer;
 import com.jglearning.jg4seasons.auth.web.dto.StudentLoginResponse;
 import com.jglearning.jg4seasons.clazz.api.ClassDirectory;
 import com.jglearning.jg4seasons.clazz.api.ClassEntry;
@@ -39,8 +36,7 @@ public class StudentLoginService {
     private final PersonalCodeHasher hasher;
     private final AuthIdentityRepository identities;
     private final UserRepository users;
-    private final JwtIssuer jwtIssuer;
-    private final RefreshTokenService refreshTokens;
+    private final TokenIssuer tokenIssuer;
     private final Clock clock;
 
     StudentLoginService(
@@ -51,8 +47,7 @@ public class StudentLoginService {
             PersonalCodeHasher hasher,
             AuthIdentityRepository identities,
             UserRepository users,
-            JwtIssuer jwtIssuer,
-            RefreshTokenService refreshTokens,
+            TokenIssuer tokenIssuer,
             Clock clock) {
         this.classes = classes;
         this.enterableClasses = enterableClasses;
@@ -61,8 +56,7 @@ public class StudentLoginService {
         this.hasher = hasher;
         this.identities = identities;
         this.users = users;
-        this.jwtIssuer = jwtIssuer;
-        this.refreshTokens = refreshTokens;
+        this.tokenIssuer = tokenIssuer;
         this.clock = clock;
     }
 
@@ -96,11 +90,7 @@ public class StudentLoginService {
         Instant now = clock.instant();
         user.recordLogin(now);
         identity.get().markUsed(now);
-        IssuedTokens tokens = new IssuedTokens(
-                jwtIssuer.issueAccess(user.getId(), user.getRole().value(), clazz.academyId()),
-                refreshTokens.create(user.getId(), userAgent, SessionTtl.STUDENT_REFRESH),
-                RandomTokens.next(),
-                SessionTtl.STUDENT_REFRESH);
+        IssuedTokens tokens = tokenIssuer.issue(user.getId(), user.getRole(), clazz.academyId(), userAgent);
         StudentLoginResponse body = new StudentLoginResponse(
                 new StudentLoginResponse.UserInfo(
                         user.getId(), user.getName(), user.getRole().value()),
