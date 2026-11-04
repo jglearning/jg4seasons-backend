@@ -141,8 +141,11 @@ class StaffAccountService implements StaffAccounts {
                 user.getId(),
                 user.getName(),
                 loginId,
-                user.getRole() == UserRole.ADMIN ? StaffRole.ADMIN : StaffRole.TEACHER,
-                user.isActive() ? AccountStatus.ACTIVE : AccountStatus.INACTIVE,
+                toStaffRole(user.getRole()),
+                switch (user.getStatus()) {
+                    case ACTIVE -> AccountStatus.ACTIVE;
+                    case INACTIVE -> AccountStatus.INACTIVE;
+                },
                 user.getLastLoginAt());
     }
 
@@ -169,6 +172,15 @@ class StaffAccountService implements StaffAccounts {
             throw new ApiException(CommonErrorCode.VALIDATION, "이름은 1~30자예요");
         }
         return trimmed;
+    }
+
+    /** 교사·관리자만 여기까지 온다(staff() 필터). 값이 늘면 컴파일러가 짚는다(default 없음) */
+    private static StaffRole toStaffRole(UserRole role) {
+        return switch (role) {
+            case TEACHER -> StaffRole.TEACHER;
+            case ADMIN -> StaffRole.ADMIN;
+            case STUDENT, SUPERADMIN -> throw new IllegalStateException("교사 계정이 아니다: " + role);
+        };
     }
 
     private static UserRole toUserRole(StaffRole role) {

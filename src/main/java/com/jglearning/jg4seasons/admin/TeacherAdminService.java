@@ -13,7 +13,6 @@ import com.jglearning.jg4seasons.auth.api.StaffRole;
 import com.jglearning.jg4seasons.clazz.api.ClassTeachers;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +45,9 @@ public class TeacherAdminService {
     public TeacherResponse create(long academyId, long actorId, TeacherCreateRequest request) {
         accounts.requireActiveAdmin(academyId, actorId);
         StaffAccount created = accounts.create(
-                academyId, new NewStaff(request.name(), request.loginId(), request.password(), role(request.role())));
+                academyId,
+                new NewStaff(
+                        request.name(), request.loginId(), request.password(), StaffRole.fromValue(request.role())));
         classTeachers.replace(academyId, created.id(), new HashSet<>(request.classIds()));
         return toResponse(academyId, created);
     }
@@ -59,7 +60,7 @@ public class TeacherAdminService {
                 teacherId,
                 new StaffChange(
                         Optional.ofNullable(request.name()),
-                        Optional.ofNullable(request.status()).map(TeacherAdminService::status),
+                        Optional.ofNullable(request.status()).map(AccountStatus::fromValue),
                         Optional.ofNullable(request.password())));
         if (request.classIds() != null) {
             classTeachers.replace(academyId, teacherId, new HashSet<>(request.classIds()));
@@ -72,17 +73,9 @@ public class TeacherAdminService {
                 account.id(),
                 account.name(),
                 account.loginId(),
-                account.role().name().toLowerCase(Locale.ROOT),
-                account.status().name().toLowerCase(Locale.ROOT),
+                account.role().value(),
+                account.status().value(),
                 classTeachers.classIdsOf(academyId, account.id()),
                 account.lastLoginAt());
-    }
-
-    private static StaffRole role(String value) {
-        return "admin".equals(value) ? StaffRole.ADMIN : StaffRole.TEACHER;
-    }
-
-    private static AccountStatus status(String value) {
-        return "inactive".equals(value) ? AccountStatus.INACTIVE : AccountStatus.ACTIVE;
     }
 }
