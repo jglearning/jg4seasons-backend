@@ -74,6 +74,19 @@ class ClientIpResolverTest {
     }
 
     @Test
+    void 빈_항목은_건너뛰고_남는_값이_없으면_연결_주소를_쓴다() {
+        MockHttpServletRequest trailing = request();
+        trailing.addHeader("X-Real-IP", "203.0.113.7,  ");
+        MockHttpServletRequest onlyCommas = request();
+        onlyCommas.addHeader("X-Real-IP", " , ,");
+
+        assertThat(resolver("X-Real-IP").resolve(trailing)).isEqualTo("203.0.113.7");
+        assertThat(resolver("X-Real-IP").resolve(onlyCommas))
+                .as("빈 키로 모두 같은 칸에 세지 않게")
+                .isEqualTo("10.0.0.5");
+    }
+
+    @Test
     void 설정한_헤더가_요청에_없으면_연결_주소를_쓰고_1분에_한_번_WARN(CapturedOutput output) {
         ClientIpResolver resolver = resolver("X-Real-IP");
 

@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * 설정하지 않으면 믿지 않는다. 운영은 앞단 프록시가 덮어쓰는 헤더 하나를 지정한다.
  *
  * <ul>
- *   <li>쉼표 목록이면 마지막 값(가장 가까운 프록시가 붙인 값). 첫 값은 클라이언트가 보낸 값일 수 있다
+ *   <li>쉼표 목록이면 비어 있지 않은 마지막 값(가장 가까운 프록시가 붙인 값). 첫 값은 클라이언트가 보낸 값일 수 있다
  *   <li>`IPv4:포트`·`[IPv6]:포트`는 포트를 뗀다. 대괄호 없는 IPv6는 포트와 구분할 수 없어 그대로 — 프록시는 포트 없는 IP를 넘겨야 한다
  *   <li>설정한 헤더가 요청에 없으면 연결 주소(대개 프록시 하나)로 세게 되어 한 반 전체가 같이 잠길 수 있다 → 1분에 한 번 WARN
  * </ul>
@@ -49,12 +49,16 @@ public class ClientIpResolver {
             return request.getRemoteAddr();
         }
         String value = request.getHeader(header);
-        if (value == null || value.isBlank()) {
-            warnMissingHeader(request);
-            return request.getRemoteAddr();
+        String[] hops = value == null ? new String[0] : value.split(",");
+        for (int i = hops.length - 1; i >= 0; i--) {
+            String hop = hops[i].trim();
+            if (!hop.isEmpty()) {
+                return normalize(hop);
+            }
         }
-        String[] hops = value.split(",");
-        return normalize(hops[hops.length - 1].trim());
+        // 헤더가 없거나 빈 항목뿐 — 빈 문자열을 키로 쓰면 모두 한 칸에서 세진다
+        warnMissingHeader(request);
+        return request.getRemoteAddr();
     }
 
     private void warnMissingHeader(HttpServletRequest request) {
