@@ -70,8 +70,11 @@ public class LoginAttemptLimiter implements LoginAlerts {
         this.hardCap = hardCap;
     }
 
-    /** 잠겨 있으면 해제 시각 */
-    public Optional<Instant> lockedUntil(long classId, String clientIp) {
+    /**
+     * 잠겨 있으면 해제 시각. 패키지 안(recordFailure·테스트)에서만 — 밖에서 "잠겼나 확인 → 코드 확인 → 실패 기록"으로 쓰면 동시 요청이 그 사이를
+     * 지나간다. 로그인은 beginAttempt로 시작한다
+     */
+    Optional<Instant> lockedUntil(long classId, String clientIp) {
         Instant now = clock.instant();
         Attempts current = attempts.get(key(classId, clientIp));
         return current != null && current.lockedAt(now) ? Optional.of(current.lockedUntil()) : Optional.empty();
