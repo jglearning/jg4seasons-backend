@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.auth;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import java.util.Locale;
 
 /** auth_identity.provider. DB 값은 소문자(personal_code 등). */
 public enum AuthProvider {
@@ -14,12 +15,12 @@ public enum AuthProvider {
 
         @Override
         public String convertToDatabaseColumn(AuthProvider provider) {
-            return provider == null ? null : provider.name().toLowerCase();
+            return provider == null ? null : provider.name().toLowerCase(Locale.ROOT);
         }
 
         @Override
         public AuthProvider convertToEntityAttribute(String value) {
-            return value == null ? null : AuthProvider.valueOf(value.toUpperCase());
+            return value == null ? null : AuthProvider.valueOf(value.toUpperCase(Locale.ROOT));
         }
     }
 }

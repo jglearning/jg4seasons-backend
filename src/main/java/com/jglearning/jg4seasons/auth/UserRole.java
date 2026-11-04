@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.auth;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import java.util.Locale;
 
 /** user.role. DB·응답·JWT role 값은 소문자(student 등). */
 public enum UserRole {
@@ -12,7 +13,7 @@ public enum UserRole {
 
     /** DB·응답·JWT에 쓰는 값 */
     public String value() {
-        return name().toLowerCase();
+        return name().toLowerCase(Locale.ROOT);
     }
 
     @Converter
@@ -25,7 +26,7 @@ public enum UserRole {
 
         @Override
         public UserRole convertToEntityAttribute(String value) {
-            return value == null ? null : UserRole.valueOf(value.toUpperCase());
+            return value == null ? null : UserRole.valueOf(value.toUpperCase(Locale.ROOT));
         }
     }
 }
