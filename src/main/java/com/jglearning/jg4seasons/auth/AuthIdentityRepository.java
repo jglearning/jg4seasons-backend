@@ -25,4 +25,6 @@ public interface AuthIdentityRepository extends Repository<AuthIdentity, Long> {
     Optional<AuthIdentity> findPasswordIdentityForUpdate(@Param("loginId") String loginId);
 
     AuthIdentity save(AuthIdentity identity);
+
+    AuthIdentity saveAndFlush(AuthIdentity identity);
 }

@@ -11,6 +11,10 @@ public enum AuthErrorCode implements ErrorCode {
     INVALID_CODE(HttpStatus.NOT_FOUND, "가입 코드를 찾을 수 없어요"),
     /** (반, IP) 5회 실패 → 10분. 확장 필드 until(해제 시각, UTC) */
     LOCKED(HttpStatus.LOCKED, "잠시 후 다시 시도해 주세요"),
+    /** 교사 계정: 로그인 아이디가 이미 있다(전체 학원에서 고유) */
+    LOGIN_ID_TAKEN(HttpStatus.CONFLICT, "이미 쓰고 있는 아이디예요"),
+    /** 교사 계정: 자기 계정 비활성화(학원에 관리자가 0명이 되지 않게) */
+    SELF_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "자기 계정은 바꿀 수 없는 항목이에요"),
     /** 가입 코드 확인·찍기 과다 */
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "너무 많이 시도했어요");
 

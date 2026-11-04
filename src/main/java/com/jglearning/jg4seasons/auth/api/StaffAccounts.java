@@ -1,0 +1,21 @@
+package com.jglearning.jg4seasons.auth.api;
+
+import java.util.List;
+
+/**
+ * 교사·관리자 계정(ADM-04). 다른 모듈(admin)이 쓴다. academyId·actorId는 인증 주체(JWT)에서 온 값이어야 한다.
+ *
+ * <p>다른 학원 계정·학생 id는 404 NOT_FOUND. 아이디는 공백 제거 + 소문자, 3~30자 영문·숫자·.·_·-(아니면 400 VALIDATION), 이미 있으면(전체 학원)
+ * 409 LOGIN_ID_TAKEN. 비밀번호는 8자 이상·72바이트 이하(아니면 400). 자기 비활성화는 409 SELF_CHANGE_NOT_ALLOWED. 비활성화·비밀번호 재설정이면
+ * 그 사용자의 refresh를 모두 끊는다.
+ */
+public interface StaffAccounts {
+
+    List<StaffAccount> list(long academyId);
+
+    StaffAccount find(long academyId, long staffId);
+
+    StaffAccount create(long academyId, NewStaff staff);
+
+    StaffAccount change(long academyId, long actorId, long staffId, StaffChange change);
+}
