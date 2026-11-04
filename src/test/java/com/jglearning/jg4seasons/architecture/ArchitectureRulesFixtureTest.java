@@ -29,8 +29,10 @@ import com.jglearning.archfixture.listening.api.PlayCountQuery;
 import com.jglearning.archfixture.listening.apix.Lookalike;
 import com.jglearning.archfixture.listening.persistence.CustomQueryRepository;
 import com.jglearning.archfixture.listening.session.SessionStore;
+import com.jglearning.archfixture.listening.web.ClassLevelRuleController;
 import com.jglearning.archfixture.listening.web.DtoController;
 import com.jglearning.archfixture.listening.web.EntityListController;
+import com.jglearning.archfixture.listening.web.NoAccessRuleController;
 import com.jglearning.archfixture.listening.web.PackagePrivateEntityController;
 import com.jglearning.archfixture.listening.web.RepoCallingController;
 import com.jglearning.archfixture.listening.web.ResponseBodyController;
@@ -274,5 +276,20 @@ class ArchitectureRulesFixtureTest {
                         LessonView.class,
                         PlayCountQuery.class))
                 .isTrue();
+    }
+
+    @Test
+    void 접근_규칙_없는_핸들러를_잡는다() {
+        List<String> details =
+                violationDetails(ArchitectureRules.controllerMethodsHaveAccessRule(), NoAccessRuleController.class);
+
+        assertThat(details).hasSize(1);
+        assertThat(details.get(0)).contains("noRule");
+    }
+
+    @Test
+    void 클래스에_붙은_접근_규칙도_인정한다() {
+        assertThat(violates(ArchitectureRules.controllerMethodsHaveAccessRule(), ClassLevelRuleController.class))
+                .isFalse();
     }
 }

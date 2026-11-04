@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.infra.web.error;
 
 import io.swagger.v3.oas.annotations.Hidden;
+import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>/error는 Security에서 열어 둔다 — 막혀 있으면 원래 400·500이 401 "로그인이 필요해요"로 바뀌어 나갔다.
  */
 @Hidden
+@PermitAll // /error: 누구나. 인증·권한 실패 응답도 여기서 만든다(URL 층에서도 열림)
 @RestController
 public class ProblemErrorController implements ErrorController {
 

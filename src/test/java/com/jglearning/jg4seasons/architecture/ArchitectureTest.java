@@ -18,6 +18,9 @@ class ArchitectureTest {
     static final ArchRule 컨트롤러는_엔티티를_반환하지_않는다 = ArchitectureRules.controllersDoNotReturnEntities();
 
     @ArchTest
+    static final ArchRule 모든_컨트롤러_메서드에_접근_규칙이_있다 = ArchitectureRules.controllerMethodsHaveAccessRule();
+
+    @ArchTest
     static final ArchRule 시간은_주입된_Clock으로만_얻는다 = ArchitectureRules.timeComesOnlyFromInjectedClock(BASE);
 
     @ArchTest

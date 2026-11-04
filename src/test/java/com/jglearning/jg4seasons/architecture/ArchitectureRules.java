@@ -18,6 +18,9 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import jakarta.annotation.security.DenyAll;
+import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManager;
 import java.lang.reflect.Parameter;
@@ -119,6 +122,36 @@ final class ArchitectureRules {
                     }
                 })
                 .allowEmptyShould(true);
+    }
+
+    /**
+     * 핸들러 메서드(@RequestMapping 계열)마다 접근 규칙(@PermitAll·@RolesAllowed·@DenyAll)이 메서드나 클래스에 있어야 한다. 서버 기동 때도
+     * AccessRuleVerifier가 같은 것을 확인한다(규칙 없으면 기동 실패).
+     */
+    static ArchRule controllerMethodsHaveAccessRule() {
+        return methods()
+                .that()
+                .areDeclaredInClassesThat()
+                .areMetaAnnotatedWith(Controller.class)
+                .and()
+                .areMetaAnnotatedWith(RequestMapping.class)
+                .should(new ArchCondition<JavaMethod>("접근 규칙(@PermitAll·@RolesAllowed·@DenyAll)이 있다") {
+                    @Override
+                    public void check(JavaMethod method, ConditionEvents events) {
+                        if (!hasAccessRule(method) && !hasAccessRule(method.getOwner())) {
+                            events.add(SimpleConditionEvent.violated(
+                                    method,
+                                    method.getFullName() + "에 접근 규칙이 없다(메서드나 클래스에 @PermitAll·@RolesAllowed·@DenyAll)"));
+                        }
+                    }
+                })
+                .allowEmptyShould(true);
+    }
+
+    private static boolean hasAccessRule(com.tngtech.archunit.core.domain.properties.CanBeAnnotated annotated) {
+        return annotated.isAnnotatedWith(PermitAll.class)
+                || annotated.isAnnotatedWith(RolesAllowed.class)
+                || annotated.isAnnotatedWith(DenyAll.class);
     }
 
     /**
