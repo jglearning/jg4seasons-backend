@@ -98,6 +98,11 @@ public class AuthIdentity {
         return lockedUntil != null && now.isBefore(lockedUntil);
     }
 
+    /** 지금까지 연속으로 틀린 횟수(로그용) */
+    public int failedAttempts() {
+        return failedAttempts;
+    }
+
     public Instant lockedUntil() {
         return lockedUntil;
     }

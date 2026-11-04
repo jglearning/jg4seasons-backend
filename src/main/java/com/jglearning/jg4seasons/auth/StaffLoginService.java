@@ -86,6 +86,8 @@ public class StaffLoginService {
         }
         boolean matches = passwordEncoder.matches(password, identity.secretHash());
         if (staff.isEmpty()) {
+            // 응답은 다른 실패와 같은 401이지만, 문의에 답할 수 있게 사용자만 남긴다(입력값 없음)
+            log.info("staff login rejected: not eligible userId={}", identity.getUserId());
             throw wrong();
         }
         if (!matches) {
@@ -95,12 +97,19 @@ public class StaffLoginService {
                 log.info("staff login locked userId={} until={}", identity.getUserId(), lockedNow.get());
                 throw locked(lockedNow.get());
             }
+            log.info(
+                    "staff login wrong password userId={} attempts={}",
+                    identity.getUserId(),
+                    identity.failedAttempts());
             throw wrong();
         }
 
         AuthUser user = staff.get();
         identity.recordSuccess(now);
-        users.findByAcademyIdAndId(user.academyId(), user.id()).ifPresent(entity -> entity.recordLogin(now));
+        // 바로 위에서 같은 id의 활성 사용자를 읽었으니 반드시 있다 — 없으면 조용히 넘어가지 않고 드러나게
+        users.findByAcademyIdAndId(user.academyId(), user.id())
+                .orElseThrow(() -> new IllegalStateException("staff user vanished userId=" + user.id()))
+                .recordLogin(now);
         IssuedTokens tokens = tokenIssuer.issue(user.id(), user.role(), user.academyId(), userAgent);
         return new LoginResult(
                 new StaffLoginResponse(new StaffLoginResponse.UserInfo(

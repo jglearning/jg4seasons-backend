@@ -9,8 +9,11 @@ import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.AuthIdentity;
 import com.jglearning.jg4seasons.auth.AuthIdentityRepository;
 import com.jglearning.jg4seasons.auth.PersonalCodeHasher;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -56,6 +59,9 @@ class StaffLoginTest {
 
     @Autowired
     MutableClock clock;
+
+    @Autowired
+    EntityManager entityManager;
 
     TestData data;
     long academyId;
@@ -268,6 +274,31 @@ class StaffLoginTest {
     @Test
     void CSRF_헤더_없이_로그인된다() {
         assertThat(login(loginId, PASSWORD)).hasStatusOk();
+    }
+
+    @Test
+    void 거부_사유가_사용자_id와_함께_로그에_남는다(CapturedOutput output) {
+        login(loginId, WRONG);
+        jdbc.update("update `user` set status = 'inactive' where id = ?", teacherId);
+        entityManager.clear();
+        login(loginId, PASSWORD);
+
+        assertThat(output.getOut())
+                .contains("staff login wrong password userId=" + teacherId + " attempts=1")
+                .contains("staff login rejected: not eligible userId=" + teacherId);
+    }
+
+    @Test
+    void 로그인하면_마지막_로그인_시각과_사용_시각이_남는다() {
+        login(loginId, PASSWORD);
+        entityManager.flush();
+
+        LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        assertThat(jdbc.queryForObject("select last_login_at from `user` where id = ?", LocalDateTime.class, teacherId))
+                .isEqualTo(now);
+        assertThat(jdbc.queryForObject(
+                        "select last_used_at from auth_identity where user_id = ?", LocalDateTime.class, teacherId))
+                .isEqualTo(now);
     }
 
     @Test
