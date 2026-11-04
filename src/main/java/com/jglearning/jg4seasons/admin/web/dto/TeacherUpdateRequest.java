@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.admin.web.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
@@ -17,7 +18,7 @@ public record TeacherUpdateRequest(
         String status,
 
         @Schema(description = "담당 반 id 전체(교체). 빈 배열이면 모두 해제")
-        List<Long> classIds,
+        List<@NotNull Long> classIds,
 
         @Schema(description = "비밀번호 재설정(8자 이상, 72바이트 이하). 잠금이 풀리고 그 교사의 refresh를 모두 끊음")
         @Size(min = 8, max = 72, message = "비밀번호는 8~72자예요")

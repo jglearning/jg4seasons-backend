@@ -256,6 +256,20 @@ class TeacherAdminTest {
     }
 
     @Test
+    void 담당_반에_null이_있으면_500이_아니라_400() {
+        long teacherId = createdId(create(adminCookies(), newTeacher("null-class")));
+
+        MvcTestResult patched = update(adminCookies(), teacherId, "{\"classIds\":[null]}");
+        MvcTestResult created = create(
+                adminCookies(),
+                "{\"name\":\"김교사\",\"loginId\":\"null-class2\",\"password\":\"teacher-pass-1\",\"role\":\"teacher\",\"classIds\":[null]}");
+
+        assertThat(patched).hasStatus(400);
+        assertThat(patched).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
+        assertThat(created).hasStatus(400);
+    }
+
+    @Test
     void 형식이_틀리면_400() {
         assertThat(
                         create(
