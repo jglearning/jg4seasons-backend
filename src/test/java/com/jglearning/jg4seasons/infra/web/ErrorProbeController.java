@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.infra.web;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import io.swagger.v3.oas.annotations.Hidden;
+import jakarta.annotation.security.PermitAll;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** 테스트 전용: 오류 응답 형식을 확인하려고 일부러 실패하는 엔드포인트. openapi.json에서 제외(@Hidden), 운영 jar에 없음. */
 @Hidden
+@PermitAll // 테스트 전용. URL 층에서 인증은 여전히 필요(@WithMockUser), 역할은 보지 않는다
 @RestController
 @RequestMapping("/test-support/errors")
 class ErrorProbeController {

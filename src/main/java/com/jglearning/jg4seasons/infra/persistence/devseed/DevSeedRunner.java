@@ -4,6 +4,7 @@ import java.time.Clock;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** local 프로파일에서 서버가 뜰 때 개발용 시드를 넣는다. 운영·테스트에서는 빈이 만들어지지 않는다. */
 @Component
 @Profile("local")
+@Order(0) // 인증 시드(AuthDevSeedRunner, @Order(1))보다 먼저
 public class DevSeedRunner implements ApplicationRunner {
 
     private final JdbcTemplate jdbc;

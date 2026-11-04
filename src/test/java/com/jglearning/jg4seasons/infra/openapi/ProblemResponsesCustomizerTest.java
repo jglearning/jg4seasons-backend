@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.Paths;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import org.junit.jupiter.api.Test;
@@ -40,5 +41,16 @@ class ProblemResponsesCustomizerTest {
                     .isEqualTo("#/components/schemas/Problem");
         }
         assertThat(openApi.getComponents().getSchemas()).containsKey("Problem");
+    }
+
+    @Test
+    void 잠금_해제_시각_until은_선택_필드인_날짜_시각이다() {
+        Schema<?> problem = OpenApiConfig.problemSchema();
+
+        Schema<?> until = (Schema<?>) problem.getProperties().get("until");
+        assertThat(until).isNotNull();
+        assertThat(until.getType()).isEqualTo("string");
+        assertThat(until.getFormat()).isEqualTo("date-time");
+        assertThat(problem.getRequired()).doesNotContain("until");
     }
 }
