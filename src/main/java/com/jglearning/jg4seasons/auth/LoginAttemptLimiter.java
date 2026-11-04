@@ -106,7 +106,11 @@ public class LoginAttemptLimiter implements LoginAlerts {
     /** 확인 결과 틀림. 반 전체 실패를 센다. 이 시도로 잠겼으면 해제 시각 */
     public Optional<Instant> recordFailure(long classId, String clientIp) {
         recordClassFailure(classId, clock.instant());
-        return lockedUntil(classId, clientIp);
+        Optional<Instant> locked = lockedUntil(classId, clientIp);
+        // 잠금은 5번째 시도를 셀 때 걸리고, 그 시도가 틀린 것이 여기서 확정된다(맞으면 recordSuccess가 되돌림).
+        // 교사 문의("우리 반 아이가 잠겼대요")에 답할 수 있게 반과 해제 시각만 남긴다(IP·코드는 남기지 않음)
+        locked.ifPresent(until -> log.info("login locked classId={} until={}", classId, until));
+        return locked;
     }
 
     /**

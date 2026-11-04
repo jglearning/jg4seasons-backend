@@ -55,6 +55,24 @@ class LoginAttemptLimiterTest {
     }
 
     @Test
+    void 잠금이_걸리면_반_id와_해제_시각을_INFO로_남기고_IP는_남기지_않는다(CapturedOutput output) {
+        fail(5, 7, "203.0.113.9");
+
+        assertThat(output.getOut())
+                .containsOnlyOnce("login locked classId=7 until=" + START.plus(Duration.ofMinutes(10)))
+                .doesNotContain("203.0.113.9");
+    }
+
+    @Test
+    void 다섯_번째_시도가_맞으면_잠금_로그를_남기지_않는다(CapturedOutput output) {
+        fail(4, 8, "ip");
+        limiter.beginAttempt(8, "ip");
+        limiter.recordSuccess(8, "ip");
+
+        assertThat(output.getOut()).doesNotContain("login locked classId=8");
+    }
+
+    @Test
     void 십분이_지나면_풀린다() {
         fail(5, 1, "ip");
 

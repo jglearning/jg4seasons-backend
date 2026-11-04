@@ -18,13 +18,17 @@ import java.util.HexFormat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /** refresh: DB에는 해시만, 회전, 유예(10초) 안 재사용은 GraceReuse, 유예 뒤 재사용은 그 사용자 전부 폐기. */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class RefreshTokenServiceTest {
 
     static final Duration GRACE = Duration.ofSeconds(10);
@@ -133,6 +137,20 @@ class RefreshTokenServiceTest {
         assertThat(refreshTokens.rotate(plain)).isInstanceOf(Rejected.class);
         assertThat(refreshTokens.rotate(rotated)).as("회전으로 받은 새 토큰도 끊김(유예 없이)").isInstanceOf(Rejected.class);
         assertThat(refreshTokens.rotate(otherDevice)).as("다른 기기도").isInstanceOf(Rejected.class);
+    }
+
+    @Test
+    void 유예_뒤_재사용으로_끊으면_사용자_id와_개수를_WARN으로_남긴다(CapturedOutput output) {
+        String plain = refreshTokens.create(studentId, null);
+        refreshTokens.create(studentId, null);
+        refreshTokens.rotate(plain);
+        clock.advance(GRACE.plusSeconds(2));
+
+        refreshTokens.rotate(plain);
+
+        assertThat(output.getOut())
+                .containsPattern("WARN .*refresh reuse after grace userId=" + studentId + " killed=3")
+                .doesNotContain(plain);
     }
 
     @Test

@@ -8,6 +8,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class RefreshTokenService {
+
+    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
 
     static final int USER_AGENT_MAX = 200;
 
@@ -68,11 +72,14 @@ public class RefreshTokenService {
                         .<RefreshOutcome>map(RefreshOutcome.GraceReuse::new)
                         .orElseGet(RefreshOutcome.Rejected::new);
             }
-            tokens.killAllOf(token.userId(), RefreshTokenRepository.floor(now));
+            int killed = tokens.killAllOf(token.userId(), RefreshTokenRepository.floor(now));
+            // 빼낸 쿠키와 학생 중 한쪽이 옛 토큰을 쓴 것 — 운영에서 "자꾸 로그아웃돼요"의 원인을 찾을 수 있게(토큰 값은 남기지 않음)
+            log.warn("refresh reuse after grace userId={} killed={}", token.userId(), killed);
             return new RefreshOutcome.Rejected();
         }
         Optional<RefreshOwner> owner = activeOwner(token.userId());
         if (owner.isEmpty()) {
+            log.info("refresh rejected: owner not active userId={}", token.userId());
             token.kill(now);
             return new RefreshOutcome.Rejected();
         }
