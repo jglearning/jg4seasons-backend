@@ -2,17 +2,21 @@ package com.jglearning.jg4seasons.auth.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jayway.jsonpath.JsonPath;
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.AuthIdentity;
 import com.jglearning.jg4seasons.auth.AuthIdentityRepository;
 import com.jglearning.jg4seasons.auth.PersonalCodeHasher;
+import com.jglearning.jg4seasons.auth.api.LoginAlerts;
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.Cookie;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,6 +62,9 @@ class StudentLoginTest {
 
     @Autowired
     EntityManager entityManager;
+
+    @Autowired
+    LoginAlerts alerts;
 
     TestData data;
     long academyId;
@@ -146,9 +153,30 @@ class StudentLoginTest {
         login(accessCode, PERSONAL_CODE);
         entityManager.flush(); // 같은 트랜잭션 안에서 JDBC로 읽기 전에 JPA 변경을 내보낸다
 
+        LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        assertThat(jdbc.queryForObject("select last_login_at from `user` where id = ?", LocalDateTime.class, studentId))
+                .as("UTC로 저장된 로그인 시각")
+                .isEqualTo(now);
         assertThat(jdbc.queryForObject(
-                        "select last_login_at is not null from `user` where id = ?", Boolean.class, studentId))
-                .isTrue();
+                        "select last_used_at from auth_identity where user_id = ? and provider = 'personal_code'",
+                        LocalDateTime.class,
+                        studentId))
+                .isEqualTo(now);
+    }
+
+    @Test
+    void 반_전체_20회_틀리면_경고가_켜진다() {
+        for (int n = 1; n <= 4; n++) {
+            ip = "203.0.113." + (200 + n);
+            for (int i = 0; i < 5; i++) {
+                if (n == 4 && i == 4) {
+                    assertThat(alerts.isAlerting(classId)).as("19회").isFalse();
+                }
+                login(accessCode, WRONG_CODE);
+            }
+        }
+
+        assertThat(alerts.isAlerting(classId)).as("20회(각 IP의 5번째 423도 실패로 셈)").isTrue();
     }
 
     @Test
@@ -180,13 +208,17 @@ class StudentLoginTest {
 
     @Test
     void 없는_가입_코드도_같은_401과_문구() throws Exception {
-        String wrongPersonal = login(accessCode, WRONG_CODE).getResponse().getContentAsString();
-        String wrongClass =
-                login(TestData.uniqueAccessCode(), PERSONAL_CODE).getResponse().getContentAsString();
+        MvcTestResult wrongPersonal = login(accessCode, WRONG_CODE);
+        MvcTestResult wrongClass = login(TestData.uniqueAccessCode(), PERSONAL_CODE);
 
-        assertThat(wrongClass).contains("\"INVALID_CREDENTIALS\"");
-        assertThat(field(wrongClass, "title")).isEqualTo(field(wrongPersonal, "title"));
-        assertThat(field(wrongClass, "detail")).isEqualTo(field(wrongPersonal, "detail"));
+        assertThat(wrongPersonal).hasStatus(401);
+        assertThat(wrongClass).hasStatus(401);
+        assertThat(wrongClass).bodyJson().extractingPath("$.code").isEqualTo("INVALID_CREDENTIALS");
+        for (String field : List.of("$.title", "$.detail")) {
+            Object expected = JsonPath.read(wrongPersonal.getResponse().getContentAsString(), field);
+            assertThat(expected).as(field).isNotNull();
+            assertThat(wrongClass).bodyJson().extractingPath(field).isEqualTo(expected);
+        }
     }
 
     @Test
@@ -330,12 +362,5 @@ class StudentLoginTest {
             login(accessCode, WRONG_CODE);
         }
         assertThat(login(accessCode, WRONG_CODE)).hasStatus(423);
-    }
-
-    private static String field(String json, String name) {
-        int start = json.indexOf("\"" + name + "\"");
-        return start < 0
-                ? null
-                : json.substring(start, json.indexOf(',', start) < 0 ? json.length() : json.indexOf(',', start));
     }
 }

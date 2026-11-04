@@ -3,9 +3,12 @@ package com.jglearning.jg4seasons.auth.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.token.RefreshTokenService;
 import jakarta.servlet.http.Cookie;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -39,12 +42,16 @@ class RefreshConcurrencyTest {
     @Autowired
     RefreshTokenService refreshTokens;
 
+    @Autowired
+    MutableClock clock;
+
     long academyId;
     long classId;
     long studentId;
 
     @BeforeEach
     void setUp() {
+        clock.reset(); // 앱 시계를 실제 시각에 맞춘다(유효 토큰 판정을 같은 시계로)
         TestData data = new TestData(jdbc);
         academyId = data.academy("동시성 학원");
         classId = data.clazz(academyId, "L2-B1", "A반", TestData.uniqueAccessCode(), "active");
@@ -94,9 +101,10 @@ class RefreshConcurrencyTest {
         assertThat(rotated).as("새 refresh를 받은 응답").isEqualTo(1);
         assertThat(jdbc.queryForObject(
                         "select count(*) from refresh_token where user_id = ? and revoked_at is null"
-                                + " and expires_at > utc_timestamp()",
+                                + " and expires_at > ?",
                         Integer.class,
-                        studentId))
+                        studentId,
+                        LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)))
                 .as("유효한 refresh")
                 .isEqualTo(1);
     }

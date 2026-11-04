@@ -163,6 +163,25 @@ class RefreshLogoutTest {
 
         assertThat(result).hasStatus(401).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("UNAUTHORIZED");
+        assertThat(setCookies(result)).hasSize(3).allMatch(c -> c.contains("Max-Age=0"));
+    }
+
+    @Test
+    void refresh_쿠키_없이_로그아웃해도_204와_쿠키_만료() {
+        Cookie[] withoutRefresh = Arrays.stream(loginCookies)
+                .filter(c -> !c.getName().equals("refresh"))
+                .toArray(Cookie[]::new);
+
+        MvcTestResult logout = mvc.post()
+                .uri("/api/v1/auth/logout")
+                .cookie(withoutRefresh)
+                .header(
+                        AuthCookieSupport.CSRF_HEADER,
+                        cookie(loginCookies, "csrf").orElseThrow().getValue())
+                .exchange();
+
+        assertThat(logout).hasStatus(204);
+        assertThat(setCookies(logout)).hasSize(3).allMatch(c -> c.contains("Max-Age=0"));
     }
 
     @Test

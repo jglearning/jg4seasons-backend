@@ -181,6 +181,72 @@ class LoginAttemptLimiterTest {
         assertThat(limiter.isAlerting(1)).as("20회").isTrue();
         assertThat(limiter.isAlerting(2)).as("다른 반").isFalse();
         assertThat(output.getOut()).containsOnlyOnce("login failures over threshold classId=1");
+
+        fail(1, 1, "ip-20");
+        fail(1, 1, "ip-21");
+        assertThat(output.getOut())
+                .as("경고 중 실패가 이어져도 한 번만")
+                .containsOnlyOnce("login failures over threshold classId=1");
+    }
+
+    @Test
+    void 잠긴_동안_시도해도_해제_시각은_늘지_않는다() {
+        fail(5, 1, "ip");
+
+        clock.advance(Duration.ofMinutes(5));
+        assertThat(limiter.beginAttempt(1, "ip")).contains(START.plus(Duration.ofMinutes(10)));
+
+        clock.advance(Duration.ofMinutes(5));
+        assertThat(limiter.beginAttempt(1, "ip")).as("처음 잠근 지 10분").isEmpty();
+    }
+
+    @Test
+    void 십분_안의_실패는_이어서_센다() {
+        fail(4, 1, "ip");
+        clock.advance(Duration.ofMinutes(10).minusMillis(1));
+
+        fail(1, 1, "ip");
+
+        assertThat(limiter.lockedUntil(1, "ip")).isPresent();
+    }
+
+    @Test
+    void 정리해도_잠긴_항목은_남는다() {
+        // 정리 기준 1개: 처음 키 3개를 넣을 때 정리가 한 번 돌고, 다음 정리는 10분 뒤
+        LoginAttemptLimiter small = new LoginAttemptLimiter(clock, 1, 1_000);
+        failOn(small, 1, "b");
+        failOn(small, 1, "c");
+        failOn(small, 1, "x");
+        clock.advance(Duration.ofMinutes(5));
+        for (int i = 0; i < 5; i++) {
+            failOn(small, 1, "a"); // 5분에 잠김 → 15분에 풀림
+        }
+
+        clock.advance(Duration.ofMinutes(5));
+        small.beginAttempt(1, "d"); // 10분: 정리 — b·c·x는 창이 끝났고 a는 잠겨 있다
+
+        assertThat(small.lockedUntil(1, "a")).contains(START.plus(Duration.ofMinutes(15)));
+    }
+
+    @Test
+    void 상한에_차면_새_IP는_반별_공용_칸에서_함께_센다() {
+        LoginAttemptLimiter capped = new LoginAttemptLimiter(clock, 1_000, 3);
+        failOn(capped, 1, "k1");
+        failOn(capped, 2, "k2");
+        failOn(capped, 3, "k3");
+
+        for (int i = 1; i <= 5; i++) {
+            failOn(capped, 1, "n" + i);
+        }
+
+        assertThat(capped.lockedUntil(1, "n6")).as("반 1의 새 IP는 공용 칸이 잠김").isPresent();
+        assertThat(capped.lockedUntil(2, "n6")).as("다른 반의 공용 칸은 따로").isEmpty();
+        assertThat(capped.lockedUntil(1, "k1")).as("있던 키는 영향 없음").isEmpty();
+    }
+
+    private static void failOn(LoginAttemptLimiter target, long classId, String ip) {
+        target.beginAttempt(classId, ip);
+        target.recordFailure(classId, ip);
     }
 
     @Test
