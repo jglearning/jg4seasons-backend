@@ -36,6 +36,30 @@ class AuthIdentityPasswordTest {
     }
 
     @Test
+    void 잠긴_동안_실패가_더_기록돼도_잠금은_늘지_않는다() {
+        // 호출 순서(잠겼나 먼저 확인)에 기대지 않게 엔티티가 스스로 막는다
+        AuthIdentity identity = identity();
+        wrong(identity, 5, T);
+
+        assertThat(identity.recordWrongPassword(T.plus(Duration.ofMinutes(5))))
+                .contains(T.plus(Duration.ofMinutes(10)));
+        assertThat(identity.failedAttempts()).isEqualTo(5);
+        assertThat(identity.lockedAt(T.plus(Duration.ofMinutes(10)))).isFalse();
+    }
+
+    @Test
+    void 로그인_아이디는_정리된_소문자만_받는다() {
+        // 시드·스크립트가 대문자로 넣으면 로그인 쪽(소문자로 조회)에서 영영 찾지 못한다
+        assertThatThrownBy(() -> AuthIdentity.password(7L, "Teacher01", HASH, T))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AuthIdentity.password(7L, " teacher01", HASH, T))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AuthIdentity.password(7L, "ab", HASH, T)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(AuthIdentity.password(7L, "kim.teacher_01", HASH, T).loginId())
+                .isEqualTo("kim.teacher_01");
+    }
+
+    @Test
     void 잠금이_끝난_뒤_첫_실패는_1부터_센다() {
         AuthIdentity identity = identity();
         wrong(identity, 5, T);

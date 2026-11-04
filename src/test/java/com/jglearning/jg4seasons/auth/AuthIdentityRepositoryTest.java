@@ -53,7 +53,7 @@ class AuthIdentityRepositoryTest {
     void 비밀번호_수단은_로그인_아이디로_잠그며_읽고_실패_횟수가_저장된다() {
         TestData data = new TestData(jdbc);
         long teacherId = data.student(data.academy("테스트 학원"), "교사");
-        String loginId = "t" + teacherId;
+        String loginId = "teacher" + teacherId;
         identities.save(AuthIdentity.password(
                 teacherId, loginId, "$2a$10$" + "a".repeat(53), Instant.parse("2026-11-04T00:00:00Z")));
 

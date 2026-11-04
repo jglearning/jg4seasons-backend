@@ -56,6 +56,8 @@ public class AuthIdentity {
     private static final Pattern HMAC_HEX = Pattern.compile("^[0-9a-f]{64}$");
     private static final Pattern BCRYPT = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
 
+    private static final Pattern NORMALIZED_LOGIN_ID = Pattern.compile("^[a-z0-9._-]{3,30}$");
+
     static final int MAX_WRONG_PASSWORDS = 5;
     static final Duration PASSWORD_LOCK = Duration.ofMinutes(10);
 
@@ -80,6 +82,10 @@ public class AuthIdentity {
      * @param bcryptHash PasswordEncoder가 만든 BCrypt 문자열. 평문을 넘기면 IllegalArgumentException(값은 메시지에 넣지 않음)
      */
     public static AuthIdentity password(long userId, String loginId, String bcryptHash, Instant issuedAt) {
+        if (loginId == null || !NORMALIZED_LOGIN_ID.matcher(loginId).matches()) {
+            // 로그인은 정리된 소문자로 조회한다 — 정리 안 된 값이 저장되면 그 계정은 영영 로그인되지 않는다
+            throw new IllegalArgumentException("로그인 아이디는 LoginIds.normalize를 거친 3~30자 소문자여야 한다");
+        }
         requireBcrypt(bcryptHash);
         AuthIdentity identity = new AuthIdentity();
         identity.userId = userId;
@@ -112,7 +118,10 @@ public class AuthIdentity {
      * 소수 초를 반올림해 잠금이 앞당겨지지 않게. 호출자는 이 행을 잠그고(findPasswordIdentityForUpdate) 부른다 — 동시 실패로 5회를 넘지 못하게
      */
     public Optional<Instant> recordWrongPassword(Instant now) {
-        if (lockedUntil != null && !lockedAt(now)) {
+        if (lockedAt(now)) {
+            return Optional.of(lockedUntil); // 잠긴 동안은 세지도 늘리지도 않는다(호출 순서에 기대지 않게)
+        }
+        if (lockedUntil != null) {
             failedAttempts = 0;
             lockedUntil = null;
         }
