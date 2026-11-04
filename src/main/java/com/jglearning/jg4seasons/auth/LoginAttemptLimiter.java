@@ -17,7 +17,8 @@ import org.springframework.stereotype.Component;
  * 개인 코드 찍기 방지(ADR-22, AUTH-07). 인메모리, 단일 인스턴스 전제.
  *
  * <ul>
- *   <li>(반, IP): 첫 실패부터 10분 안에 5회 실패 → 그 시각부터 10분 잠금. 잠긴 동안은 맞는 코드도 거부. 성공하면 0으로
+ *   <li>(반, IP): 첫 실패부터 10분 안에 5회 실패 → 그 시각부터 10분 잠금. 잠긴 동안은 맞는 코드도 거부. 성공해도 그동안의 실패는 남는다
+ *       (시도는 확인 전에 먼저 센다 — beginAttempt)
  *   <li>반 전체: 최근 1시간 실패 20회 이상이면 경고(교사 반 목록). 20회에 닿는 순간 WARN 로그 1회(반 id만)
  * </ul>
  *
@@ -76,30 +77,51 @@ public class LoginAttemptLimiter implements LoginAlerts {
         return current != null && current.lockedAt(now) ? Optional.of(current.lockedUntil()) : Optional.empty();
     }
 
-    /** 실패 1회. 이 실패로 잠겼으면 해제 시각 */
-    public Optional<Instant> recordFailure(long classId, String clientIp) {
+    /**
+     * 시도 시작. 확인(HMAC 조회) 전에 먼저 실패 1회로 센다 — 잠금 검사와 실패 기록 사이에 동시 요청이 끼어 5번보다 많이 찍지 못하게. 5번째 시도를 세는
+     * 순간 잠금을 건다(맞으면 recordSuccess가 되돌림).
+     *
+     * @return 이미 잠겨 있으면 해제 시각(확인하지 말고 거부). 비어 있으면 확인해도 된다
+     */
+    public Optional<Instant> beginAttempt(long classId, String clientIp) {
         Instant now = clock.instant();
-        recordClassFailure(classId, now);
         if (attempts.size() > sweepThreshold) {
             sweepIfDue(now);
         }
+        boolean[] rejected = {false};
         Attempts updated = attempts.compute(key(classId, clientIp), (k, current) -> {
             if (current == null || current.finishedAt(now)) {
                 return new Attempts(now, 1, null);
             }
             if (current.lockedAt(now)) {
+                rejected[0] = true;
                 return current;
             }
             int failures = current.failures() + 1;
             return new Attempts(current.windowStart(), failures, failures >= MAX_FAILURES ? now.plus(LOCK) : null);
         });
-        return updated.lockedAt(now) && updated.failures() >= MAX_FAILURES
-                ? Optional.of(updated.lockedUntil())
-                : Optional.empty();
+        return rejected[0] ? Optional.of(updated.lockedUntil()) : Optional.empty();
     }
 
+    /** 확인 결과 틀림. 반 전체 실패를 센다. 이 시도로 잠겼으면 해제 시각 */
+    public Optional<Instant> recordFailure(long classId, String clientIp) {
+        recordClassFailure(classId, clock.instant());
+        return lockedUntil(classId, clientIp);
+    }
+
+    /**
+     * 확인 결과 맞음. 시작할 때 센 1회만 되돌린다(그 시도로 건 잠금도 풀림). 그동안의 실패는 지우지 않는다 — 자기 코드로 성공해 횟수를 지우며 남의 코드를
+     * 계속 찍지 못하게. 남은 실패는 10분 창이 지나면 사라진다.
+     */
     public void recordSuccess(long classId, String clientIp) {
-        attempts.remove(key(classId, clientIp));
+        attempts.computeIfPresent(key(classId, clientIp), (k, current) -> {
+            int failures = current.failures() - 1;
+            if (failures <= 0) {
+                return null;
+            }
+            return new Attempts(
+                    current.windowStart(), failures, failures >= MAX_FAILURES ? current.lockedUntil() : null);
+        });
     }
 
     @Override

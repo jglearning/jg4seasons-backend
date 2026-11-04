@@ -247,6 +247,16 @@ class StudentLoginTest {
     }
 
     @Test
+    void 자기_코드로_성공해도_남의_코드를_찍은_횟수는_남는다() {
+        for (int i = 0; i < 4; i++) {
+            assertThat(login(accessCode, WRONG_CODE)).hasStatus(401);
+        }
+        assertThat(login(accessCode, PERSONAL_CODE)).as("자기 코드").hasStatusOk();
+
+        assertThat(login(accessCode, WRONG_CODE)).as("실패 5회째").hasStatus(423);
+    }
+
+    @Test
     void 잠긴_동안은_맞는_코드도_423이다() {
         lockOut();
 

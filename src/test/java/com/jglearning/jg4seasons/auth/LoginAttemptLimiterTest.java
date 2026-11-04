@@ -5,7 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jglearning.jg4seasons.MutableClock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -20,8 +28,10 @@ class LoginAttemptLimiterTest {
     final MutableClock clock = new MutableClock(START);
     final LoginAttemptLimiter limiter = new LoginAttemptLimiter(clock);
 
+    /** 로그인 서비스와 같은 순서: 시도 시작(먼저 셈) → 틀림 */
     private void fail(int times, long classId, String ip) {
         for (int i = 0; i < times; i++) {
+            assertThat(limiter.beginAttempt(classId, ip)).as("시도 %d 시작", i + 1).isEmpty();
             limiter.recordFailure(classId, ip);
         }
     }
@@ -37,6 +47,7 @@ class LoginAttemptLimiterTest {
     void 다섯_번째_실패에_10분_잠근다() {
         fail(4, 1, "ip");
 
+        assertThat(limiter.beginAttempt(1, "ip")).as("5번째 시도는 확인까지 간다").isEmpty();
         Optional<Instant> until = limiter.recordFailure(1, "ip");
 
         assertThat(until).contains(START.plus(Duration.ofMinutes(10)));
@@ -65,13 +76,61 @@ class LoginAttemptLimiterTest {
     }
 
     @Test
-    void 성공하면_실패_횟수가_0이다() {
+    void 잠긴_뒤의_시도는_확인_전에_거부한다() {
+        fail(5, 1, "ip");
+
+        assertThat(limiter.beginAttempt(1, "ip")).contains(START.plus(Duration.ofMinutes(10)));
+    }
+
+    @Test
+    void 다섯_번째_시도가_맞으면_잠그지_않는다() {
         fail(4, 1, "ip");
+
+        assertThat(limiter.beginAttempt(1, "ip")).isEmpty();
         limiter.recordSuccess(1, "ip");
 
-        fail(4, 1, "ip");
-
         assertThat(limiter.lockedUntil(1, "ip")).isEmpty();
+    }
+
+    @Test
+    void 동시에_와도_확인까지_가는_시도는_5번뿐이다() throws Exception {
+        // 확인(잠금 검사) 뒤 실패 기록 사이에 다른 요청이 끼면 5번보다 많이 찍을 수 있다 → 시작할 때 먼저 센다
+        int threads = 20;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch ready = new CountDownLatch(threads);
+        CountDownLatch go = new CountDownLatch(1);
+        AtomicInteger allowed = new AtomicInteger();
+        List<Future<?>> futures = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            futures.add(pool.submit(() -> {
+                ready.countDown();
+                go.await();
+                if (limiter.beginAttempt(1, "ip").isEmpty()) {
+                    allowed.incrementAndGet();
+                }
+                return null;
+            }));
+        }
+        ready.await();
+        go.countDown();
+        for (Future<?> future : futures) {
+            future.get(10, TimeUnit.SECONDS);
+        }
+        pool.shutdown();
+
+        assertThat(allowed.get()).isEqualTo(5);
+    }
+
+    @Test
+    void 성공해도_그동안의_실패는_지우지_않는다() {
+        // 같은 반 학생이 남의 코드를 4번 찍고 자기 코드로 성공해 횟수를 지우는 반복을 막는다. 성공한 시도 1회만 되돌린다
+        fail(4, 1, "ip");
+        assertThat(limiter.beginAttempt(1, "ip")).isEmpty();
+        limiter.recordSuccess(1, "ip");
+
+        fail(1, 1, "ip");
+
+        assertThat(limiter.lockedUntil(1, "ip")).as("실패 4 + 1 = 5").isPresent();
     }
 
     @Test
@@ -95,11 +154,11 @@ class LoginAttemptLimiterTest {
     @Test
     void 반_전체_1시간_20회면_경고(CapturedOutput output) {
         for (int i = 0; i < 19; i++) {
-            limiter.recordFailure(1, "ip-" + i);
+            fail(1, 1, "ip-" + i);
         }
         assertThat(limiter.isAlerting(1)).as("19회").isFalse();
 
-        limiter.recordFailure(1, "ip-19");
+        fail(1, 1, "ip-19");
 
         assertThat(limiter.isAlerting(1)).as("20회").isTrue();
         assertThat(limiter.isAlerting(2)).as("다른 반").isFalse();
@@ -109,7 +168,7 @@ class LoginAttemptLimiterTest {
     @Test
     void 한_시간이_지난_실패는_경고에서_빠진다() {
         for (int i = 0; i < 20; i++) {
-            limiter.recordFailure(1, "ip-" + i);
+            fail(1, 1, "ip-" + i);
         }
         clock.advance(Duration.ofHours(1));
 
@@ -119,11 +178,11 @@ class LoginAttemptLimiterTest {
     @Test
     void 경고는_1시간_안의_실패로만_센다() {
         for (int i = 0; i < 10; i++) {
-            limiter.recordFailure(1, "ip-" + i);
+            fail(1, 1, "ip-" + i);
         }
         clock.advance(Duration.ofMinutes(59));
         for (int i = 10; i < 20; i++) {
-            limiter.recordFailure(1, "ip-" + i);
+            fail(1, 1, "ip-" + i);
         }
         assertThat(limiter.isAlerting(1)).as("59분 안에 20회").isTrue();
 
