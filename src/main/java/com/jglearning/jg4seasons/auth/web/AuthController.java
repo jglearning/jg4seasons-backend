@@ -1,6 +1,8 @@
 package com.jglearning.jg4seasons.auth.web;
 
 import com.jglearning.jg4seasons.auth.CodeVerifyService;
+import com.jglearning.jg4seasons.auth.SessionService;
+import com.jglearning.jg4seasons.auth.SessionService.RefreshResult;
 import com.jglearning.jg4seasons.auth.StudentLoginService;
 import com.jglearning.jg4seasons.auth.StudentLoginService.LoginResult;
 import com.jglearning.jg4seasons.auth.ratelimit.ClientIpResolver;
@@ -10,20 +12,24 @@ import com.jglearning.jg4seasons.auth.web.dto.CodeVerifyResponse;
 import com.jglearning.jg4seasons.auth.web.dto.MeResponse;
 import com.jglearning.jg4seasons.auth.web.dto.StudentLoginRequest;
 import com.jglearning.jg4seasons.auth.web.dto.StudentLoginResponse;
+import com.jglearning.jg4seasons.infra.web.error.ApiException;
+import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 학생 입장과 세션(03 API명세 §1). 토큰은 Set-Cookie로만 나간다(ADR-18). */
@@ -33,16 +39,19 @@ public class AuthController {
 
     private final CodeVerifyService codeVerifyService;
     private final StudentLoginService studentLoginService;
+    private final SessionService sessionService;
     private final ClientIpResolver clientIps;
     private final AuthCookies cookies;
 
     AuthController(
             CodeVerifyService codeVerifyService,
             StudentLoginService studentLoginService,
+            SessionService sessionService,
             ClientIpResolver clientIps,
             AuthCookies cookies) {
         this.codeVerifyService = codeVerifyService;
         this.studentLoginService = studentLoginService;
+        this.sessionService = sessionService;
         this.clientIps = clientIps;
         this.cookies = cookies;
     }
@@ -74,20 +83,33 @@ public class AuthController {
 
     @Operation(
             summary = "세션 갱신",
-            description = "요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음")
+            description = "요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음."
+                    + " 회전된 지 10초 안의 옛 refresh는 200(쿠키 그대로 — 다른 탭이 받은 쿠키를 같이 씀), 그 뒤에 오면 그 사용자 refresh를 모두 끊고 401")
     @PermitAll
     @PostMapping("/refresh")
-    public MeResponse refresh() {
-        throw new UnsupportedOperationException("Task 8");
+    public ResponseEntity<MeResponse> refresh(
+            @Parameter(hidden = true) @CookieValue(name = AuthCookies.REFRESH, required = false) String refresh,
+            HttpServletResponse http) {
+        RefreshResult result = sessionService.refresh(refresh);
+        if (result.body().isEmpty()) {
+            // 쿠키 없음(MissingRequestCookieException이 400이 되지 않게 직접 확인)·무효 → 401 + 쿠키 3개 만료
+            cookies.expireAll().forEach(cookie -> http.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
+            throw new ApiException(CommonErrorCode.UNAUTHORIZED, "다시 들어와 주세요");
+        }
+        ResponseEntity.BodyBuilder response = ResponseEntity.ok();
+        result.tokens().ifPresent(tokens -> withCookies(response, cookies.issue(tokens)));
+        return response.body(result.body().get());
     }
 
     @Operation(summary = "로그아웃", description = "refresh를 폐기하고 쿠키 3개를 만료시킨다. 헤더 X-CSRF 필요")
     @ApiResponse(responseCode = "204", description = "로그아웃됨")
     @PermitAll
     @PostMapping("/logout")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout() {
-        throw new UnsupportedOperationException("Task 8");
+    public ResponseEntity<Void> logout(
+            @Parameter(hidden = true) @CookieValue(name = AuthCookies.REFRESH, required = false) String refresh) {
+        sessionService.logout(refresh);
+        return withCookies(ResponseEntity.status(HttpStatus.NO_CONTENT), cookies.expireAll())
+                .build();
     }
 
     private static ResponseEntity.BodyBuilder withCookies(
