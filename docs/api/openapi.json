@@ -7,9 +7,296 @@
   "servers" : [ {
     "url" : "/"
   } ],
-  "paths" : { },
+  "paths" : {
+    "/api/v1/auth/code/verify" : {
+      "post" : {
+        "description" : "IP당 1분에 10회. 반이 없거나 비활성이면 404 INVALID_CODE, 넘으면 429 RATE_LIMITED. CSRF 검사 없음",
+        "operationId" : "verify",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CodeVerifyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CodeVerifyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "가입 코드로 반 확인(S-01 입력 중 표시용)",
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/auth/logout" : {
+      "post" : {
+        "description" : "refresh를 폐기하고 쿠키 3개를 만료시킨다. 헤더 X-CSRF 필요",
+        "operationId" : "logout",
+        "responses" : {
+          "204" : {
+            "description" : "로그아웃됨"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "로그아웃",
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/auth/refresh" : {
+      "post" : {
+        "description" : "요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음",
+        "operationId" : "refresh",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "세션 갱신",
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/auth/student/login" : {
+      "post" : {
+        "description" : "성공하면 Set-Cookie access·refresh·csrf. 틀리면 401 INVALID_CREDENTIALS(어느 쪽이 틀렸는지 구분하지 않음), (반, IP) 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). CSRF 검사 없음",
+        "operationId" : "studentLogin",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StudentLoginRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentLoginResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "가입 코드 + 개인 코드로 학생 입장",
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/me" : {
+      "get" : {
+        "description" : "access 쿠키가 없거나 만료면 401 UNAUTHORIZED",
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "내 정보",
+        "tags" : [ "me-controller" ]
+      }
+    }
+  },
   "components" : {
     "schemas" : {
+      "AcademyRef" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
+      },
+      "BookInfo" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1"
+          },
+          "season" : {
+            "type" : "string",
+            "enum" : [ "겨울", "봄", "여름", "가을" ]
+          }
+        },
+        "required" : [ "code", "season" ]
+      },
+      "ClassInfo" : {
+        "type" : "object",
+        "properties" : {
+          "academyName" : {
+            "type" : "string"
+          },
+          "book" : {
+            "$ref" : "#/components/schemas/BookInfo"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "level" : {
+            "$ref" : "#/components/schemas/LevelInfo"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "겨울 그린 A반"
+          }
+        },
+        "required" : [ "academyName", "book", "id", "level", "name" ]
+      },
+      "ClassRef" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
+      },
+      "CodeVerifyRequest" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "가입 코드(영숫자 8자). 소문자·앞뒤 공백은 서버가 정리한다",
+            "example" : "G7KM2XP4",
+            "pattern" : "^\\s*[A-Za-z0-9]{8}\\s*$"
+          }
+        },
+        "required" : [ "code" ]
+      },
+      "CodeVerifyResponse" : {
+        "type" : "object",
+        "properties" : {
+          "class" : {
+            "$ref" : "#/components/schemas/ClassInfo"
+          }
+        },
+        "required" : [ "class" ]
+      },
+      "LevelInfo" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "colorHex" : {
+            "type" : "string",
+            "description" : "#RRGGBB",
+            "example" : "#1F7A4F"
+          },
+          "nameKo" : {
+            "type" : "string",
+            "example" : "그린"
+          }
+        },
+        "required" : [ "code", "colorHex", "nameKo" ]
+      },
+      "MeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "academy" : {
+            "$ref" : "#/components/schemas/AcademyRef"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "student", "teacher", "admin", "superadmin" ]
+          }
+        },
+        "required" : [ "academy", "id", "name", "role" ]
+      },
       "Problem" : {
         "type" : "object",
         "description" : "RFC 9457 Problem Details + 확장 code·requestId",
@@ -60,9 +347,61 @@
           "type" : {
             "type" : "string",
             "description" : "/problems/{code 소문자-하이픈}"
+          },
+          "until" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "423 LOCKED일 때만. 잠금 해제 시각(UTC)"
           }
         },
         "required" : [ "code", "requestId", "status", "title" ]
+      },
+      "StudentLoginRequest" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "가입 코드(영숫자 8자). 소문자·앞뒤 공백은 서버가 정리한다",
+            "example" : "G7KM2XP4",
+            "pattern" : "^\\s*[A-Za-z0-9]{8}\\s*$"
+          },
+          "personalCode" : {
+            "type" : "string",
+            "description" : "개인 코드. 문자열 숫자 4자리, 0으로 시작할 수 있다",
+            "example" : "0423",
+            "pattern" : "^[0-9]{4}$"
+          }
+        },
+        "required" : [ "code", "personalCode" ]
+      },
+      "StudentLoginResponse" : {
+        "type" : "object",
+        "properties" : {
+          "class" : {
+            "$ref" : "#/components/schemas/ClassRef"
+          },
+          "user" : {
+            "$ref" : "#/components/schemas/UserInfo"
+          }
+        },
+        "required" : [ "class", "user" ]
+      },
+      "UserInfo" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "student", "teacher", "admin", "superadmin" ]
+          }
+        },
+        "required" : [ "id", "name", "role" ]
       }
     }
   }

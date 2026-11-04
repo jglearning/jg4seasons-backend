@@ -88,6 +88,8 @@ public class OpenApiConfig {
                 .addProperty("code", new StringSchema().description("분기용 오류 code(예: VALIDATION, INVALID_CREDENTIALS)"))
                 .addProperty("requestId", new StringSchema().description("응답 헤더 X-Request-Id와 같은 값. 로그 대조용"))
                 .addProperty("errors", new ArraySchema().items(fieldError).description("400 VALIDATION일 때만. 칸별 오류"))
+                .addProperty(
+                        "until", new StringSchema().format("date-time").description("423 LOCKED일 때만. 잠금 해제 시각(UTC)"))
                 .required(List.of("title", "status", "code", "requestId"));
     }
 }
