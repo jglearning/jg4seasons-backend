@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.auth.token;
 
+import com.jglearning.jg4seasons.auth.UserRole;
 import java.time.Clock;
 import java.time.Instant;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -24,11 +25,11 @@ public class JwtIssuer {
         this.clock = clock;
     }
 
-    public String issueAccess(long userId, String role, Long academyId) {
+    public String issueAccess(long userId, UserRole role, Long academyId) {
         Instant now = clock.instant();
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .subject(Long.toString(userId))
-                .claim(ROLE, role)
+                .claim(ROLE, role.value())
                 .issuedAt(now)
                 .expiresAt(now.plus(SessionTtl.ACCESS));
         if (academyId != null) {

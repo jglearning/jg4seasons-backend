@@ -39,6 +39,27 @@ public class User implements AcademyScoped {
 
     protected User() {}
 
+    /** 교사·관리자(관리자 API가 만든다) */
+    static User staff(long academyId, String name, UserRole role) {
+        if (role != UserRole.TEACHER && role != UserRole.ADMIN) {
+            throw new IllegalArgumentException("교사·관리자만 만든다: " + role);
+        }
+        User user = new User();
+        user.academyId = academyId;
+        user.role = role;
+        user.name = name;
+        user.status = UserStatus.ACTIVE;
+        return user;
+    }
+
+    void rename(String name) {
+        this.name = name;
+    }
+
+    void changeStatus(UserStatus status) {
+        this.status = status;
+    }
+
     public void recordLogin(Instant at) {
         this.lastLoginAt = at;
     }

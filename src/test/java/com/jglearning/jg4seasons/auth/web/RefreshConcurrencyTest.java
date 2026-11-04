@@ -6,6 +6,7 @@ import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.token.RefreshTokenService;
+import com.jglearning.jg4seasons.auth.token.SessionTtl;
 import jakarta.servlet.http.Cookie;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -70,7 +71,7 @@ class RefreshConcurrencyTest {
 
     @Test
     void 같은_refresh_동시_2건은_하나만_회전한다() throws Exception {
-        String refresh = refreshTokens.create(studentId, null);
+        String refresh = refreshTokens.create(studentId, null, SessionTtl.STUDENT_REFRESH);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch go = new CountDownLatch(1);

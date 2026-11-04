@@ -74,6 +74,27 @@ class ProblemResponseTest {
     }
 
     @Test
+    void 서비스가_던진_VALIDATION도_칸별_errors가_있다() {
+        MvcTestResult result = mvc.get().uri(BASE + "/service-validation").exchange();
+
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("password");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].message").isEqualTo("비밀번호는 72바이트 이하예요");
+        assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("비밀번호는 72바이트 이하예요");
+    }
+
+    @Test
+    void 칸을_모르는_VALIDATION은_body_칸으로_errors가_있다() {
+        MvcTestResult result =
+                mvc.get().uri(BASE + "/service-validation-no-field").exchange();
+
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("body");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].message").isEqualTo("입력이 맞지 않아요");
+    }
+
+    @Test
     void ApiException은_그_code와_확장_필드로_나간다() {
         MvcTestResult result = mvc.get().uri(BASE + "/api-exception").exchange();
 

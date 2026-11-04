@@ -14,6 +14,12 @@ public class RateLimitConfig {
 
     public static final Duration CODE_GUESS_WINDOW = Duration.ofMinutes(1);
 
+    /** 교사·관리자 로그인 시도 전부: IP당 1분 10회(학생 가입 코드와 따로) */
+    @Bean
+    public StaffLoginGuessLimiter staffLoginGuessLimiter(Clock clock) {
+        return new StaffLoginGuessLimiter(new FixedWindowCounter(clock, CODE_GUESS_LIMIT, CODE_GUESS_WINDOW));
+    }
+
     @Bean
     public CodeGuessLimiter codeGuessLimiter(Clock clock) {
         return new CodeGuessLimiter(new FixedWindowCounter(clock, CODE_GUESS_LIMIT, CODE_GUESS_WINDOW));

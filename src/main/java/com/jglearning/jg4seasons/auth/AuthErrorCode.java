@@ -5,12 +5,16 @@ import org.springframework.http.HttpStatus;
 
 /** 인증 모듈의 오류 code. API 명세 §0.4 표. */
 public enum AuthErrorCode implements ErrorCode {
-    /** 가입 코드·개인 코드 불일치. 학생에게는 어느 쪽이 틀렸는지 구분하지 않는다 */
-    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "가입 코드 또는 개인 코드가 맞지 않아요"),
+    /** 학생 가입 코드·개인 코드, 교사 아이디·비밀번호 불일치. 어느 쪽이 틀렸는지는 구분하지 않는다(문구는 detail로 학생·교사별) */
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "입력한 정보가 맞지 않아요"),
     /** 가입 코드 확인(1.1)에서 반이 없거나 비활성 */
     INVALID_CODE(HttpStatus.NOT_FOUND, "가입 코드를 찾을 수 없어요"),
     /** (반, IP) 5회 실패 → 10분. 확장 필드 until(해제 시각, UTC) */
     LOCKED(HttpStatus.LOCKED, "잠시 후 다시 시도해 주세요"),
+    /** 교사 계정: 로그인 아이디가 이미 있다(전체 학원에서 고유) */
+    LOGIN_ID_TAKEN(HttpStatus.CONFLICT, "이미 쓰고 있는 아이디예요"),
+    /** 교사 계정: 자기 계정 비활성화(학원에 관리자가 0명이 되지 않게) */
+    SELF_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "자기 계정은 바꿀 수 없는 항목이에요"),
     /** 가입 코드 확인·찍기 과다 */
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "너무 많이 시도했어요");
 

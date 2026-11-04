@@ -1,12 +1,11 @@
 package com.jglearning.jg4seasons.auth;
 
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
-import com.jglearning.jg4seasons.auth.persistence.RefreshOwner;
+import com.jglearning.jg4seasons.auth.persistence.AuthUser;
 import com.jglearning.jg4seasons.auth.token.IssuedTokens;
-import com.jglearning.jg4seasons.auth.token.JwtIssuer;
-import com.jglearning.jg4seasons.auth.token.RandomTokens;
 import com.jglearning.jg4seasons.auth.token.RefreshOutcome;
 import com.jglearning.jg4seasons.auth.token.RefreshTokenService;
+import com.jglearning.jg4seasons.auth.token.TokenIssuer;
 import com.jglearning.jg4seasons.auth.web.dto.MeResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,12 +29,12 @@ public class SessionService {
     }
 
     private final RefreshTokenService refreshTokens;
-    private final JwtIssuer jwtIssuer;
+    private final TokenIssuer tokenIssuer;
     private final AcademyDirectory academies;
 
-    SessionService(RefreshTokenService refreshTokens, JwtIssuer jwtIssuer, AcademyDirectory academies) {
+    SessionService(RefreshTokenService refreshTokens, TokenIssuer tokenIssuer, AcademyDirectory academies) {
         this.refreshTokens = refreshTokens;
-        this.jwtIssuer = jwtIssuer;
+        this.tokenIssuer = tokenIssuer;
         this.academies = academies;
     }
 
@@ -46,13 +45,9 @@ public class SessionService {
         // 소유자(활성 사용자 + 학원 있음 + 정지 아님)는 RefreshTokenService가 회전 전에 확인한다
         RefreshOutcome outcome = refreshTokens.rotate(presented);
         if (outcome instanceof RefreshOutcome.Rotated rotated) {
-            RefreshOwner owner = rotated.owner();
-            IssuedTokens tokens = new IssuedTokens(
-                    jwtIssuer.issueAccess(owner.id(), owner.role(), owner.academyId()),
-                    rotated.newRefresh(),
-                    RandomTokens.next(),
-                    rotated.refreshTtl());
-            return new RefreshResult.Rotated(me(owner), tokens);
+            IssuedTokens tokens =
+                    tokenIssuer.afterRotation(rotated.owner(), rotated.newRefresh(), rotated.refreshTtl());
+            return new RefreshResult.Rotated(me(rotated.owner()), tokens);
         }
         if (outcome instanceof RefreshOutcome.GraceReuse grace) {
             return new RefreshResult.Reused(me(grace.owner()));
@@ -67,11 +62,11 @@ public class SessionService {
         }
     }
 
-    private MeResponse me(RefreshOwner owner) {
+    private MeResponse me(AuthUser owner) {
         return new MeResponse(
                 owner.id(),
                 owner.name(),
-                owner.role(),
+                owner.role().value(),
                 new MeResponse.AcademyRef(owner.academyId(), academies.nameOf(owner.academyId())));
     }
 }

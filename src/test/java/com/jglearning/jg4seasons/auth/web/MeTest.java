@@ -6,6 +6,7 @@ import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.AuthCookieSupport;
+import com.jglearning.jg4seasons.auth.UserRole;
 import jakarta.servlet.http.Cookie;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
@@ -79,6 +80,24 @@ class MeTest {
     @AfterEach
     void resetClock() {
         clock.reset();
+    }
+
+    @Test
+    void 교사와_관리자도_내_정보를_받는다() {
+        TestData data = new TestData(jdbc);
+        long teacherId = data.staff(academyId, "김교사", "teacher");
+        long adminId = data.staff(academyId, "원관리", "admin");
+
+        assertThat(mvc.get().uri("/api/v1/me").cookie(cookies.access(teacherId, UserRole.TEACHER, academyId)))
+                .hasStatusOk()
+                .bodyJson()
+                .extractingPath("$.role")
+                .isEqualTo("teacher");
+        assertThat(mvc.get().uri("/api/v1/me").cookie(cookies.access(adminId, UserRole.ADMIN, academyId)))
+                .hasStatusOk()
+                .bodyJson()
+                .extractingPath("$.role")
+                .isEqualTo("admin");
     }
 
     @Test

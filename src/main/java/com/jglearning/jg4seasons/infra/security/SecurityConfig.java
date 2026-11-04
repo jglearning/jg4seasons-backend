@@ -6,6 +6,8 @@ import java.util.Locale;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -74,6 +76,20 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler));
         return http.build();
+    }
+
+    /**
+     * 역할 계층(API 명세 §0.1): superadmin > admin > teacher. student는 별도. @RolesAllowed("TEACHER")면 admin·superadmin도 통과. static —
+     * 메서드 보안 설정보다 먼저 만들어지게
+     */
+    @Bean
+    static RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.withDefaultRolePrefix()
+                .role("SUPERADMIN")
+                .implies("ADMIN")
+                .role("ADMIN")
+                .implies("TEACHER")
+                .build();
     }
 
     /** 쿠키 access JWT 인증. 실패(만료·서명 불일치·형식)는 401 Problem Details */

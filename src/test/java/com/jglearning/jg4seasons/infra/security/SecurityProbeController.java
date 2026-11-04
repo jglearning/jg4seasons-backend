@@ -20,6 +20,12 @@ class SecurityProbeController {
         return Map.of("ok", true);
     }
 
+    @RolesAllowed("ADMIN")
+    @GetMapping("/admin-only")
+    Map<String, Boolean> adminOnly() {
+        return Map.of("ok", true);
+    }
+
     @RolesAllowed("TEACHER")
     @GetMapping("/teacher-only")
     Map<String, Boolean> teacherOnly() {

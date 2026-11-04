@@ -2,8 +2,8 @@ package com.jglearning.jg4seasons.auth.token;
 
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import com.jglearning.jg4seasons.auth.AuthProperties;
-import com.jglearning.jg4seasons.auth.persistence.RefreshOwner;
-import com.jglearning.jg4seasons.auth.persistence.RefreshOwnerLookup;
+import com.jglearning.jg4seasons.auth.persistence.AuthUser;
+import com.jglearning.jg4seasons.auth.persistence.PreAuthUserLookup;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,26 +29,26 @@ public class RefreshTokenService {
     static final int USER_AGENT_MAX = 200;
 
     private final RefreshTokenRepository tokens;
-    private final RefreshOwnerLookup owners;
+    private final PreAuthUserLookup users;
     private final AcademyDirectory academies;
     private final Clock clock;
     private final Duration reuseGrace;
 
     RefreshTokenService(
             RefreshTokenRepository tokens,
-            RefreshOwnerLookup owners,
+            PreAuthUserLookup users,
             AcademyDirectory academies,
             Clock clock,
             AuthProperties properties) {
         this.tokens = tokens;
-        this.owners = owners;
+        this.users = users;
         this.academies = academies;
         this.clock = clock;
         this.reuseGrace = properties.refreshReuseGrace();
     }
 
-    /** 새 refresh(평문). 수명은 역할별(학생 90일) — 지금은 학생만 로그인한다 */
-    public String create(long userId, String userAgent) {
+    /** 테스트용: 학생 수명(90일). 운영 코드는 TokenIssuer가 역할별 수명으로 3인자 create를 부른다 */
+    String create(long userId, String userAgent) {
         return create(userId, userAgent, SessionTtl.STUDENT_REFRESH);
     }
 
@@ -77,7 +77,7 @@ public class RefreshTokenService {
             log.warn("refresh reuse after grace userId={} killed={}", token.userId(), killed);
             return new RefreshOutcome.Rejected();
         }
-        Optional<RefreshOwner> owner = activeOwner(token.userId());
+        Optional<AuthUser> owner = activeOwner(token.userId());
         if (owner.isEmpty()) {
             log.info("refresh rejected: owner not active userId={}", token.userId());
             token.kill(now);
@@ -99,9 +99,9 @@ public class RefreshTokenService {
         tokens.killAllOf(userId, RefreshTokenRepository.floor(clock.instant()));
     }
 
-    private Optional<RefreshOwner> activeOwner(long userId) {
+    private Optional<AuthUser> activeOwner(long userId) {
         // 1차는 학원에 속한 사용자만 refresh한다(학원 없는 시스템 관리자는 HTTP 로그인이 2차). 회전 전에 걸러 부수효과 없이 거부
-        return owners.findActiveOwner(userId)
+        return users.findActiveUser(userId)
                 .filter(owner -> owner.academyId() != null && academies.isActive(owner.academyId()));
     }
 

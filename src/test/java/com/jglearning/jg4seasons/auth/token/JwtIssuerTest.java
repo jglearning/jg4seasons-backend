@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.MutableClock;
+import com.jglearning.jg4seasons.auth.UserRole;
 import java.time.Duration;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,7 @@ class JwtIssuerTest {
 
     @Test
     void 발급한_access는_sub_role_aca를_담는다() {
-        Jwt jwt = decoder.decode(issuer.issueAccess(301L, "student", 12L));
+        Jwt jwt = decoder.decode(issuer.issueAccess(301L, UserRole.STUDENT, 12L));
 
         assertThat(jwt.getSubject()).isEqualTo("301");
         assertThat(jwt.getClaimAsString("role")).isEqualTo("student");
@@ -34,14 +35,14 @@ class JwtIssuerTest {
 
     @Test
     void 학원이_없는_사용자는_aca가_없다() {
-        Jwt jwt = decoder.decode(issuer.issueAccess(1L, "superadmin", null));
+        Jwt jwt = decoder.decode(issuer.issueAccess(1L, UserRole.SUPERADMIN, null));
 
         assertThat(jwt.hasClaim("aca")).isFalse();
     }
 
     @Test
     void 만료_직전에는_통과하고_30분이_지나면_실패한다() {
-        String token = issuer.issueAccess(301L, "student", 12L);
+        String token = issuer.issueAccess(301L, UserRole.STUDENT, 12L);
 
         clock.advance(Duration.ofMinutes(30).minusSeconds(1));
         assertThat(decoder.decode(token).getSubject()).isEqualTo("301");
@@ -53,7 +54,7 @@ class JwtIssuerTest {
     @Test
     void 다른_키로_서명한_토큰은_거부한다() {
         String forged = new JwtIssuer(JwtConfig.encoder("other-secret-0123456789abcdef012345"), clock)
-                .issueAccess(301L, "student", 12L);
+                .issueAccess(301L, UserRole.STUDENT, 12L);
 
         assertThatThrownBy(() -> decoder.decode(forged)).isInstanceOf(JwtException.class);
     }

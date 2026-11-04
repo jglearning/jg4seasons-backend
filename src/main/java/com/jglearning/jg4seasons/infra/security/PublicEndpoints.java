@@ -11,14 +11,15 @@ public final class PublicEndpoints {
 
     public static final String CODE_VERIFY = "/api/v1/auth/code/verify";
     public static final String STUDENT_LOGIN = "/api/v1/auth/student/login";
+    public static final String STAFF_LOGIN = "/api/v1/auth/staff/login";
     public static final String REFRESH = "/api/v1/auth/refresh";
     public static final String LOGOUT = "/api/v1/auth/logout";
 
     /** 인증 없이 허용 */
-    public static final List<String> NO_AUTH = List.of(CODE_VERIFY, STUDENT_LOGIN, REFRESH, LOGOUT);
+    public static final List<String> NO_AUTH = List.of(CODE_VERIFY, STUDENT_LOGIN, STAFF_LOGIN, REFRESH, LOGOUT);
 
     /** CSRF 검사 제외: 아직 세션이 없거나(로그인·코드 확인) 쿠키 자체가 자격(refresh). 로그아웃은 검사한다 */
-    public static final List<String> NO_CSRF = List.of(CODE_VERIFY, STUDENT_LOGIN, REFRESH);
+    public static final List<String> NO_CSRF = List.of(CODE_VERIFY, STUDENT_LOGIN, STAFF_LOGIN, REFRESH);
 
     /** 이 아래에서는 access 쿠키를 읽지 않는다 — 만료·깨진 access가 남아 있어도 로그인·refresh가 막히지 않게 */
     public static final String AUTH_PREFIX = "/api/v1/auth/";
