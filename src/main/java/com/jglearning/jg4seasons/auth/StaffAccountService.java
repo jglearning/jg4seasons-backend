@@ -27,6 +27,9 @@ class StaffAccountService implements StaffAccounts {
 
     private static final Set<UserRole> STAFF = Set.of(UserRole.TEACHER, UserRole.ADMIN);
     private static final Pattern LOGIN_ID = Pattern.compile("^[a-z0-9._-]{3,30}$");
+    /** V1 스키마의 로그인 아이디 UNIQUE 제약 이름 */
+    static final String LOGIN_ID_UNIQUE = "uk_auth_identity_provider_identifier";
+
     static final int MIN_PASSWORD = 8;
     /** BCrypt는 72바이트 뒤를 버린다 — 길게 넣고 앞부분만으로 로그인되는 일이 없게 */
     static final int MAX_PASSWORD_BYTES = 72;
@@ -91,15 +94,21 @@ class StaffAccountService implements StaffAccounts {
         try {
             identities.saveAndFlush(AuthIdentity.password(user.getId(), loginId, hash, now));
         } catch (DataIntegrityViolationException e) {
-            // 동시에 같은 아이디로 만든 경우(UNIQUE(provider, identifier))
-            throw loginIdTaken();
+            // 동시에 같은 아이디로 만든 경우(UNIQUE(provider, identifier))만 409. 다른 제약 위반은 아이디 문제가 아니니 그대로 던진다
+            if (!String.valueOf(e.getMostSpecificCause().getMessage()).contains(LOGIN_ID_UNIQUE)) {
+                throw e;
+            }
+            throw new ApiException(AuthErrorCode.LOGIN_ID_TAKEN, "다른 아이디를 써 주세요", e);
         }
         return toAccount(user);
     }
 
     @Override
     public StaffAccount change(long academyId, long actorId, long staffId, StaffChange change) {
-        User user = staff(academyId, staffId);
+        // 행 잠금: 같은 교사에 대한 변경(이 트랜잭션 안의 담당 반 교체 포함)이 동시에 오면 줄을 선다
+        User user = users.findByAcademyIdAndIdForUpdate(academyId, staffId)
+                .filter(found -> STAFF.contains(found.getRole()))
+                .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "교사를 찾을 수 없어요"));
         Instant now = clock.instant();
         change.name().ifPresent(name -> user.rename(name(name)));
         boolean endSessions = false;
