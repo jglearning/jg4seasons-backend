@@ -16,6 +16,12 @@ public interface StaffAccounts {
 
     String LOGIN_ID_MESSAGE = "아이디는 영문·숫자·.·_·- 3~30자예요";
 
+    /**
+     * 요청한 사람(JWT의 사용자)이 지금도 이 학원의 활성 관리자인지 확인한다. 아니면 401 UNAUTHORIZED. JWT의 role은 발급 때 값이라, 비활성화·역할
+     * 변경·학원 정지 뒤에도 남은 access(최대 30분)로 관리 API를 쓰지 못하게 쓰기 전에 부른다
+     */
+    void requireActiveAdmin(long academyId, long actorId);
+
     List<StaffAccount> list(long academyId);
 
     StaffAccount find(long academyId, long staffId);

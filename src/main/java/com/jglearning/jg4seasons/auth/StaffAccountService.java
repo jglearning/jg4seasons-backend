@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.auth;
 
+import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import com.jglearning.jg4seasons.auth.api.AccountStatus;
 import com.jglearning.jg4seasons.auth.api.NewStaff;
 import com.jglearning.jg4seasons.auth.api.StaffAccount;
@@ -34,6 +35,7 @@ class StaffAccountService implements StaffAccounts {
     private final AuthIdentityRepository identities;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokens;
+    private final AcademyDirectory academies;
     private final Clock clock;
 
     StaffAccountService(
@@ -41,12 +43,26 @@ class StaffAccountService implements StaffAccounts {
             AuthIdentityRepository identities,
             PasswordEncoder passwordEncoder,
             RefreshTokenService refreshTokens,
+            AcademyDirectory academies,
             Clock clock) {
         this.users = users;
         this.identities = identities;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokens = refreshTokens;
+        this.academies = academies;
         this.clock = clock;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void requireActiveAdmin(long academyId, long actorId) {
+        boolean activeAdmin = users.findByAcademyIdAndId(academyId, actorId)
+                .filter(User::isActive)
+                .filter(user -> user.getRole() == UserRole.ADMIN)
+                .isPresent();
+        if (!activeAdmin || !academies.isActive(academyId)) {
+            throw new ApiException(CommonErrorCode.UNAUTHORIZED, "다시 로그인해 주세요");
+        }
     }
 
     @Override

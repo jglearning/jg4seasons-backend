@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 5.3 관리자 교사 API(ADM-04). 계정은 auth, 담당 반은 clazz — 한 트랜잭션에서 조립한다(반 배정이 404면 계정도 만들지 않음). academyId·actorId는
- * 컨트롤러가 인증 주체(JWT)에서 넘긴다.
+ * 컨트롤러가 인증 주체(JWT)에서 넘긴다. 모든 메서드는 먼저 요청한 사람이 지금도 활성 관리자인지 확인한다(JWT role만 믿지 않음).
  */
 @Service
 @Transactional
@@ -35,14 +35,16 @@ public class TeacherAdminService {
     }
 
     @Transactional(readOnly = true)
-    public TeacherListResponse list(long academyId) {
+    public TeacherListResponse list(long academyId, long actorId) {
+        accounts.requireActiveAdmin(academyId, actorId);
         List<TeacherResponse> items = accounts.list(academyId).stream()
                 .map(account -> toResponse(academyId, account))
                 .toList();
         return new TeacherListResponse(items, items.size());
     }
 
-    public TeacherResponse create(long academyId, TeacherCreateRequest request) {
+    public TeacherResponse create(long academyId, long actorId, TeacherCreateRequest request) {
+        accounts.requireActiveAdmin(academyId, actorId);
         StaffAccount created = accounts.create(
                 academyId, new NewStaff(request.name(), request.loginId(), request.password(), role(request.role())));
         classTeachers.replace(academyId, created.id(), new HashSet<>(request.classIds()));
@@ -50,6 +52,7 @@ public class TeacherAdminService {
     }
 
     public TeacherResponse update(long academyId, long actorId, long teacherId, TeacherUpdateRequest request) {
+        accounts.requireActiveAdmin(academyId, actorId);
         StaffAccount changed = accounts.change(
                 academyId,
                 actorId,

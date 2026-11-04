@@ -21,7 +21,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 5.3 교사 계정(A-03). 관리자만. 학원은 access 쿠키(JWT aca)에서만 — 다른 학원 교사·반 id는 404. */
+/**
+ * 5.3 교사 계정(A-03). 관리자만. 학원은 access 쿠키(JWT aca)에서만 — 다른 학원 교사·반 id는 404. 요청한 관리자가 비활성화됐거나 역할이 바뀌었거나
+ * 학원이 정지됐으면(남은 access) 401.
+ */
 @RestController
 @RequestMapping("/api/v1/admin/teachers")
 @RolesAllowed("ADMIN")
@@ -36,7 +39,7 @@ public class TeacherAdminController {
     @Operation(summary = "교사·관리자 목록", description = "id 순")
     @GetMapping
     public TeacherListResponse list(@AuthenticationPrincipal Jwt jwt) {
-        return service.list(Principals.academyId(jwt));
+        return service.list(Principals.academyId(jwt), Principals.userId(jwt));
     }
 
     @Operation(
@@ -45,7 +48,7 @@ public class TeacherAdminController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public TeacherResponse create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody TeacherCreateRequest request) {
-        return service.create(Principals.academyId(jwt), request);
+        return service.create(Principals.academyId(jwt), Principals.userId(jwt), request);
     }
 
     @Operation(

@@ -9,6 +9,7 @@ import com.jglearning.jg4seasons.auth.UserRole;
 import com.jglearning.jg4seasons.auth.token.RefreshOutcome;
 import com.jglearning.jg4seasons.auth.token.RefreshTokenService;
 import com.jglearning.jg4seasons.auth.token.SessionTtl;
+import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,9 @@ class TeacherAdminTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    EntityManager entityManager;
 
     TestData data;
     long academyId;
@@ -182,6 +186,38 @@ class TeacherAdminTest {
 
         assertThat(again).hasStatus(409);
         assertThat(again).bodyJson().extractingPath("$.code").isEqualTo("LOGIN_ID_TAKEN");
+    }
+
+    @Test
+    void 비활성화된_관리자의_남은_access로는_교사_API를_못_쓴다() {
+        // 관리자 B가 비활성화돼도 access는 최대 30분 유효하다 — 그 사이 자기를 되살리거나 새 관리자를 만들 수 없어야 한다
+        long teacherId = createdId(create(adminCookies(), newTeacher("victim-teacher")));
+        jdbc.update("update `user` set status = 'inactive' where id = ?", adminId);
+        entityManager.clear(); // 같은 트랜잭션에서 앞서 읽은 관리자 엔티티가 남아 있지 않게(운영은 요청마다 새로 읽음)
+
+        assertThat(mvc.get().uri(URL).cookie(adminCookies())).hasStatus(401);
+        assertThat(create(adminCookies(), newTeacher("backdoor-admin"))).hasStatus(401);
+        assertThat(update(adminCookies(), adminId, "{\"status\":\"active\"}"))
+                .as("자기 되살리기")
+                .hasStatus(401);
+        assertThat(update(adminCookies(), teacherId, "{\"name\":\"x\"}")).hasStatus(401);
+    }
+
+    @Test
+    void 정지된_학원의_관리자는_교사_API를_못_쓴다() {
+        jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
+
+        MvcTestResult result = mvc.get().uri(URL).cookie(adminCookies()).exchange();
+
+        assertThat(result).hasStatus(401);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("UNAUTHORIZED");
+    }
+
+    @Test
+    void 관리자에서_교사로_내려간_사람의_남은_관리자_access도_못_쓴다() {
+        jdbc.update("update `user` set role = 'teacher' where id = ?", adminId);
+
+        assertThat(mvc.get().uri(URL).cookie(adminCookies())).hasStatus(401);
     }
 
     @Test
