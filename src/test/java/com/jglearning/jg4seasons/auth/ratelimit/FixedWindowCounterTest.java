@@ -74,18 +74,22 @@ class FixedWindowCounterTest {
     }
 
     @Test
-    void 키가_상한에_차면_새_키는_거부하고_있던_키는_센다() {
-        FixedWindowCounter capped = new FixedWindowCounter(clock, 10, Duration.ofMinutes(1), 1, 3);
+    void 키가_상한에_차면_새_키는_공용_칸에서_함께_센다() {
+        // 상한을 넘긴 키를 모두 한 칸에서 센다 → 공격 중에도 찍기 횟수에 상한이 남고, 이미 세던 키는 영향 없음
+        FixedWindowCounter capped = new FixedWindowCounter(clock, 2, Duration.ofMinutes(1), 1, 3);
         capped.tryAcquire("a");
         capped.tryAcquire("b");
         capped.tryAcquire("c");
 
-        assertThat(capped.tryAcquire("d")).as("상한 3개, 끝난 창 없음").isFalse();
-        assertThat(capped.tryAcquire("a")).isTrue();
-        assertThat(capped.size()).isEqualTo(3);
+        assertThat(capped.tryAcquire("d")).as("공용 칸 1번째").isTrue();
+        assertThat(capped.tryAcquire("e")).as("공용 칸 2번째(다른 새 키도 같은 칸)").isTrue();
+        assertThat(capped.tryAcquire("f")).as("공용 칸 한도 2 초과").isFalse();
+        assertThat(capped.tryAcquire("a")).as("있던 키는 따로 센다").isTrue();
+        assertThat(capped.count("d")).as("새 키는 자기 칸이 없다").isZero();
 
         clock.advance(Duration.ofMinutes(1));
-        assertThat(capped.tryAcquire("d")).as("창이 끝나 정리되면 다시 받는다").isTrue();
+        assertThat(capped.tryAcquire("d")).as("정리되면 다시 자기 칸").isTrue();
+        assertThat(capped.count("d")).isEqualTo(1);
     }
 
     @Test
