@@ -21,6 +21,7 @@ import com.jglearning.jg4seasons.content.api.BookLessons;
 import com.jglearning.jg4seasons.content.api.BookSummary;
 import com.jglearning.jg4seasons.infra.audit.AuditAction;
 import com.jglearning.jg4seasons.infra.audit.AuditLogger;
+import com.jglearning.jg4seasons.infra.audit.AuditTarget;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import java.util.List;
@@ -115,7 +116,7 @@ public class ClassAdminService {
         academies.lockForAdminWrite(academyId);
         accounts.requireActiveAdmin(academyId, actorId);
         ClassDetail reissued = classes.regenerateAccessCode(academyId, classId);
-        auditLogger.record(academyId, actorId, AuditAction.CODE_REGENERATE, AuditLogger.TARGET_CLASS, classId, null);
+        auditLogger.record(academyId, actorId, AuditAction.CODE_REGENERATE, AuditTarget.CLASS, classId, null);
         return new AccessCodeResponse(reissued.accessCode(), reissued.codeIssuedAt());
     }
 

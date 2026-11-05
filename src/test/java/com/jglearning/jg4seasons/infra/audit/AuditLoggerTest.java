@@ -48,7 +48,7 @@ class AuditLoggerTest {
         long actorId = data.staff(academyId, "관리자", "admin");
         clock.set(Instant.parse("2026-11-05T03:04:05.987Z"));
 
-        auditLogger.record(academyId, actorId, AuditAction.CODE_REGENERATE, AuditLogger.TARGET_CLASS, 77L, null);
+        auditLogger.record(academyId, actorId, AuditAction.CODE_REGENERATE, AuditTarget.CLASS, 77L, null);
 
         Map<String, Object> row = jdbc.queryForMap(
                 "select academy_id, actor_id, action, target_type, target_id, detail,"
@@ -74,7 +74,7 @@ class AuditLoggerTest {
                 academyId,
                 actorId,
                 AuditAction.STUDENT_MOVE,
-                AuditLogger.TARGET_STUDENT,
+                AuditTarget.STUDENT,
                 5L,
                 Map.of("fromClassId", 3, "toClassId", 4));
 
@@ -87,8 +87,7 @@ class AuditLoggerTest {
 
     @Test
     void 트랜잭션_없이_부르면_예외() {
-        assertThatThrownBy(() ->
-                        auditLogger.record(1L, 1L, AuditAction.CODE_REGENERATE, AuditLogger.TARGET_CLASS, 1L, null))
+        assertThatThrownBy(() -> auditLogger.record(1L, 1L, AuditAction.CODE_REGENERATE, AuditTarget.CLASS, 1L, null))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 }

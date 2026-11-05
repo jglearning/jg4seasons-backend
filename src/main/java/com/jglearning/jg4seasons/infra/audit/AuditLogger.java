@@ -17,9 +17,6 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public class AuditLogger {
 
-    public static final String TARGET_CLASS = "class";
-    public static final String TARGET_STUDENT = "student";
-
     private final AuditLogRepository logs;
     private final JsonMapper jsonMapper;
     private final Clock clock;
@@ -35,12 +32,12 @@ public class AuditLogger {
             long academyId,
             long actorId,
             AuditAction action,
-            String targetType,
+            AuditTarget target,
             long targetId,
             @Nullable Map<String, Object> detail) {
         String json = detail == null ? null : jsonMapper.writeValueAsString(detail);
         // DATETIME은 초 단위 반올림 — 내림해 저장해 실제보다 늦은 시각이 되지 않게
         Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
-        logs.save(new AuditLog(academyId, actorId, action, targetType, targetId, json, now));
+        logs.save(new AuditLog(academyId, actorId, action, target.value(), targetId, json, now));
     }
 }
