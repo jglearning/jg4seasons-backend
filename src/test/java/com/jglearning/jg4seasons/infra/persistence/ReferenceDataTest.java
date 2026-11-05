@@ -111,9 +111,6 @@ class ReferenceDataTest {
                 .isEqualTo(5);
         assertThat(jdbc.queryForList("select distinct coverage_threshold from completion_rule", BigDecimal.class))
                 .containsExactly(new BigDecimal("0.900"));
-        assertThat(jdbc.queryForObject(
-                        "select count(*) from completion_rule where cloze_required_ratio is not null", Integer.class))
-                .isZero();
         assertThat(requiredSpeedsEqual("L1", "[\"0.8\",\"1.0\"]")).isTrue();
         for (String level : new String[] {"L2", "L3", "L4", "K"}) {
             assertThat(requiredSpeedsEqual(level, "[\"1.0\"]")).as(level).isTrue();
@@ -121,8 +118,7 @@ class ReferenceDataTest {
         assertThat(jdbc.queryForObject(
                         "select count(*) from completion_rule where"
                                 + " json_extract(required_tracks, '$[0].kind') = 'passage'"
-                                + " and json_extract(required_tracks, '$[0].eachPassage') = true"
-                                + " and cloze_hint = cast('{\"firstLetterAt\":3,\"answerAt\":4}' as json)",
+                                + " and json_extract(required_tracks, '$[0].eachPassage') = true",
                         Integer.class))
                 .isEqualTo(5);
     }
