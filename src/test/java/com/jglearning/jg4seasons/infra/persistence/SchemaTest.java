@@ -11,9 +11,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** Flyway V1이 ERD v0.2의 1차 테이블을 그대로 만드는지. */
+/** Flyway 전체(V1~)를 적용한 스키마가 ERD의 1차 테이블과 같은지(마이그레이션이 늘면 함께 갱신). */
 @IntegrationTest
-class SchemaV1Test {
+class SchemaTest {
 
     static final Set<String> FIRST_RELEASE_TABLES = Set.of(
             // 공용 콘텐츠
@@ -22,6 +22,7 @@ class SchemaV1Test {
             "lesson",
             "passage",
             "sentence",
+            "sentence_timing",
             "grammar_item",
             "lesson_grammar_item",
             "track",
@@ -40,8 +41,6 @@ class SchemaV1Test {
             "listening_segment",
             "track_progress",
             "lesson_progress",
-            "cloze_attempt",
-            "cloze_progress",
             "word_study",
             // 인증·운영
             "refresh_token",
@@ -57,7 +56,7 @@ class SchemaV1Test {
             List.of("lesson", "book_id,number"),
             List.of("passage", "lesson_id,no"),
             List.of("sentence", "passage_id,no"),
-            List.of("sentence", "track_id"),
+            List.of("sentence_timing", "sentence_id,track_id"),
             List.of("track", "lesson_id,kind,variant"),
             List.of("track", "file_key"),
             List.of("word", "lesson_id,sort_order"),
@@ -82,9 +81,79 @@ class SchemaV1Test {
     }
 
     @Test
-    void 테이블은_ERD의_1차_27개다() {
-        assertThat(FIRST_RELEASE_TABLES).hasSize(27);
+    void 테이블은_ERD의_1차_26개다() {
+        assertThat(FIRST_RELEASE_TABLES).hasSize(26);
         assertThat(tables()).containsExactlyInAnyOrderElementsOf(FIRST_RELEASE_TABLES);
+    }
+
+    @Test
+    void 빈칸_칸과_문장_트랙_종류가_없다() {
+        List<String> found = jdbc.queryForList(
+                "select concat(table_name, '.', column_name) from information_schema.columns"
+                        + " where table_schema = database() and ("
+                        + " (table_name = 'lesson_progress' and column_name in ('cloze_total', 'cloze_correct'))"
+                        + " or (table_name = 'completion_rule' and column_name in ('cloze_required_ratio', 'cloze_hint'))"
+                        + " or (table_name = 'sentence'"
+                        + " and column_name in ('text_before', 'blank_answer', 'text_after', 'track_id')))",
+                String.class);
+        assertThat(found).as("ADR-26으로 없앤 칸").isEmpty();
+        assertThat(columnType("track", "kind")).isEqualTo("enum('passage','word','word_example')");
+    }
+
+    @Test
+    void 트랙_칸을_다시_정의해도_NOT_NULL이_남는다() {
+        // MODIFY는 칸 정의를 통째로 다시 쓴다 — NOT NULL을 빠뜨리면 조용히 NULL 허용이 된다
+        assertThat(isNullable("track", "kind")).isEqualTo("NO");
+        assertThat(isNullable("track", "variant")).isEqualTo("NO");
+        assertThat(columnType("track", "variant")).isEqualTo("varchar(12)");
+    }
+
+    @Test
+    void 문장은_text_하나다() {
+        assertThat(columnType("sentence", "text")).isEqualTo("varchar(800)");
+        assertThat(isNullable("sentence", "text")).isEqualTo("NO");
+    }
+
+    @Test
+    void 문장_시각은_문장과_지문_트랙을_가리킨다() {
+        List<String> foreignKeys = jdbc.queryForList(
+                "select concat(column_name, '->', referenced_table_name, '.', referenced_column_name)"
+                        + " from information_schema.key_column_usage"
+                        + " where table_schema = database() and table_name = 'sentence_timing'"
+                        + " and referenced_table_name is not null",
+                String.class);
+        assertThat(foreignKeys).containsExactlyInAnyOrder("sentence_id->sentence.id", "track_id->track.id");
+
+        List<String> trackFirstIndexes = jdbc.queryForList(
+                "select index_name from information_schema.statistics"
+                        + " where table_schema = database() and table_name = 'sentence_timing'"
+                        + " and column_name = 'track_id' and seq_in_index = 1",
+                String.class);
+        assertThat(trackFirstIndexes).as("track_id로 찾는 인덱스").isNotEmpty();
+
+        String check = jdbc.queryForObject(
+                "select check_clause from information_schema.check_constraints"
+                        + " where constraint_schema = database() and constraint_name = 'ck_sentence_timing_range'",
+                String.class);
+        assertThat(check).isEqualTo("((`start_ms` >= 0) and (`end_ms` > `start_ms`))");
+    }
+
+    private String isNullable(String table, String column) {
+        return jdbc.queryForObject(
+                "select is_nullable from information_schema.columns"
+                        + " where table_schema = database() and table_name = ? and column_name = ?",
+                String.class,
+                table,
+                column);
+    }
+
+    private String columnType(String table, String column) {
+        return jdbc.queryForObject(
+                "select column_type from information_schema.columns"
+                        + " where table_schema = database() and table_name = ? and column_name = ?",
+                String.class,
+                table,
+                column);
     }
 
     @Test
