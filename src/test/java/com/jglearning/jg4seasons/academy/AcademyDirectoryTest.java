@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
+import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -44,6 +45,37 @@ class AcademyDirectoryTest {
         assertThat(academies.isActive(active)).isTrue();
         assertThat(academies.isActive(suspended)).isFalse();
         assertThat(academies.isActive(-1L)).as("없는 학원").isFalse();
+    }
+
+    @Test
+    void 타임존이_없으면_서울() {
+        long noSettings = new TestData(jdbc).academy("설정 없음");
+        long emptySettings = new TestData(jdbc).academy("빈 설정");
+        jdbc.update("update academy set settings = '{}' where id = ?", emptySettings);
+
+        assertThat(academies.zoneOf(noSettings)).isEqualTo(ZoneId.of("Asia/Seoul"));
+        assertThat(academies.zoneOf(emptySettings)).isEqualTo(ZoneId.of("Asia/Seoul"));
+    }
+
+    @Test
+    void 설정한_타임존을_쓴다() {
+        long id = new TestData(jdbc).academy("도쿄 학원");
+        jdbc.update("update academy set settings = '{\"timezone\":\"Asia/Tokyo\"}' where id = ?", id);
+
+        assertThat(academies.zoneOf(id)).isEqualTo(ZoneId.of("Asia/Tokyo"));
+    }
+
+    @Test
+    void 잘못된_타임존은_IllegalState() {
+        long id = new TestData(jdbc).academy("잘못된 설정");
+        jdbc.update("update academy set settings = '{\"timezone\":\"Mars/Base\"}' where id = ?", id);
+
+        assertThatThrownBy(() -> academies.zoneOf(id)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 없는_학원의_타임존은_IllegalState() {
+        assertThatThrownBy(() -> academies.zoneOf(-1L)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

@@ -21,7 +21,15 @@ public class Academy {
     @Column(nullable = false, columnDefinition = "enum('active','suspended')")
     private String status;
 
+    /** JSON 문자열 또는 null. 지금 읽는 키는 timezone(없으면 Asia/Seoul) */
+    @Column(columnDefinition = "json")
+    private String settings;
+
     protected Academy() {}
+
+    String getSettings() {
+        return settings;
+    }
 
     public boolean isActive() {
         return "active".equals(status);
