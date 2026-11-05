@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.clazz;
 
+import com.jglearning.jg4seasons.clazz.api.ClassStatus;
 import com.jglearning.jg4seasons.infra.persistence.AcademyScoped;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -27,7 +28,7 @@ public class Clazz implements AcademyScoped {
     @Column(name = "access_code", nullable = false, columnDefinition = "char(8)")
     private String accessCode;
 
-    @Convert(converter = ClassStatus.DbConverter.class)
+    @Convert(converter = ClassStatusConverter.class)
     @Column(nullable = false, columnDefinition = "enum('active','finished','archived')")
     private ClassStatus status;
 
