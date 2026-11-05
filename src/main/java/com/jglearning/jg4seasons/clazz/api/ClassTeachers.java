@@ -14,4 +14,13 @@ public interface ClassTeachers {
      * 않는다
      */
     void replace(long academyId, long teacherId, Set<Long> classIds);
+
+    /** 이 반을 맡은 교사 id(오름차순). 다른 학원·없는 반은 404 NOT_FOUND */
+    List<Long> teacherIdsOf(long academyId, long classId);
+
+    /**
+     * 이 반의 담당 교사를 teacherIds로 바꾼다. 반 행을 잠그고(같은 반 동시 변경을 줄 세움) 바뀐 것만 반영한다(빠진 교사만 지우고 새 교사만 넣음 — 범위
+     * delete 없음). 다른 학원·없는 반은 404 NOT_FOUND
+     */
+    void replaceTeachersOf(long academyId, long classId, Set<Long> teacherIds);
 }

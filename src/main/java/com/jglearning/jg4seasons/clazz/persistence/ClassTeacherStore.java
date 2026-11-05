@@ -52,6 +52,17 @@ public class ClassTeacherStore {
     }
 
     /** 반이 그 학원 것인지 이미 확인한 뒤에 부른다 */
+    public List<Long> teacherIdsOf(long classId) {
+        return jdbc.queryForList(
+                "select user_id from class_teacher where class_id = ? order by user_id", Long.class, classId);
+    }
+
+    /** 반이 그 학원 것인지 이미 확인한 뒤에 부른다. PK 한 행만 지운다 */
+    public void delete(long classId, long teacherId) {
+        jdbc.update("delete from class_teacher where class_id = ? and user_id = ?", classId, teacherId);
+    }
+
+    /** 반이 그 학원 것인지 이미 확인한 뒤에 부른다 */
     public void insert(long classId, long teacherId) {
         jdbc.update("insert into class_teacher (class_id, user_id) values (?, ?)", classId, teacherId);
     }
