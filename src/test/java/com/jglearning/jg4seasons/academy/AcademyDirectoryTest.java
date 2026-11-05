@@ -9,6 +9,8 @@ import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @IntegrationTest
@@ -51,5 +53,19 @@ class AcademyDirectoryTest {
 
         assertThat(academies.findIdBySlug(slug)).contains(id);
         assertThat(academies.findIdBySlug("no-such-slug")).isEmpty();
+    }
+
+    @Test
+    void 관리_쓰기_학원_잠금은_트랜잭션_안에서_잡힌다() {
+        long id = new TestData(jdbc).academy("잠금 학원");
+
+        academies.lockForAdminWrite(id);
+        academies.lockForAdminWrite(-1L);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 관리_쓰기_학원_잠금은_트랜잭션_밖에서_부르면_예외() {
+        assertThatThrownBy(() -> academies.lockForAdminWrite(1L)).isInstanceOf(IllegalTransactionStateException.class);
     }
 }

@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.academy;
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -26,6 +27,12 @@ class AcademyDirectoryService implements AcademyDirectory {
     @Override
     public boolean isActive(long academyId) {
         return academies.findById(academyId).map(Academy::isActive).orElse(false);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void lockForAdminWrite(long academyId) {
+        academies.lockById(academyId);
     }
 
     @Override

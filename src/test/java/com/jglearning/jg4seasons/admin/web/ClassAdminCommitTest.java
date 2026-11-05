@@ -34,6 +34,8 @@ class ClassAdminCommitTest {
 
     static final String URL = "/api/v1/admin/classes";
     static final int ROUNDS = 10;
+    /** 두 경로가 엇갈리는 교착은 확률적이다 — 학원 잠금을 빼면 10회로는 4번 중 1번만 잡혀 늘렸다 */
+    static final int CROSS_ROUNDS = 60;
 
     @Autowired
     MockMvcTester mvc;
@@ -148,7 +150,7 @@ class ClassAdminCommitTest {
         long classA = createClass("A반", teacherA);
         long classB = createClass("B반", teacherA);
 
-        for (int round = 0; round < ROUNDS; round++) {
+        for (int round = 0; round < CROSS_ROUNDS; round++) {
             long target = round % 2 == 0 ? classA : classB;
             List<Integer> statuses = together(
                     () -> send("PATCH", "/api/v1/admin/teachers/" + teacherA, "{\"classIds\":[" + target + "]}"),
@@ -157,6 +159,41 @@ class ClassAdminCommitTest {
             assertThat(statuses).as("round %d", round).containsOnly(200);
         }
         assertThat(teachersOf(classA)).isSubsetOf(Set.of(teacherA, teacherB));
+    }
+
+    @Test
+    void 반_기준이_교사를_새로_넣는_동안_교사_기준이_그_교사를_바꿔도_500이_없다() throws Exception {
+        // 둘 다 (A반, 교사A)를 넣는다. 반 기준은 반 행 → (FK) user 행, 교사 기준은 user 행 → (FK) 반 행 — 학원 잠금이 없으면 서로 기다린다
+        long classA = createClass("A반");
+        long classB = createClass("B반");
+
+        for (int round = 0; round < CROSS_ROUNDS; round++) {
+            jdbc.update("delete from class_teacher where class_id in (?, ?)", classA, classB);
+            List<Integer> statuses = together(
+                    () -> send("PATCH", URL + "/" + classA, "{\"teacherIds\":[" + teacherA + "]}"),
+                    () -> send(
+                            "PATCH",
+                            "/api/v1/admin/teachers/" + teacherA,
+                            "{\"classIds\":[" + classA + "," + classB + "]}"));
+
+            assertThat(statuses).as("round %d", round).containsOnly(200);
+        }
+    }
+
+    @Test
+    void 반_상태_변경과_교사_기준_PATCH가_동시에_와도_500이_없다() throws Exception {
+        long classA = createClass("A반", teacherA);
+        long classB = createClass("B반");
+
+        for (int round = 0; round < CROSS_ROUNDS; round++) {
+            String status = round % 2 == 0 ? "finished" : "active";
+            long target = round % 2 == 0 ? classA : classB;
+            List<Integer> statuses = together(
+                    () -> send("PATCH", URL + "/" + classA, "{\"status\":\"" + status + "\"}"),
+                    () -> send("PATCH", "/api/v1/admin/teachers/" + teacherB, "{\"classIds\":[" + target + "]}"));
+
+            assertThat(statuses).as("round %d", round).containsOnly(200);
+        }
     }
 
     @Test

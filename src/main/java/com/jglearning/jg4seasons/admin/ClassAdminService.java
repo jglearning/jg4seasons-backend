@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.admin;
 
+import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import com.jglearning.jg4seasons.admin.web.dto.AccessCodeResponse;
 import com.jglearning.jg4seasons.admin.web.dto.ClassCreateRequest;
 import com.jglearning.jg4seasons.admin.web.dto.ClassListResponse;
@@ -34,12 +35,14 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 5.1 관리자 반 API(ADM-01·ADM-03·AUTH-06). 반·진도표·코드는 clazz, 권 → 회차는 content, 교사 확인은 auth, 감사는 infra.audit — 한 트랜잭션에서
  * 조립한다(교사 확인이 404면 반도 진도표도 만들지 않음). academyId·actorId는 컨트롤러가 인증 주체(JWT)에서 넘긴다. 모든 메서드는 먼저 요청한 사람이 지금도
- * 활성 관리자인지 확인한다(JWT role만 믿지 않음).
+ * 활성 관리자인지 확인한다(JWT role만 믿지 않음). 쓰기는 그보다 먼저 학원 잠금(AcademyDirectory.lockForAdminWrite)으로 같은 학원 관리 쓰기를 줄
+ * 세운다 — 담당 교사 배정은 교사 행·반 행·class_teacher(FK로 user 행)를 경로마다 다른 순서로 잠가 교착이 났다. 교사 활성 확인도 잠금 뒤라 경쟁이 없다.
  */
 @Service
 @Transactional
 public class ClassAdminService {
 
+    private final AcademyDirectory academies;
     private final StaffAccounts accounts;
     private final ClassManagement classes;
     private final ClassTeachers classTeachers;
@@ -47,11 +50,13 @@ public class ClassAdminService {
     private final AuditLogger auditLogger;
 
     ClassAdminService(
+            AcademyDirectory academies,
             StaffAccounts accounts,
             ClassManagement classes,
             ClassTeachers classTeachers,
             BookDirectory books,
             AuditLogger auditLogger) {
+        this.academies = academies;
         this.accounts = accounts;
         this.classes = classes;
         this.classTeachers = classTeachers;
@@ -76,6 +81,7 @@ public class ClassAdminService {
     }
 
     public ClassResponse create(long academyId, long actorId, ClassCreateRequest request) {
+        academies.lockForAdminWrite(academyId);
         accounts.requireActiveAdmin(academyId, actorId);
         BookLessons lessons =
                 books.findLessons(request.bookCode()).orElseThrow(() -> ApiException.validation("bookCode", "없는 권이에요"));
@@ -93,6 +99,7 @@ public class ClassAdminService {
     }
 
     public ClassResponse update(long academyId, long actorId, long classId, ClassUpdateRequest request) {
+        academies.lockForAdminWrite(academyId);
         accounts.requireActiveAdmin(academyId, actorId);
         Optional<Set<Long>> teacherIds =
                 Optional.ofNullable(request.teacherIds()).map(ids -> requireActiveStaff(academyId, ids));
@@ -109,6 +116,7 @@ public class ClassAdminService {
 
     /** 이미 입장한 학생의 로그인은 그대로. 감사 detail에는 코드를 남기지 않는다 */
     public AccessCodeResponse regenerateAccessCode(long academyId, long actorId, long classId) {
+        academies.lockForAdminWrite(academyId);
         accounts.requireActiveAdmin(academyId, actorId);
         ClassDetail reissued = classes.regenerateAccessCode(academyId, classId);
         auditLogger.record(academyId, actorId, AuditAction.CODE_REGENERATE, AuditLogger.TARGET_CLASS, classId, null);

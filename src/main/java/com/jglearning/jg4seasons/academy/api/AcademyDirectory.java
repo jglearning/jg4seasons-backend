@@ -11,6 +11,14 @@ public interface AcademyDirectory {
     /** 학원이 있고 정지(suspended)가 아니다. 학생 입장·세션 갱신 전에 확인한다 */
     boolean isActive(long academyId);
 
+    /**
+     * 관리 쓰기(교사 계정·담당 반·반 생성·변경·가입 코드 재발급)를 학원 단위로 줄 세운다: 학원 행을 FOR UPDATE로 잠근다. 호출한 트랜잭션 안에서만
+     * 쓰고(MANDATORY), 그 트랜잭션의 첫 읽기보다 먼저 부른다 — REPEATABLE READ 스냅샷이 잠금을 얻은 뒤에 잡혀야 앞선 관리 쓰기의 결과를 본다. 담당
+     * 교사 배정은 교사 행·반 행·class_teacher(FK로 user 행)를 경로마다 다른 순서로 잠그므로, 이 잠금 하나로 교착을 막는다. 학원이 없으면 아무것도
+     * 하지 않는다(이어지는 활성 관리자 확인이 401로 막는다)
+     */
+    void lockForAdminWrite(long academyId);
+
     /** 상태와 무관하게 찾는다(개발 시드용) */
     Optional<Long> findIdBySlug(String slug);
 }
