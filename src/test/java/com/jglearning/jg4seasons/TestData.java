@@ -89,6 +89,21 @@ public final class TestData {
                 LocalDate.of(2026, 11, 1));
     }
 
+    public long lessonId(String code) {
+        return Objects.requireNonNull(jdbc.queryForObject("select id from lesson where code = ?", Long.class, code));
+    }
+
+    /** 진도표 한 행. status: scheduled · done · cancelled */
+    public void session(long classId, int seq, String lessonCode, LocalDate date, String status) {
+        jdbc.update(
+                "insert into class_session (class_id, seq, lesson_id, scheduled_date, status) values (?, ?, ?, ?, ?)",
+                classId,
+                seq,
+                lessonId(lessonCode),
+                date,
+                status);
+    }
+
     public void leave(long classId, long studentId) {
         jdbc.update(
                 "update enrollment set left_at = ? where class_id = ? and student_id = ?",
