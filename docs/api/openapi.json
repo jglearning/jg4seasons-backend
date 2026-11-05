@@ -8,6 +8,209 @@
     "url" : "/"
   } ],
   "paths" : {
+    "/api/v1/admin/classes" : {
+      "get" : {
+        "description" : "id 순, 가입 코드 포함. status를 빼면 전부",
+        "operationId" : "list_1",
+        "parameters" : [ {
+          "description" : "active · finished · archived",
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^(active|finished|archived)$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClassListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "반 목록",
+        "tags" : [ "class-admin-controller" ]
+      },
+      "post" : {
+        "description" : "진도표 24회(개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요",
+        "operationId" : "create_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ClassCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClassResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "반 생성",
+        "tags" : [ "class-admin-controller" ]
+      }
+    },
+    "/api/v1/admin/classes/{id}" : {
+      "get" : {
+        "description" : "다른 학원 반은 404",
+        "operationId" : "find",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClassResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "반 상세",
+        "tags" : [ "class-admin-controller" ]
+      },
+      "patch" : {
+        "description" : "빠진 칸은 그대로. 권·개강일·요일은 바꿀 수 없음(새 반으로). active가 아니면 그 반 가입 코드로 입장할 수 없음. teacherIds는 전체 교체. 다른 학원 반·교사는 404. X-CSRF 필요",
+        "operationId" : "update_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ClassUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClassResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "반 변경",
+        "tags" : [ "class-admin-controller" ]
+      }
+    },
+    "/api/v1/admin/classes/{id}/access-code/regenerate" : {
+      "post" : {
+        "description" : "옛 코드로는 새로 입장할 수 없고, 이미 로그인한 학생은 그대로. 감사 로그에 남는다. 다른 학원 반은 404. X-CSRF 필요",
+        "operationId" : "regenerateAccessCode",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccessCodeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "가입 코드 재발급",
+        "tags" : [ "class-admin-controller" ]
+      }
+    },
     "/api/v1/admin/teachers" : {
       "get" : {
         "description" : "id 순",
@@ -344,6 +547,21 @@
         },
         "required" : [ "id", "name" ]
       },
+      "AccessCodeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "accessCode" : {
+            "type" : "string",
+            "description" : "새 가입 코드 8자"
+          },
+          "codeIssuedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "발급 시각(UTC, 초 단위)"
+          }
+        },
+        "required" : [ "accessCode", "codeIssuedAt" ]
+      },
       "BookInfo" : {
         "type" : "object",
         "properties" : {
@@ -357,6 +575,47 @@
           }
         },
         "required" : [ "code", "season" ]
+      },
+      "ClassCreateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "bookCode" : {
+            "type" : "string",
+            "description" : "권 코드(예: L2-B1). 없는 권이면 400 VALIDATION(bookCode)",
+            "example" : "L2-B1",
+            "maxLength" : 20,
+            "minLength" : 0
+          },
+          "name" : {
+            "type" : "string",
+            "description" : "앞뒤 공백을 뺀 1~50자. 같은 학원 안에서 겹쳐도 됨",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "startDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "개강일(학원 날짜). 지난 날짜도 됨. 이날이 수업 요일이면 1회차"
+          },
+          "teacherIds" : {
+            "type" : "array",
+            "description" : "담당 교사 id. 그 학원의 활성 교사·관리자만(아니면 404). 빈 배열 허용",
+            "items" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          },
+          "weekdays" : {
+            "type" : "array",
+            "description" : "수업 요일 1(월)~7(일), 하나 이상, 겹침 없음. 아니면 400 VALIDATION(weekdays)",
+            "example" : [ 1, 3 ],
+            "items" : {
+              "type" : "integer",
+              "format" : "int32"
+            }
+          }
+        },
+        "required" : [ "bookCode", "name", "startDate", "teacherIds", "weekdays" ]
       },
       "ClassInfo" : {
         "type" : "object",
@@ -381,6 +640,22 @@
         },
         "required" : [ "academyName", "book", "id", "level", "name" ]
       },
+      "ClassListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ClassResponse"
+            }
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "items", "total" ]
+      },
       "ClassRef" : {
         "type" : "object",
         "properties" : {
@@ -393,6 +668,114 @@
           }
         },
         "required" : [ "id", "name" ]
+      },
+      "ClassResponse" : {
+        "type" : "object",
+        "properties" : {
+          "accessCode" : {
+            "type" : "string",
+            "description" : "가입 코드 8자"
+          },
+          "allowFutureLessons" : {
+            "type" : "boolean"
+          },
+          "bookCode" : {
+            "type" : "string",
+            "example" : "L2-B1"
+          },
+          "codeIssuedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "가입 코드 발급 시각(UTC, 초 단위)"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "levelCode" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "season" : {
+            "type" : "string",
+            "enum" : [ "겨울", "봄", "여름", "가을" ]
+          },
+          "startDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "개강일(학원 날짜)"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "active", "finished", "archived" ]
+          },
+          "studentCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "현재 소속 학생 수"
+          },
+          "teachers" : {
+            "type" : "array",
+            "description" : "담당 교사(id 오름차순)",
+            "items" : {
+              "$ref" : "#/components/schemas/ClassTeacher"
+            }
+          },
+          "weekdays" : {
+            "type" : "array",
+            "description" : "수업 요일 1(월)~7(일), 오름차순",
+            "items" : {
+              "type" : "integer",
+              "format" : "int32"
+            }
+          }
+        },
+        "required" : [ "accessCode", "allowFutureLessons", "bookCode", "codeIssuedAt", "id", "levelCode", "name", "season", "startDate", "status", "studentCount", "teachers", "weekdays" ]
+      },
+      "ClassTeacher" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
+      },
+      "ClassUpdateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "allowFutureLessons" : {
+            "type" : "boolean",
+            "description" : "미래 회차 미리 듣기 허용"
+          },
+          "name" : {
+            "type" : "string",
+            "description" : "앞뒤 공백을 뺀 1~50자",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "active가 아니면 그 반 가입 코드로 입장할 수 없음. 세 값 사이 자유롭게 바꿀 수 있음",
+            "enum" : [ "active", "finished", "archived" ],
+            "pattern" : "^(active|finished|archived)$"
+          },
+          "teacherIds" : {
+            "type" : "array",
+            "description" : "담당 교사 id 전체(교체). 빈 배열이면 모두 해제. 그 학원의 활성 교사·관리자만(아니면 404)",
+            "items" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          }
+        }
       },
       "CodeVerifyRequest" : {
         "type" : "object",
