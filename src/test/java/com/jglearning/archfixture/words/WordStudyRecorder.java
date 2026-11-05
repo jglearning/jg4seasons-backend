@@ -1,9 +1,9 @@
-package com.jglearning.archfixture.cloze;
+package com.jglearning.archfixture.words;
 
 import com.jglearning.archfixture.listening.session.SessionStore;
 
 /** 위반: 다른 모듈의 내부 패키지를 부른다. */
-public class ClozeGrader {
+public class WordStudyRecorder {
     private final SessionStore sessionStore = new SessionStore();
 
     public int playCount(long studentId, long trackId) {

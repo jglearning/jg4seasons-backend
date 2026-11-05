@@ -58,7 +58,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 final class ArchitectureRules {
 
     static final List<String> MODULES =
-            List.of("academy", "auth", "clazz", "content", "listening", "cloze", "words", "teacher", "admin", "infra");
+            List.of("academy", "auth", "clazz", "content", "listening", "words", "teacher", "admin", "infra");
 
     private static final String SHARED_MODULE = "infra";
     private static final String ACADEMY_ID = "academyId";

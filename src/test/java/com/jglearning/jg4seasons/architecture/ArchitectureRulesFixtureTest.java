@@ -9,9 +9,6 @@ import com.jglearning.archfixture.clazz.RawScopedRepository;
 import com.jglearning.archfixture.clazz.ScopedRepository;
 import com.jglearning.archfixture.clazz.UnscopedRepository;
 import com.jglearning.archfixture.clazz.WrongOrderRepository;
-import com.jglearning.archfixture.cloze.ApiPrefixUser;
-import com.jglearning.archfixture.cloze.ClozeGrader;
-import com.jglearning.archfixture.cloze.ClozeHintReader;
 import com.jglearning.archfixture.common.Helper;
 import com.jglearning.archfixture.content.api.LessonView;
 import com.jglearning.archfixture.infra.InfraUsingApi;
@@ -36,6 +33,9 @@ import com.jglearning.archfixture.listening.web.NoAccessRuleController;
 import com.jglearning.archfixture.listening.web.PackagePrivateEntityController;
 import com.jglearning.archfixture.listening.web.RepoCallingController;
 import com.jglearning.archfixture.listening.web.ResponseBodyController;
+import com.jglearning.archfixture.words.ApiPrefixUser;
+import com.jglearning.archfixture.words.WordPlayCountReader;
+import com.jglearning.archfixture.words.WordStudyRecorder;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
@@ -228,7 +228,7 @@ class ArchitectureRulesFixtureTest {
     void 다른_모듈_내부를_부르면_잡는다() {
         assertThat(violates(
                         ArchitectureRules.modulesUseOnlyOtherModulesApi(FIXTURE_BASE),
-                        ClozeGrader.class,
+                        WordStudyRecorder.class,
                         SessionStore.class))
                 .isTrue();
     }
@@ -264,7 +264,7 @@ class ArchitectureRulesFixtureTest {
     void 다른_모듈_api는_통과한다() {
         assertThat(violates(
                         ArchitectureRules.modulesUseOnlyOtherModulesApi(FIXTURE_BASE),
-                        ClozeHintReader.class,
+                        WordPlayCountReader.class,
                         PlayCountQuery.class))
                 .isFalse();
     }

@@ -1,4 +1,4 @@
-package com.jglearning.archfixture.cloze;
+package com.jglearning.archfixture.words;
 
 import com.jglearning.archfixture.listening.apix.Lookalike;
 
