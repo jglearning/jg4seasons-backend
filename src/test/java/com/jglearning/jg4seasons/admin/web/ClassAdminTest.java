@@ -315,6 +315,9 @@ class ClassAdminTest {
         assertThat(patch(adminCookies(), classId, "{\"bookCode\":\"L2-B2\"}"))
                 .as("권은 바꿀 수 없음 — 모르는 필드")
                 .hasStatus(400);
+        MvcTestResult badStatus = patch(adminCookies(), classId, "{\"status\":\"closed\"}");
+        assertThat(badStatus).hasStatus(400);
+        assertThat(badStatus).bodyJson().extractingPath("$.errors[0].field").isEqualTo("status");
     }
 
     @Test
@@ -323,7 +326,14 @@ class ClassAdminTest {
         String code = accessCodeOf(classId);
         assertThat(verifyCode(code)).isEqualTo(200);
 
-        assertThat(patch(adminCookies(), classId, "{\"status\":\"finished\"}")).hasStatusOk();
+        MvcTestResult finished = patch(adminCookies(), classId, "{\"status\":\"finished\"}");
+        assertThat(finished).hasStatusOk();
+        assertThat(finished)
+                .bodyJson()
+                .extractingPath("$.teachers[*].id")
+                .asArray()
+                .as("teacherIds를 빼면 담당 교사는 그대로")
+                .containsExactly((int) teacherId);
         entityManager.flush();
         assertThat(verifyCode(code)).isEqualTo(404);
 

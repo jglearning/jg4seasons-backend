@@ -211,8 +211,11 @@ class ClassManagementTest {
         assertThat(reissued.accessCode()).isNotEqualTo(created.accessCode()).matches("[A-Z2-9]{8}");
         assertThat(reissued.codeIssuedAt()).isEqualTo(Instant.parse("2026-11-06T09:30:15Z"));
         entityManager.flush();
+        entityManager.clear();
         assertThat(accessCodes.exists(created.accessCode())).isFalse();
-        assertThat(classes.find(academyId, created.id()).accessCode()).isEqualTo(reissued.accessCode());
+        ClassDetail reread = classes.find(academyId, created.id());
+        assertThat(reread.accessCode()).isEqualTo(reissued.accessCode());
+        assertThat(reread.weekdays()).as("DB 비트 문자열에서 다시 읽은 요일").containsExactly(1);
     }
 
     @Test
