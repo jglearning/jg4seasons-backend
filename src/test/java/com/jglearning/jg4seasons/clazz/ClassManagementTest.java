@@ -75,7 +75,7 @@ class ClassManagementTest {
 
     private NewClass newClass(String name, List<Integer> weekdays) {
         var lessons = books.findLessons("L2-B1").orElseThrow();
-        return new NewClass(name, lessons.bookId(), MONDAY, weekdays, lessons.lessonIdsByNumber());
+        return new NewClass(name, lessons, MONDAY, weekdays);
     }
 
     @Test

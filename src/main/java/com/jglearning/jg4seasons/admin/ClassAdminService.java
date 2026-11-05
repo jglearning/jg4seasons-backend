@@ -87,13 +87,7 @@ public class ClassAdminService {
                 books.findLessons(request.bookCode()).orElseThrow(() -> ApiException.validation("bookCode", "없는 권이에요"));
         Set<Long> teacherIds = requireActiveStaff(academyId, request.teacherIds(), Set.of());
         ClassDetail created = classes.create(
-                academyId,
-                new NewClass(
-                        request.name(),
-                        lessons.bookId(),
-                        request.startDate(),
-                        request.weekdays(),
-                        lessons.lessonIdsByNumber()));
+                academyId, new NewClass(request.name(), lessons, request.startDate(), request.weekdays()));
         classTeachers.replaceTeachersOf(academyId, created.id(), teacherIds);
         return toResponse(academyId, created, staffNames(academyId));
     }

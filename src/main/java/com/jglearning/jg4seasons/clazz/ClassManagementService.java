@@ -7,7 +7,7 @@ import com.jglearning.jg4seasons.clazz.api.ClassStatus;
 import com.jglearning.jg4seasons.clazz.api.NewClass;
 import com.jglearning.jg4seasons.clazz.persistence.AccessCodeLookup;
 import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore;
-import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore.SessionRow;
+import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore.NewSessionRow;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import java.time.Clock;
@@ -50,14 +50,14 @@ class ClassManagementService implements ClassManagement {
     public ClassDetail create(long academyId, NewClass newClass) {
         String name = cleanName(newClass.name());
         Weekdays weekdays = Weekdays.fromNumbers(newClass.weekdays());
-        List<Long> lessonIds = newClass.lessonIdsByNumber();
+        List<Long> lessonIds = newClass.lessons().lessonIdsByNumber();
         if (lessonIds.size() != ClassSchedule.SESSION_COUNT) {
             throw new IllegalArgumentException("회차 id는 " + ClassSchedule.SESSION_COUNT + "개여야 한다: " + lessonIds.size());
         }
 
         Clazz clazz = classes.save(Clazz.create(
                 academyId,
-                newClass.bookId(),
+                newClass.lessons().bookId(),
                 name,
                 newClass.startDate(),
                 weekdays,
@@ -65,9 +65,9 @@ class ClassManagementService implements ClassManagement {
                 issuedAt()));
 
         List<LocalDate> dates = ClassSchedule.dates(newClass.startDate(), weekdays, ClassSchedule.SESSION_COUNT);
-        List<SessionRow> rows = new ArrayList<>(ClassSchedule.SESSION_COUNT);
+        List<NewSessionRow> rows = new ArrayList<>(ClassSchedule.SESSION_COUNT);
         for (int i = 0; i < ClassSchedule.SESSION_COUNT; i++) {
-            rows.add(new SessionRow(i + 1, lessonIds.get(i), dates.get(i), "scheduled"));
+            rows.add(new NewSessionRow(i + 1, lessonIds.get(i), dates.get(i)));
         }
         sessions.insertScheduled(clazz.getId(), rows);
         return toDetail(clazz);

@@ -11,8 +11,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class ClassSessionStore {
 
-    /** status: scheduled · done · cancelled */
+    /** 읽은 행. status: scheduled · done · cancelled */
     public record SessionRow(int seq, long lessonId, LocalDate scheduledDate, String status) {}
+
+    /** 새로 넣을 행(상태는 항상 scheduled) */
+    public record NewSessionRow(int seq, long lessonId, LocalDate scheduledDate) {}
 
     private final JdbcTemplate jdbc;
 
@@ -21,7 +24,7 @@ public class ClassSessionStore {
     }
 
     /** 새 반의 진도표 행을 모두 scheduled로 넣는다 */
-    public void insertScheduled(long classId, List<SessionRow> rows) {
+    public void insertScheduled(long classId, List<NewSessionRow> rows) {
         jdbc.batchUpdate(
                 "insert into class_session (class_id, seq, lesson_id, scheduled_date, status)"
                         + " values (?, ?, ?, ?, 'scheduled')",
