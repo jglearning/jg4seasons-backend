@@ -373,4 +373,35 @@ class ClassAdminTest {
         assertThat(post(adminCookies(), URL, newClass("B반", "L2-B1", "[1]", "[]")))
                 .hasStatus(401);
     }
+
+    @Test
+    void 비활성_교사가_담당으로_남은_반도_조회되고_같은_목록으로_PATCH할_수_있다() {
+        long classId = createClass("A반");
+        long newcomer = data.staff(academyId, "새 교사", "teacher");
+        jdbc.update("update `user` set status = 'inactive' where id in (?, ?)", teacherId, newcomer);
+        entityManager.clear();
+
+        MvcTestResult list = mvc.get().uri(URL).cookie(adminCookies()).exchange();
+        assertThat(list).hasStatusOk();
+        assertThat(list)
+                .bodyJson()
+                .extractingPath("$.items[0].teachers[0].name")
+                .isEqualTo("김교사");
+        MvcTestResult detail =
+                mvc.get().uri(URL + "/" + classId).cookie(adminCookies()).exchange();
+        assertThat(detail).hasStatusOk();
+        assertThat(detail)
+                .bodyJson()
+                .extractingPath("$.teachers[0].id")
+                .asNumber()
+                .isEqualTo((int) teacherId);
+
+        MvcTestResult kept = patch(adminCookies(), classId, "{\"name\":\"B반\",\"teacherIds\":[" + teacherId + "]}");
+        assertThat(kept).as("이미 배정된 비활성 교사는 그대로 둘 수 있음").hasStatusOk();
+        assertThat(kept).bodyJson().extractingPath("$.name").isEqualTo("B반");
+
+        assertThat(patch(adminCookies(), classId, "{\"teacherIds\":[" + teacherId + "," + newcomer + "]}"))
+                .as("새로 넣는 비활성 교사는 404")
+                .hasStatus(404);
+    }
 }

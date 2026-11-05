@@ -85,7 +85,7 @@ public class ClassAdminService {
         accounts.requireActiveAdmin(academyId, actorId);
         BookLessons lessons =
                 books.findLessons(request.bookCode()).orElseThrow(() -> ApiException.validation("bookCode", "없는 권이에요"));
-        Set<Long> teacherIds = requireActiveStaff(academyId, request.teacherIds());
+        Set<Long> teacherIds = requireActiveStaff(academyId, request.teacherIds(), Set.of());
         ClassDetail created = classes.create(
                 academyId,
                 new NewClass(
@@ -101,8 +101,10 @@ public class ClassAdminService {
     public ClassResponse update(long academyId, long actorId, long classId, ClassUpdateRequest request) {
         academies.lockForAdminWrite(academyId);
         accounts.requireActiveAdmin(academyId, actorId);
-        Optional<Set<Long>> teacherIds =
-                Optional.ofNullable(request.teacherIds()).map(ids -> requireActiveStaff(academyId, ids));
+        // 이미 이 반 담당인 교사는 비활성이어도 그대로 둘 수 있다(받은 목록을 그대로 보내는 PATCH가 막히지 않게). 새로 넣는 교사만 확인
+        Optional<Set<Long>> teacherIds = Optional.ofNullable(request.teacherIds())
+                .map(ids ->
+                        requireActiveStaff(academyId, ids, Set.copyOf(classTeachers.teacherIdsOf(academyId, classId))));
         ClassDetail changed = classes.change(
                 academyId,
                 classId,
@@ -123,10 +125,16 @@ public class ClassAdminService {
         return new AccessCodeResponse(reissued.accessCode(), reissued.codeIssuedAt());
     }
 
-    /** 그 학원의 활성 교사·관리자만. 다른 학원·학생·없는 id·비활성은 404(존재를 드러내지 않음) */
-    private Set<Long> requireActiveStaff(long academyId, List<Long> ids) {
+    /**
+     * 새로 넣는 교사(alreadyAssigned에 없는 id)는 그 학원의 활성 교사·관리자만. 다른 학원·학생·없는 id·비활성은 404(존재를 드러내지 않음). 학원
+     * 잠금 뒤에 부르므로 확인과 배정 사이에 비활성화되지 않는다
+     */
+    private Set<Long> requireActiveStaff(long academyId, List<Long> ids, Set<Long> alreadyAssigned) {
         Set<Long> unique = new TreeSet<>(ids);
         for (Long id : unique) {
+            if (alreadyAssigned.contains(id)) {
+                continue;
+            }
             StaffAccount account = accounts.find(academyId, id);
             if (account.status() != AccountStatus.ACTIVE) {
                 throw new ApiException(CommonErrorCode.NOT_FOUND, "교사를 찾을 수 없어요");

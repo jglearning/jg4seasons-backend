@@ -19,5 +19,7 @@ public record ClassUpdateRequest(
 
         @Schema(description = "미래 회차 미리 듣기 허용") Boolean allowFutureLessons,
 
-        @Schema(description = "담당 교사 id 전체(교체). 빈 배열이면 모두 해제. 그 학원의 활성 교사·관리자만(아니면 404)")
+        @Schema(
+                description =
+                        "담당 교사 id 전체(교체). 빈 배열이면 모두 해제. 새로 넣는 교사는 그 학원의 활성 교사·관리자만(아니면 404), 이미 이 반 담당인 교사는 비활성이어도 그대로 둘 수 있음")
         List<@NotNull Long> teacherIds) {}
