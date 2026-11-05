@@ -1,17 +1,21 @@
 package com.jglearning.jg4seasons.content;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.content.api.BookDirectory;
+import com.jglearning.jg4seasons.content.api.BookLessons;
 import com.jglearning.jg4seasons.content.api.BookSummary;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
-/** 입장 화면용 책·레벨 표시 정보(V2 기준 데이터). */
+/** 책 조회(V2 기준 데이터): 입장 화면용 표시 정보, 반 생성용 회차 1~24. */
 @IntegrationTest
+@Transactional
 class BookDirectoryTest {
 
     @Autowired
@@ -34,5 +38,51 @@ class BookDirectoryTest {
         assertThat(books.summaryOf(data.bookId("L2-B2")).season()).isEqualTo("봄");
         assertThat(books.summaryOf(data.bookId("L2-B3")).season()).isEqualTo("여름");
         assertThat(books.summaryOf(data.bookId("L2-B4")).season()).isEqualTo("가을");
+    }
+
+    @Test
+    void 권_코드로_1회차부터_24회차_id를_찾는다() {
+        long bookId = new TestData(jdbc).bookId("L2-B1");
+
+        BookLessons lessons = books.findLessons("L2-B1").orElseThrow();
+
+        assertThat(lessons.bookId()).isEqualTo(bookId);
+        assertThat(lessons.lessonIdsByNumber()).hasSize(24).doesNotHaveDuplicates();
+        assertThat(lessons.lessonIdsByNumber().get(0)).isEqualTo(lessonId("L2-B1-01"));
+        assertThat(lessons.lessonIdsByNumber().get(4)).isEqualTo(lessonId("L2-B1-05"));
+        assertThat(lessons.lessonIdsByNumber().get(23)).isEqualTo(lessonId("L2-B1-24"));
+    }
+
+    @Test
+    void 없는_권_코드는_empty() {
+        assertThat(books.findLessons("L9-B1")).isEmpty();
+        assertThat(books.findLessons("")).isEmpty();
+    }
+
+    @Test
+    void 공백은_정리하지_않고_대소문자는_DB_정렬_규칙대로_무관() {
+        assertThat(books.findLessons(" L2-B1")).isEmpty();
+        assertThat(books.findLessons("l2-b1").orElseThrow().bookId()).isEqualTo(new TestData(jdbc).bookId("L2-B1"));
+    }
+
+    @Test
+    void 회차가_1부터_24가_아니면_데이터_오류() {
+        long levelId = jdbc.queryForObject("select id from level where code = 'K'", Long.class);
+        jdbc.update("insert into book (level_id, season, code, title) values (?, 2, 'TST-B1', '시험')", levelId);
+        long bookId = jdbc.queryForObject("select id from book where code = 'TST-B1'", Long.class);
+        for (int number = 1; number <= 3; number++) {
+            jdbc.update(
+                    "insert into lesson (book_id, code, number, module, type, title) values (?, ?, ?, 1, 'regular', ?)",
+                    bookId,
+                    "TST-B1-0" + number,
+                    number,
+                    "Reading Day " + number);
+        }
+
+        assertThatThrownBy(() -> books.findLessons("TST-B1")).isInstanceOf(IllegalStateException.class);
+    }
+
+    private long lessonId(String code) {
+        return jdbc.queryForObject("select id from lesson where code = ?", Long.class, code);
     }
 }

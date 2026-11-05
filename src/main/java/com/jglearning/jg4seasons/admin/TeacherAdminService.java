@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.admin;
 
+import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import com.jglearning.jg4seasons.admin.web.dto.TeacherCreateRequest;
 import com.jglearning.jg4seasons.admin.web.dto.TeacherListResponse;
 import com.jglearning.jg4seasons.admin.web.dto.TeacherResponse;
@@ -19,16 +20,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 5.3 관리자 교사 API(ADM-04). 계정은 auth, 담당 반은 clazz — 한 트랜잭션에서 조립한다(반 배정이 404면 계정도 만들지 않음). academyId·actorId는
- * 컨트롤러가 인증 주체(JWT)에서 넘긴다. 모든 메서드는 먼저 요청한 사람이 지금도 활성 관리자인지 확인한다(JWT role만 믿지 않음).
+ * 컨트롤러가 인증 주체(JWT)에서 넘긴다. 모든 메서드는 먼저 요청한 사람이 지금도 활성 관리자인지 확인한다(JWT role만 믿지 않음). 쓰기는 그보다 먼저 학원 잠금
+ * (AcademyDirectory.lockForAdminWrite)으로 같은 학원 관리 쓰기를 줄 세운다(반 관리 API와 담당 교사 교착 방지).
  */
 @Service
 @Transactional
 public class TeacherAdminService {
 
+    private final AcademyDirectory academies;
     private final StaffAccounts accounts;
     private final ClassTeachers classTeachers;
 
-    TeacherAdminService(StaffAccounts accounts, ClassTeachers classTeachers) {
+    TeacherAdminService(AcademyDirectory academies, StaffAccounts accounts, ClassTeachers classTeachers) {
+        this.academies = academies;
         this.accounts = accounts;
         this.classTeachers = classTeachers;
     }
@@ -43,6 +47,7 @@ public class TeacherAdminService {
     }
 
     public TeacherResponse create(long academyId, long actorId, TeacherCreateRequest request) {
+        academies.lockForAdminWrite(academyId);
         accounts.requireActiveAdmin(academyId, actorId);
         StaffAccount created = accounts.create(
                 academyId,
@@ -53,6 +58,7 @@ public class TeacherAdminService {
     }
 
     public TeacherResponse update(long academyId, long actorId, long teacherId, TeacherUpdateRequest request) {
+        academies.lockForAdminWrite(academyId);
         accounts.requireActiveAdmin(academyId, actorId);
         StaffAccount changed = accounts.change(
                 academyId,

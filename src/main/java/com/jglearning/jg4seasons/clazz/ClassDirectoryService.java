@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.clazz;
 
 import com.jglearning.jg4seasons.clazz.api.ClassDirectory;
 import com.jglearning.jg4seasons.clazz.api.ClassEntry;
+import com.jglearning.jg4seasons.clazz.api.ClassStatus;
 import com.jglearning.jg4seasons.clazz.persistence.AccessCodeLookup;
 import java.util.Optional;
 import org.springframework.stereotype.Service;

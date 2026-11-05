@@ -8,4 +8,6 @@ interface BookRepository extends Repository<Book, Long> {
 
     @EntityGraph(attributePaths = "level")
     Optional<Book> findById(Long id);
+
+    Optional<Book> findByCode(String code);
 }

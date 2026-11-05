@@ -90,4 +90,62 @@ class ClassTeachersTest {
         assertThat(classTeachers.classIdsOf(academyId, teacherId)).containsExactly(classA);
         assertThat(classTeachers.classIdsOf(otherAcademy, teacherId)).containsExactly(otherClass);
     }
+
+    // 반 기준
+
+    @Test
+    void 반의_교사를_교체한다() {
+        long second = data.staff(academyId, "교사2", "teacher");
+        long third = data.staff(academyId, "교사3", "admin");
+        classTeachers.replaceTeachersOf(academyId, classA, Set.of(teacherId, second));
+
+        classTeachers.replaceTeachersOf(academyId, classA, Set.of(third, second));
+
+        assertThat(classTeachers.teacherIdsOf(academyId, classA)).containsExactly(second, third);
+        assertThat(classTeachers.classIdsOf(academyId, teacherId)).isEmpty();
+    }
+
+    @Test
+    void 반_기준_빈_목록이면_모두_해제() {
+        classTeachers.replaceTeachersOf(academyId, classA, Set.of(teacherId));
+
+        classTeachers.replaceTeachersOf(academyId, classA, Set.of());
+
+        assertThat(classTeachers.teacherIdsOf(academyId, classA)).isEmpty();
+    }
+
+    @Test
+    void 반_기준_다른_학원_반은_404이고_아무것도_안_바뀐다() {
+        data.assignTeacher(otherClass, teacherId);
+
+        assertThatThrownBy(() -> classTeachers.replaceTeachersOf(academyId, otherClass, Set.of()))
+                .isInstanceOfSatisfying(
+                        ApiException.class, e -> assertThat(e.errorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+        assertThatThrownBy(() -> classTeachers.teacherIdsOf(academyId, otherClass))
+                .isInstanceOfSatisfying(
+                        ApiException.class, e -> assertThat(e.errorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+        assertThat(classTeachers.teacherIdsOf(otherAcademy, otherClass)).containsExactly(teacherId);
+    }
+
+    @Test
+    void 같은_교사를_다시_넣어도_중복_행이_없다() {
+        classTeachers.replaceTeachersOf(academyId, classA, Set.of(teacherId));
+
+        classTeachers.replaceTeachersOf(academyId, classA, Set.of(teacherId));
+
+        assertThat(jdbc.queryForObject("select count(*) from class_teacher where class_id = ?", Integer.class, classA))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void 교사_기준_배정과_섞여도_맞다() {
+        long second = data.staff(academyId, "교사2", "teacher");
+        classTeachers.replace(academyId, teacherId, Set.of(classA, classB));
+
+        classTeachers.replaceTeachersOf(academyId, classA, Set.of(second));
+
+        assertThat(classTeachers.classIdsOf(academyId, teacherId)).containsExactly(classB);
+        assertThat(classTeachers.classIdsOf(academyId, second)).containsExactly(classA);
+        assertThat(classTeachers.teacherIdsOf(academyId, classB)).containsExactly(teacherId);
+    }
 }

@@ -6,4 +6,7 @@ import org.springframework.data.repository.Repository;
 interface EnrollmentRepository extends Repository<Enrollment, Long> {
 
     boolean existsByClassIdAndStudentIdAndLeftAtIsNull(Long classId, Long studentId);
+
+    /** 현재 소속(left_at 없음) 학생 수 */
+    int countByClassIdAndLeftAtIsNull(Long classId);
 }
