@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** Flyway 전체(V1~)를 적용한 스키마가 ERD v0.3의 1차 테이블과 같은지. */
+/** Flyway 전체(V1~)를 적용한 스키마가 ERD의 1차 테이블과 같은지(마이그레이션이 늘면 함께 갱신). */
 @IntegrationTest
 class SchemaTest {
 
@@ -101,13 +101,17 @@ class SchemaTest {
     }
 
     @Test
+    void 트랙_칸을_다시_정의해도_NOT_NULL이_남는다() {
+        // MODIFY는 칸 정의를 통째로 다시 쓴다 — NOT NULL을 빠뜨리면 조용히 NULL 허용이 된다
+        assertThat(isNullable("track", "kind")).isEqualTo("NO");
+        assertThat(isNullable("track", "variant")).isEqualTo("NO");
+        assertThat(columnType("track", "variant")).isEqualTo("varchar(12)");
+    }
+
+    @Test
     void 문장은_text_하나다() {
         assertThat(columnType("sentence", "text")).isEqualTo("varchar(800)");
-        assertThat(jdbc.queryForObject(
-                        "select is_nullable from information_schema.columns"
-                                + " where table_schema = database() and table_name = 'sentence' and column_name = 'text'",
-                        String.class))
-                .isEqualTo("NO");
+        assertThat(isNullable("sentence", "text")).isEqualTo("NO");
     }
 
     @Test
@@ -131,7 +135,16 @@ class SchemaTest {
                 "select check_clause from information_schema.check_constraints"
                         + " where constraint_schema = database() and constraint_name = 'ck_sentence_timing_range'",
                 String.class);
-        assertThat(check).contains("start_ms", "end_ms");
+        assertThat(check).isEqualTo("((`start_ms` >= 0) and (`end_ms` > `start_ms`))");
+    }
+
+    private String isNullable(String table, String column) {
+        return jdbc.queryForObject(
+                "select is_nullable from information_schema.columns"
+                        + " where table_schema = database() and table_name = ? and column_name = ?",
+                String.class,
+                table,
+                column);
     }
 
     private String columnType(String table, String column) {
