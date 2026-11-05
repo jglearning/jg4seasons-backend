@@ -30,6 +30,8 @@ class ClassTeachersService implements ClassTeachers {
 
     @Override
     public void replace(long academyId, long teacherId, Set<Long> classIds) {
+        // 반 기준 교체(replaceTeachersOf)와 같은 잠금 순서(반 행 → class_teacher). 어느 반이 바뀔지 미리 모르므로 그 학원 반을 모두 잠근다
+        classes.lockAllByAcademyId(academyId);
         Set<Long> ids = new TreeSet<>(classIds);
         if (store.countClassesInAcademy(academyId, ids) != ids.size()) {
             throw notFound();
@@ -49,7 +51,7 @@ class ClassTeachersService implements ClassTeachers {
     public void replaceTeachersOf(long academyId, long classId, Set<Long> teacherIds) {
         // 반 행 잠금 → 같은 반 동시 변경을 줄 세운다. 범위 delete 대신 차이만 PK로 반영해 gap lock 교착을 피한다
         classes.findByAcademyIdAndIdForUpdate(academyId, classId).orElseThrow(ClassTeachersService::notFound);
-        Set<Long> current = new TreeSet<>(store.teacherIdsOf(classId));
+        Set<Long> current = new TreeSet<>(store.teacherIdsOfForUpdate(classId));
         Set<Long> wanted = new TreeSet<>(teacherIds);
         for (Long removed : current) {
             if (!wanted.contains(removed)) {

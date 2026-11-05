@@ -22,5 +22,13 @@ interface ClassRepository extends AcademyScopedRepository<Clazz, Long> {
     @Query("select c from Clazz c where c.academyId = :academyId and c.id = :id")
     Optional<Clazz> findByAcademyIdAndIdForUpdate(@Param("academyId") Long academyId, @Param("id") Long id);
 
+    /**
+     * 그 학원 반 행을 모두 잠근다(교사 기준 담당 반 교체용). 담당 교사 배정을 바꾸는 두 경로(반 기준·교사 기준)가 모두 "반 행 → class_teacher" 순서로
+     * 잠가 교착을 피한다. 여러 행을 잠그는 곳은 이 쿼리 하나라 같은 인덱스 순서로만 잠긴다
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c.id from Clazz c where c.academyId = :academyId order by c.id")
+    List<Long> lockAllByAcademyId(@Param("academyId") Long academyId);
+
     Clazz save(Clazz clazz);
 }

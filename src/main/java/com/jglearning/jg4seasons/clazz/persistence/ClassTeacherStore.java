@@ -57,6 +57,18 @@ public class ClassTeacherStore {
                 "select user_id from class_teacher where class_id = ? order by user_id", Long.class, classId);
     }
 
+    /**
+     * 교체 직전 읽기. 잠금 읽기(FOR UPDATE)라 다른 트랜잭션이 방금 커밋한 행까지 본다 — 일반 SELECT는 REPEATABLE READ에서 트랜잭션의 첫 읽기
+     * 시점 스냅샷을 보므로, 반 행 잠금을 기다린 뒤에도 옛 목록을 읽어 이미 있는 교사를 다시 넣는다(PK 중복 500). 반이 그 학원 것인지 이미 확인하고 반
+     * 행을 잠근 뒤에 부른다
+     */
+    public List<Long> teacherIdsOfForUpdate(long classId) {
+        return jdbc.queryForList(
+                "select user_id from class_teacher where class_id = ? order by user_id for update",
+                Long.class,
+                classId);
+    }
+
     /** 반이 그 학원 것인지 이미 확인한 뒤에 부른다. PK 한 행만 지운다 */
     public void delete(long classId, long teacherId) {
         jdbc.update("delete from class_teacher where class_id = ? and user_id = ?", classId, teacherId);
