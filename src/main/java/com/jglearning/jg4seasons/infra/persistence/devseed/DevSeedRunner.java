@@ -27,5 +27,7 @@ public class DevSeedRunner implements ApplicationRunner {
     @Transactional
     public void run(ApplicationArguments args) {
         new DevSeed(jdbc, clock).seed();
+        // 회차 내용은 학원과 따로 건너뛴다 — 이미 데모 학원이 있는 로컬 DB에도 들어간다
+        new ContentDevSeed(jdbc).seed();
     }
 }
