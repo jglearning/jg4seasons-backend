@@ -115,8 +115,12 @@ class StudentHomeTest {
         json.extractingPath("$.today.scheduledDate").isEqualTo("2026-11-10");
         json.extractingPath("$.today.groupLabel").isEqualTo("겨울 1");
         json.extractingPath("$.today.lesson.code").isEqualTo(code(5));
+        json.extractingPath("$.today.lesson.number").isEqualTo(5);
         json.extractingPath("$.today.lesson.title").isEqualTo("Reading Day 5");
+        json.extractingPath("$.today.lesson.type").isEqualTo("regular");
+        json.extractingPath("$.today.lesson.passages[0].no").isEqualTo(1);
         json.extractingPath("$.today.lesson.passages[1].title").isEqualTo("Made-up Passage 2");
+        json.extractingPath("$.next.seq").isEqualTo(6);
         json.extractingPath("$.next.lesson.code").isEqualTo(code(6));
         json.extractingPath("$.next.scheduledDate").isEqualTo("2026-11-12");
         json.extractingPath("$.stats.completedLessons").isEqualTo(2);
@@ -129,7 +133,10 @@ class StudentHomeTest {
         var json = assertThat(home()).bodyJson();
 
         json.extractingPath("$.overdue.length()").isEqualTo(2);
+        json.extractingPath("$.overdue[0].seq").isEqualTo(3);
+        json.extractingPath("$.overdue[0].scheduledDate").isEqualTo("2026-11-06");
         json.extractingPath("$.overdue[0].lesson.code").isEqualTo(code(3));
+        json.extractingPath("$.overdue[0].lesson.title").isEqualTo("Reading Day 3");
         json.extractingPath("$.overdue[0].kind").isEqualTo("stopped");
         json.extractingPath("$.overdue[0].progress.status").isEqualTo("in_progress");
         json.extractingPath("$.overdue[1].lesson.code").isEqualTo(code(4));
@@ -197,6 +204,58 @@ class StudentHomeTest {
         json.extractingPath("$.class.id").isEqualTo((int) classId);
         json.extractingPath("$.otherClasses[0].id").isEqualTo((int) second);
         json.extractingPath("$.otherClasses[0].name").isEqualTo("토요 반");
+    }
+
+    /** 4회차 수업(seq 4, 11/8)이 휴강 → 4회차가 seq 5(11/10)로, 이후 회차가 한 칸씩 밀린다. 24회차는 seq 25 */
+    static void cancelShift(TestData data, JdbcTemplate jdbc, long clazz) {
+        jdbc.update("delete from class_session where class_id = ?", clazz);
+        for (int n = 1; n <= 3; n++) {
+            data.session(clazz, n, code(n), DAY5.plusDays((n - 5) * 2L), "scheduled");
+        }
+        data.session(clazz, 4, code(4), DAY5.plusDays(-2), "cancelled");
+        for (int seq = 5; seq <= 25; seq++) {
+            data.session(clazz, seq, code(seq - 1), DAY5.plusDays((seq - 5) * 2L), "scheduled");
+        }
+    }
+
+    @Test
+    void 휴강으로_밀리면_오늘은_seq_기준이고_회차_번호는_그대로() {
+        cancelShift(data, jdbc, classId);
+
+        var json = assertThat(home()).bodyJson();
+
+        json.extractingPath("$.today.seq").isEqualTo(5);
+        json.extractingPath("$.today.scheduledDate").isEqualTo("2026-11-10");
+        json.extractingPath("$.today.lesson.code").isEqualTo(code(4));
+        json.extractingPath("$.today.lesson.number").isEqualTo(4);
+        json.extractingPath("$.overdue.length()").as("휴강된 날은 밀림이 아니다").isEqualTo(1);
+        json.extractingPath("$.overdue[0].lesson.code").isEqualTo(code(3));
+        json.extractingPath("$.next.seq").isEqualTo(6);
+        json.extractingPath("$.next.lesson.code").isEqualTo(code(5));
+        json.extractingPath("$.stats.totalLessons").as("회차 수(행 수 아님)").isEqualTo(24);
+    }
+
+    @Test
+    void 종강_뒤면_오늘은_24회차이고_next_null() {
+        clock.set(Instant.parse("2026-12-20T03:00:00Z")); // 24회차 수업일 12/18 뒤
+
+        var json = assertThat(home()).bodyJson();
+
+        json.extractingPath("$.today.seq").isEqualTo(24);
+        json.extractingPath("$.today.lesson.code").isEqualTo(code(24));
+        json.extractingPath("$.next").isNull();
+        json.extractingPath("$.stats.overdueLessons").as("3~23회차").isEqualTo(21);
+    }
+
+    @Test
+    void 미래_허용_반도_오늘은_수업일_기준() {
+        jdbc.update("update `class` set allow_future_lessons = true where id = ?", classId);
+
+        var json = assertThat(home()).bodyJson();
+
+        json.extractingPath("$.today.seq").isEqualTo(5);
+        json.extractingPath("$.next.seq").isEqualTo(6);
+        json.extractingPath("$.overdue.length()").isEqualTo(2);
     }
 
     @Test

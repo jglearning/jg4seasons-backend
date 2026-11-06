@@ -102,7 +102,11 @@ class ClassLessonsTest {
         json.extractingPath("$.groups[0].label").isEqualTo("겨울 1");
         json.extractingPath("$.groups[0].range.from").isEqualTo("2026-11-02");
         json.extractingPath("$.groups[0].range.to").isEqualTo("2026-11-16");
+        json.extractingPath("$.groups[1].range.from").isEqualTo("2026-11-18");
+        json.extractingPath("$.groups[1].range.to").isEqualTo("2026-12-02");
         json.extractingPath("$.groups[2].label").isEqualTo("겨울 3");
+        json.extractingPath("$.groups[2].range.from").isEqualTo("2026-12-04");
+        json.extractingPath("$.groups[2].range.to").isEqualTo("2026-12-18");
         json.extractingPath("$.groups[0].lessons.length()").isEqualTo(8);
         json.extractingPath("$.groups[0].lessons[0].code").isEqualTo(code(1));
         json.extractingPath("$.groups[0].lessons[0].state").isEqualTo("completed");
@@ -183,6 +187,26 @@ class ClassLessonsTest {
         var json = assertThat(lessons(classId)).bodyJson();
 
         json.extractingPath("$.groups[0].lessons[3].state").isEqualTo("locked");
+    }
+
+    @Test
+    void 휴강으로_밀리면_회차는_번호_순이고_수업일은_새_날짜() {
+        StudentHomeTest.cancelShift(data, jdbc, classId);
+
+        var json = assertThat(lessons(classId)).bodyJson();
+
+        json.extractingPath("$.groups[0].lessons.length()").isEqualTo(8);
+        json.extractingPath("$.groups[0].lessons[3].code").isEqualTo(code(4));
+        json.extractingPath("$.groups[0].lessons[3].number").isEqualTo(4);
+        json.extractingPath("$.groups[0].lessons[3].state").isEqualTo("today");
+        json.extractingPath("$.groups[0].lessons[3].scheduledDate")
+                .as("seq 5의 날짜")
+                .isEqualTo("2026-11-10");
+        json.extractingPath("$.groups[0].lessons[4].state").isEqualTo("locked");
+        json.extractingPath("$.groups[0].range.to").as("8회차 = seq 9").isEqualTo("2026-11-18");
+        json.extractingPath("$.groups[2].lessons[7].scheduledDate")
+                .as("24회차 = seq 25")
+                .isEqualTo("2026-12-20");
     }
 
     @Test
