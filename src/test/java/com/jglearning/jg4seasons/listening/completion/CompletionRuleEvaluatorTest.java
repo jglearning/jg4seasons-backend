@@ -98,4 +98,23 @@ class CompletionRuleEvaluatorTest {
         assertThatThrownBy(() -> CompletionRule.parse(new BigDecimal("1.001"), L2_RULE))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void 속도_표기가_트랙과_다르면_IllegalState() {
+        for (String speed : new String[] {"1", "1.00", "1.0x", " 1.0"}) {
+            assertThatThrownBy(() -> CompletionRule.parse(
+                            THRESHOLD, "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"" + speed + "\"]}]"))
+                    .as(speed)
+                    .isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Test
+    void 생성자로_만들어도_같은_검사를_한다() {
+        assertThatThrownBy(() -> new CompletionRule(new BigDecimal("5"), Set.of("1.0")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new CompletionRule(null, Set.of("1.0"))).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new CompletionRule(THRESHOLD, Set.of())).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new CompletionRule(THRESHOLD, Set.of("1"))).isInstanceOf(IllegalStateException.class);
+    }
 }

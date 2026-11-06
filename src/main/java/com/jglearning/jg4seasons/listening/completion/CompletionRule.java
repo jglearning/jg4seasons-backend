@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.listening.completion;
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -16,16 +17,26 @@ public record CompletionRule(BigDecimal threshold, Set<String> requiredSpeeds) {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
+    /** 지문 트랙 variant의 속도와 같은 형식(content의 p{n}:{속도}) — 다르면 어떤 속도도 필수가 아니게 되어 회차가 끝나지 않는다 */
+    private static final Pattern SPEED = Pattern.compile("^\\d\\.\\d$");
+
+    /** 생성자에서 검사한다 — parse를 거치지 않고 만들어도 같은 불변식 */
     public CompletionRule {
+        if (threshold == null || threshold.signum() <= 0 || threshold.compareTo(BigDecimal.ONE) > 0) {
+            throw new IllegalStateException("완료 기준 청취율은 0보다 크고 1 이하여야 한다: " + threshold);
+        }
+        if (requiredSpeeds == null || requiredSpeeds.isEmpty()) {
+            throw new IllegalStateException("필수 속도가 없다");
+        }
+        for (String speed : requiredSpeeds) {
+            if (speed == null || !SPEED.matcher(speed).matches()) {
+                throw new IllegalStateException("필수 속도 형식은 0.0이어야 한다: " + speed);
+            }
+        }
         requiredSpeeds = Set.copyOf(requiredSpeeds);
     }
 
     public static CompletionRule parse(BigDecimal coverageThreshold, String requiredTracksJson) {
-        if (coverageThreshold == null
-                || coverageThreshold.signum() <= 0
-                || coverageThreshold.compareTo(BigDecimal.ONE) > 0) {
-            throw new IllegalStateException("완료 기준 청취율은 0보다 크고 1 이하여야 한다: " + coverageThreshold);
-        }
         JsonNode tracks;
         try {
             tracks = JSON.readTree(requiredTracksJson);
