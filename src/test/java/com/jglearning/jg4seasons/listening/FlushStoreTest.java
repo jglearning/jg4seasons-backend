@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
+import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.SessionRow;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.TrackProgressLock;

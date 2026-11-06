@@ -9,6 +9,7 @@ import com.jglearning.jg4seasons.content.api.LessonContent;
 import com.jglearning.jg4seasons.infra.audio.AudioProperties;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
+import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.completion.CompletionRule;
 import com.jglearning.jg4seasons.listening.completion.CompletionRuleEvaluator;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore;

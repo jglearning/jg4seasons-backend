@@ -1,4 +1,4 @@
-package com.jglearning.jg4seasons.listening;
+package com.jglearning.jg4seasons.listening.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

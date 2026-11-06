@@ -1,6 +1,6 @@
 package com.jglearning.jg4seasons.listening.persistence;
 
-import com.jglearning.jg4seasons.listening.LessonProgressStatus;
+import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.LessonProgressRow;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import com.jglearning.jg4seasons.listening.segment.SegmentFilter.Accepted;

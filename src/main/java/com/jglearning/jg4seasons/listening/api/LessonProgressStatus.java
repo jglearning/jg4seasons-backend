@@ -1,4 +1,4 @@
-package com.jglearning.jg4seasons.listening;
+package com.jglearning.jg4seasons.listening.api;
 
 import java.util.Locale;
 
@@ -13,7 +13,7 @@ public enum LessonProgressStatus {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    /** DB 값 → enum. DB ENUM이 막으므로 모르는 값은 데이터 오류(IllegalStateException, 기본값으로 바꾸지 않음) */
+    /** DB 값 전용 → enum. DB ENUM이 막으므로 모르는 값은 데이터 오류(IllegalStateException). 요청 값 파싱에 쓰지 않는다(그건 400이어야 함) */
     public static LessonProgressStatus fromValue(String value) {
         for (LessonProgressStatus candidate : values()) {
             if (candidate.value().equals(value)) {
