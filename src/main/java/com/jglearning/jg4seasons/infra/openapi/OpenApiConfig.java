@@ -15,6 +15,7 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.servers.Server;
 import java.util.List;
+import java.util.Map;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -52,6 +53,46 @@ public class OpenApiConfig {
             }
             openApi.getPaths().values().forEach(item -> item.readOperations().forEach(OpenApiConfig::addProblem));
         };
+    }
+
+    /**
+     * null 가능한 객체 칸(@Schema(nullable = true) + 객체 타입)을 {@code anyOf: [{$ref}, {type: null}]}로 바꾼다. springdoc(OAS 3.1)은
+     * {@code {"type": "null", "$ref": …}}를 내는데, 3.1에서 $ref 옆의 키는 함께 적용되어 "null이면서 그 객체"가 되고 타입 생성기가 null로만 읽는다.
+     */
+    @Bean
+    public OpenApiCustomizer nullableRefs() {
+        return openApi -> {
+            if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
+                return;
+            }
+            openApi.getComponents().getSchemas().values().forEach(OpenApiConfig::fixNullableRefs);
+        };
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static void fixNullableRefs(Schema schema) {
+        Map<String, Schema> properties = schema.getProperties();
+        if (properties == null) {
+            return;
+        }
+        properties.replaceAll((name, property) -> {
+            if (property.get$ref() == null || !isNullable(property)) {
+                return property;
+            }
+            Schema<?> ref = new Schema<>().$ref(property.get$ref());
+            Schema<?> nullType = new Schema<>();
+            nullType.addType("null");
+            Schema<?> replaced = new Schema<>().anyOf(List.of(ref, nullType));
+            replaced.setDescription(property.getDescription());
+            return replaced;
+        });
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static boolean isNullable(Schema property) {
+        return "null".equals(property.getType())
+                || (property.getTypes() != null && property.getTypes().contains("null"))
+                || Boolean.TRUE.equals(property.getNullable());
     }
 
     private static void addProblem(Operation operation) {

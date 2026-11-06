@@ -1662,8 +1662,11 @@
             "$ref" : "#/components/schemas/StudentClassInfo"
           },
           "next" : {
-            "type" : "null",
-            "$ref" : "#/components/schemas/StudentHomeNext",
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/StudentHomeNext"
+            }, {
+              "type" : "null"
+            } ],
             "description" : "수업일이 오늘 뒤인 가장 이른 회차. 종강 뒤면 null"
           },
           "otherClasses" : {
@@ -1683,13 +1686,19 @@
             "$ref" : "#/components/schemas/StudentHomeStats"
           },
           "today" : {
-            "type" : "null",
-            "$ref" : "#/components/schemas/StudentHomeToday",
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/StudentHomeToday"
+            }, {
+              "type" : "null"
+            } ],
             "description" : "수업일이 지난 회차 중 가장 늦은 것. 개강 전이면 null"
           },
           "words" : {
-            "type" : "null",
-            "$ref" : "#/components/schemas/StudentHomeWords",
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/StudentHomeWords"
+            }, {
+              "type" : "null"
+            } ],
             "description" : "오늘 회차의 단어. 오늘 회차가 없으면 null"
           }
         },
