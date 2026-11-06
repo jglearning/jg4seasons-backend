@@ -576,6 +576,36 @@
         "tags" : [ "me-controller" ]
       }
     },
+    "/api/v1/student/home" : {
+      "get" : {
+        "description" : "오늘 수업(수업일이 지난 회차 중 가장 늦은 것)·밀린 수업(ADR-24)·오늘 단어·다음 수업·통계. 오늘 = 학원 타임존 날짜. 현재 소속 반이 없으면 404",
+        "operationId" : "home",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentHomeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "학생 홈",
+        "tags" : [ "student-home-controller" ]
+      }
+    },
     "/api/v1/student/lessons/{lessonCode}" : {
       "get" : {
         "description" : "지문·문장·속도별 음원·문장 시각·들은 구간·완료 상태. 내 반 진도표에 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED",
@@ -1214,6 +1244,26 @@
         },
         "required" : [ "memKnown", "total" ]
       },
+      "LessonProgressView" : {
+        "type" : "object",
+        "properties" : {
+          "passagesDone" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "완료한 지문 수"
+          },
+          "passagesTotal" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "지문 수(콘텐츠가 아직 없으면 0)"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "not_started", "in_progress", "completed" ]
+          }
+        },
+        "required" : [ "passagesDone", "passagesTotal", "status" ]
+      },
       "LevelInfo" : {
         "type" : "object",
         "properties" : {
@@ -1338,6 +1388,274 @@
           }
         },
         "required" : [ "user" ]
+      },
+      "StudentClassBook" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1"
+          },
+          "label" : {
+            "type" : "string",
+            "description" : "머리글 표시 이름",
+            "example" : "Book 1"
+          },
+          "season" : {
+            "type" : "string",
+            "enum" : [ "겨울", "봄", "여름", "가을" ]
+          }
+        },
+        "required" : [ "code", "label", "season" ]
+      },
+      "StudentClassInfo" : {
+        "type" : "object",
+        "properties" : {
+          "book" : {
+            "$ref" : "#/components/schemas/StudentClassBook"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "level" : {
+            "$ref" : "#/components/schemas/StudentClassLevel"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "겨울 그린 A반"
+          }
+        },
+        "required" : [ "book", "id", "level", "name" ]
+      },
+      "StudentClassLevel" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "colorHex" : {
+            "type" : "string",
+            "example" : "#1F7A4F"
+          },
+          "nameKo" : {
+            "type" : "string",
+            "example" : "그린"
+          }
+        },
+        "required" : [ "code", "colorHex", "nameKo" ]
+      },
+      "StudentHomeLessonRef" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "title" ]
+      },
+      "StudentHomeNext" : {
+        "type" : "object",
+        "properties" : {
+          "lesson" : {
+            "$ref" : "#/components/schemas/StudentHomeLessonRef"
+          },
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seq" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "lesson", "scheduledDate", "seq" ]
+      },
+      "StudentHomeOtherClass" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
+      },
+      "StudentHomeOverdue" : {
+        "type" : "object",
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "description" : "not_started 미참여 · stopped 멈춤",
+            "enum" : [ "not_started", "stopped" ]
+          },
+          "lesson" : {
+            "$ref" : "#/components/schemas/StudentHomeLessonRef"
+          },
+          "progress" : {
+            "$ref" : "#/components/schemas/LessonProgressView"
+          },
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seq" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "kind", "lesson", "progress", "scheduledDate", "seq" ]
+      },
+      "StudentHomePassageTitle" : {
+        "type" : "object",
+        "properties" : {
+          "no" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "no", "title" ]
+      },
+      "StudentHomeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "class" : {
+            "$ref" : "#/components/schemas/StudentClassInfo"
+          },
+          "next" : {
+            "type" : "null",
+            "$ref" : "#/components/schemas/StudentHomeNext",
+            "description" : "수업일이 오늘 뒤인 가장 이른 회차. 종강 뒤면 null"
+          },
+          "otherClasses" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentHomeOtherClass"
+            }
+          },
+          "overdue" : {
+            "type" : "array",
+            "description" : "밀린 수업(ADR-24), 오래된 순. 없으면 빈 배열",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentHomeOverdue"
+            }
+          },
+          "stats" : {
+            "$ref" : "#/components/schemas/StudentHomeStats"
+          },
+          "today" : {
+            "type" : "null",
+            "$ref" : "#/components/schemas/StudentHomeToday",
+            "description" : "수업일이 지난 회차 중 가장 늦은 것. 개강 전이면 null"
+          },
+          "words" : {
+            "type" : "null",
+            "$ref" : "#/components/schemas/StudentHomeWords",
+            "description" : "오늘 회차의 단어. 오늘 회차가 없으면 null"
+          }
+        },
+        "required" : [ "class", "next", "otherClasses", "overdue", "stats", "today", "words" ]
+      },
+      "StudentHomeStats" : {
+        "type" : "object",
+        "properties" : {
+          "completedLessons" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "overdueLessons" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "overdue 배열 길이와 같다"
+          },
+          "totalLessons" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "진도표 회차 수"
+          }
+        },
+        "required" : [ "completedLessons", "overdueLessons", "totalLessons" ]
+      },
+      "StudentHomeToday" : {
+        "type" : "object",
+        "properties" : {
+          "groupLabel" : {
+            "type" : "string",
+            "description" : "시즌 이름 + 묶음 번호",
+            "example" : "겨울 1"
+          },
+          "lesson" : {
+            "$ref" : "#/components/schemas/StudentHomeTodayLesson"
+          },
+          "progress" : {
+            "$ref" : "#/components/schemas/LessonProgressView"
+          },
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seq" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "groupLabel", "lesson", "progress", "scheduledDate", "seq" ]
+      },
+      "StudentHomeTodayLesson" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "number" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "passages" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentHomePassageTitle"
+            }
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "regular", "module_review", "integrated" ]
+          }
+        },
+        "required" : [ "code", "number", "passages", "title", "type" ]
+      },
+      "StudentHomeWords" : {
+        "type" : "object",
+        "properties" : {
+          "lessonCode" : {
+            "type" : "string"
+          },
+          "memKnown" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "암기 모드 '알아요' 최고 수"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "회차 단어 수"
+          }
+        },
+        "required" : [ "lessonCode", "memKnown", "total" ]
       },
       "StudentLoginRequest" : {
         "type" : "object",
