@@ -22,7 +22,9 @@ import tools.jackson.databind.json.JsonMapper;
  * flush 쓰기(03 §3.1): 청취 세션 upsert, 세그먼트 추가(원본 — INSERT만, ADR-06), 집계 행 확보·잠금·갱신. 이 테이블들에는 academy_id가 없다 — 호출자가
  * 학생의 학원 반 소속·회차 열림을 먼저 확인한다. 시각은 UTC LocalDateTime으로 쓰고 읽는다(JVM 시간대와 무관하게).
  *
- * <p>잠금 순서는 호출자(FlushService)가 지킨다: 회차 행(lockLessonProgress) → 트랙 행(lockTrackProgress) → 다른 트랙 잠금 읽기(completedTracksForShare).
+ * <p>잠금 순서는 호출자(FlushService)가 지킨다: 세션 행(upsertSession — 같은 세션 요청을 줄 세워, 뒤 요청이 앞 요청의 구간을 receivedRanges로
+ * 보고 같은 구간을 다시 저장하지 않게 한다) → 회차 행(lockLessonProgress — 같은 학생·같은 회차를 줄 세운다) → 트랙 행(lockTrackProgress) → 다른 트랙
+ * 잠금 읽기(completedTracksForShare). 회차 행을 잡은 뒤 다른 세션 행을 잠그면 순환이 생길 수 있다.
  * 행 확보는 {@code INSERT … ON DUPLICATE KEY UPDATE <키> = <키>}(아무것도 바꾸지 않음) — 동시 첫 요청은 PK·UNIQUE로 한쪽만 만들고, 이미 있는
  * 행에는 처음부터 배타 잠금을 잡는다. INSERT IGNORE는 이미 있는 행에 공유 잠금을 잡아, 두 요청이 이어지는 FOR UPDATE에서 서로 공유 잠금을 기다리는 교착이
  * 났다(커밋 테스트로 재현).
@@ -35,14 +37,8 @@ public class FlushStore {
     /** studentId·trackId는 저장된 값 — 요청과 다르면 호출자가 400 */
     public record SessionRow(long id, long studentId, long trackId) {}
 
-    /** 잠근 트랙 집계. completedAt은 null 가능 */
-    public record TrackProgressLock(
-            List<Range> merged,
-            int coveredMs,
-            BigDecimal coverage,
-            Instant completedAt,
-            int totalPlayMs,
-            int sessionCount) {
+    /** 잠근 트랙 집계 중 갱신에 쓰는 값. completedAt은 null 가능. 세션 수는 잠근 뒤 sessionCount로 다시 센다(옛 값 + 1로 계산하지 않게 넣지 않음) */
+    public record TrackProgressLock(List<Range> merged, Instant completedAt, int totalPlayMs) {
         public TrackProgressLock {
             merged = List.copyOf(merged);
         }
@@ -128,7 +124,7 @@ public class FlushStore {
                 });
     }
 
-    /** 회차 집계 행을 확보(없으면 not_started)하고 FOR UPDATE. 같은 학생·같은 회차 flush를 줄 세운다 — 트랜잭션에서 가장 먼저 잡는 잠금 */
+    /** 회차 집계 행을 확보(없으면 not_started)하고 FOR UPDATE. 같은 학생·같은 회차 flush를 줄 세운다 — 세션 행 다음, 집계 잠금 중 첫 번째 */
     public LessonProgressRow lockLessonProgress(long studentId, long lessonId, int passagesTotal) {
         jdbc.update(
                 "insert into lesson_progress (student_id, lesson_id, status, required_total, passages_total)"
@@ -157,15 +153,12 @@ public class FlushStore {
                 trackId,
                 utc(now));
         return jdbc.queryForObject(
-                "select merged_ranges, covered_ms, coverage, completed_at, total_play_ms, session_count"
+                "select merged_ranges, completed_at, total_play_ms"
                         + " from track_progress where student_id = ? and track_id = ? for update",
                 (rs, i) -> new TrackProgressLock(
                         RangesJson.read(jsonMapper, rs.getString("merged_ranges")),
-                        rs.getInt("covered_ms"),
-                        rs.getBigDecimal("coverage"),
                         instant(rs.getObject("completed_at", LocalDateTime.class)),
-                        rs.getInt("total_play_ms"),
-                        rs.getInt("session_count")),
+                        rs.getInt("total_play_ms")),
                 studentId,
                 trackId);
     }

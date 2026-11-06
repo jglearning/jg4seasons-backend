@@ -125,10 +125,8 @@ class FlushStoreTest {
 
         assertThat(lesson).isEqualTo(new LessonProgressRow(LessonProgressStatus.NOT_STARTED, 0, 2));
         assertThat(track.merged()).isEmpty();
-        assertThat(track.coverage()).isEqualByComparingTo("0");
         assertThat(track.completedAt()).isNull();
         assertThat(track.totalPlayMs()).isZero();
-        assertThat(track.sessionCount()).isZero();
     }
 
     @Test
@@ -146,11 +144,15 @@ class FlushStoreTest {
 
         TrackProgressLock reread = store.lockTrackProgress(studentId, track, NOW);
         assertThat(reread.merged()).containsExactly(new Range(0, 9000));
-        assertThat(reread.coveredMs()).isEqualTo(9000);
-        assertThat(reread.coverage()).isEqualByComparingTo("0.9");
+        assertThat(jdbc.queryForMap(
+                        "select covered_ms, coverage, session_count from track_progress where student_id = ? and track_id = ?",
+                        studentId,
+                        track))
+                .containsEntry("covered_ms", 9000)
+                .containsEntry("session_count", 1)
+                .hasEntrySatisfying("coverage", v -> assertThat((BigDecimal) v).isEqualByComparingTo("0.9"));
         assertThat(reread.completedAt()).isEqualTo(NOW);
         assertThat(reread.totalPlayMs()).isEqualTo(9500);
-        assertThat(reread.sessionCount()).isEqualTo(1);
         assertThat(store.lockLessonProgress(studentId, lessonId, 2))
                 .isEqualTo(new LessonProgressRow(LessonProgressStatus.IN_PROGRESS, 1, 2));
         assertThat(jdbc.queryForMap(
