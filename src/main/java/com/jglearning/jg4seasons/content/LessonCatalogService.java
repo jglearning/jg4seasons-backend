@@ -6,6 +6,7 @@ import com.jglearning.jg4seasons.content.api.LessonContent.Passage;
 import com.jglearning.jg4seasons.content.api.LessonContent.Sentence;
 import com.jglearning.jg4seasons.content.api.LessonContent.Speed;
 import com.jglearning.jg4seasons.content.api.LessonContent.TimeRange;
+import com.jglearning.jg4seasons.content.api.PassageTrack;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore.LessonRow;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore.PassageRow;
@@ -39,6 +40,28 @@ class LessonCatalogService implements LessonCatalog {
     @Override
     public Optional<LessonContent> findByCode(String lessonCode) {
         return store.findLesson(lessonCode).map(this::assemble);
+    }
+
+    @Override
+    public Optional<PassageTrack> findPassageTrack(long trackId) {
+        return store.findPassageTrack(trackId).map(row -> {
+            if (row.passageNo() == null || row.passageLessonId() == null || row.passageLessonId() != row.lessonId()) {
+                throw new IllegalStateException("지문 트랙이 이 회차 지문을 가리키지 않는다: " + row.lessonCode() + " track " + trackId);
+            }
+            Matcher variant = PASSAGE_VARIANT.matcher(row.variant());
+            if (!variant.matches() || Integer.parseInt(variant.group(1)) != row.passageNo()) {
+                throw new IllegalStateException(
+                        "지문 트랙 variant가 p" + row.passageNo() + ":{속도}가 아니다: " + row.lessonCode() + " track " + trackId);
+            }
+            return new PassageTrack(
+                    trackId,
+                    row.lessonId(),
+                    row.lessonCode(),
+                    row.bookId(),
+                    row.passageNo(),
+                    variant.group(2),
+                    row.durationMs());
+        });
     }
 
     private LessonContent assemble(LessonRow lesson) {
