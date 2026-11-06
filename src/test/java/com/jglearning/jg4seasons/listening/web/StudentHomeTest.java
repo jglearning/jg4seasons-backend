@@ -14,7 +14,10 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
@@ -26,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class StudentHomeTest {
 
     static final String URL = "/api/v1/student/home";
@@ -193,6 +197,60 @@ class StudentHomeTest {
         json.extractingPath("$.class.id").isEqualTo((int) classId);
         json.extractingPath("$.otherClasses[0].id").isEqualTo((int) second);
         json.extractingPath("$.otherClasses[0].name").isEqualTo("토요 반");
+    }
+
+    @Test
+    void 집계의_완료_지문이_실제보다_많으면_실제_수로_자르고_WARN(CapturedOutput output) {
+        progress(5, "in_progress", 5, 6); // 실제 지문 2개
+
+        var json = assertThat(home()).bodyJson();
+
+        json.extractingPath("$.today.progress.passagesDone").isEqualTo(2);
+        json.extractingPath("$.today.progress.passagesTotal").isEqualTo(2);
+        assertThat(output).contains("회차 집계의 지문 수가 실제와 다르다", "student " + studentId, code(5));
+    }
+
+    @Test
+    void 오늘_회차에_지문이_없으면_WARN하고_보여_준다(CapturedOutput output) {
+        clock.set(Instant.parse("2026-11-12T03:00:00Z")); // 6회차: 내용 없음
+
+        MvcTestResult result = home();
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.today.lesson.passages").isEqualTo(List.of());
+        assertThat(output).contains("오늘 회차에 지문이 없다", code(6));
+    }
+
+    @Test
+    void 진도표가_빈_반은_데이터_오류_500(CapturedOutput output) {
+        jdbc.update("delete from class_session where class_id = ?", classId);
+
+        assertThat(home()).hasStatus(500);
+        assertThat(output).contains("반 진도표가 비어 있다", "class " + classId);
+    }
+
+    @Test
+    void 진도표_회차가_반의_권에_없으면_데이터_오류_500(CapturedOutput output) {
+        jdbc.update("update `class` set book_id = (select id from book where code = 'L2-B2') where id = ?", classId);
+
+        assertThat(home()).hasStatus(500);
+        assertThat(output).contains("진도표 회차가 반의 권에 없다", "class " + classId, "lesson " + data.lessonId(code(1)));
+    }
+
+    @Test
+    void 진도표_회차_수가_권과_다르면_WARN(CapturedOutput output) {
+        jdbc.update("delete from class_session where class_id = ? and seq = 24", classId);
+
+        assertThat(home()).hasStatusOk();
+        assertThat(output).contains("진도표 회차 수가 권의 회차 수와 다르다", "class " + classId);
+    }
+
+    @Test
+    void 한_회차에_수업_행이_둘이면_WARN(CapturedOutput output) {
+        data.session(classId, 25, code(24), DAY5.plusDays(60), "scheduled");
+
+        assertThat(home()).hasStatusOk();
+        assertThat(output).contains("한 회차에 휴강이 아닌 수업 행이 둘 이상이다", "class " + classId);
     }
 
     @Test

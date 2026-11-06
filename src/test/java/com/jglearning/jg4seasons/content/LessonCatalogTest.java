@@ -295,6 +295,24 @@ class LessonCatalogTest {
     }
 
     @Test
+    void 묶음_번호가_1에서_3_밖이면_데이터_오류() {
+        jdbc.update("update lesson set module = 4 where code = ?", CODE);
+
+        assertThatThrownBy(() -> catalog.lessonsOfBook(data.bookId("L2-B1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(CODE);
+    }
+
+    @Test
+    void 회차_번호가_1보다_작으면_데이터_오류() {
+        jdbc.update("update lesson set number = 0 where code = ?", CODE);
+
+        assertThatThrownBy(() -> catalog.lessonsOfBook(data.bookId("L2-B1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(CODE);
+    }
+
+    @Test
     void 없는_권은_빈_목록() {
         assertThat(catalog.lessonsOfBook(-1L)).isEmpty();
     }

@@ -70,6 +70,7 @@ public class StudentHomeService {
 
     /** 한 반의 회차판: 반·권·권의 회차·진도·판정 결과 */
     record ClassBoard(
+            long studentId,
             StudentClass clazz,
             BookSummary book,
             Map<Long, LessonSummary> lessons,
@@ -88,6 +89,10 @@ public class StudentHomeService {
             LessonSummary summary = board.lessons().get(lesson.lessonId());
             LessonContent content = catalog.findByCode(summary.code()) // 오늘 회차만 내용을 읽는다(지문 제목·단어 수)
                     .orElseThrow(() -> new IllegalStateException("회차가 없다: " + summary.code()));
+            if (content.passages().isEmpty()) {
+                // 콘텐츠 import 전·누락. 홈 전체를 막지 않고 빈 지문 목록으로 보여 준다(리뷰 9 b)
+                log.warn("오늘 회차에 지문이 없다: class {} lesson {}", board.clazz().classId(), summary.code());
+            }
             today = today(board, lesson, summary, content);
             words = new StudentHomeResponse.Words(
                     summary.code(), content.wordTotal(), wordStudies.memKnown(studentId, summary.lessonId()));
@@ -186,19 +191,32 @@ public class StudentHomeService {
     ClassBoard board(long studentId, StudentClass clazz, long academyId) {
         LocalDate today = LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
         List<ClassLesson> classLessons = studentClasses.lessons(clazz, today);
+        if (classLessons.isEmpty()) {
+            // 반을 만들면 진도표가 실체화된다(ADR-09). 비었으면 빈 화면 200이 아니라 데이터 오류
+            throw new IllegalStateException("반 진도표가 비어 있다: class " + clazz.classId());
+        }
         Map<Long, LessonSummary> lessons = catalog.lessonsOfBook(clazz.bookId()).stream()
                 .collect(Collectors.toMap(LessonSummary::lessonId, Function.identity()));
+        for (ClassLesson lesson : classLessons) {
+            if (!lessons.containsKey(lesson.lessonId())) {
+                throw new IllegalStateException("진도표 회차가 반의 권에 없다: class " + clazz.classId() + " lesson "
+                        + lesson.lessonId() + " book " + clazz.bookId());
+            }
+        }
+        if (classLessons.size() != lessons.size()) {
+            log.warn(
+                    "진도표 회차 수가 권의 회차 수와 다르다: class {} 진도표 {} 권 {}",
+                    clazz.classId(),
+                    classLessons.size(),
+                    lessons.size());
+        }
         Map<Long, LessonProgressRow> rows = progress.lessonProgress(
                 studentId, classLessons.stream().map(ClassLesson::lessonId).toList());
         Map<Long, LessonProgressStatus> statuses = rows.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey, row -> row.getValue().status()));
-        for (ClassLesson lesson : classLessons) {
-            if (!lessons.containsKey(lesson.lessonId())) {
-                throw new IllegalStateException("진도표 회차가 반의 권에 없다: class " + clazz.classId());
-            }
-        }
         return new ClassBoard(
+                studentId,
                 clazz,
                 books.summaryOf(clazz.bookId()),
                 lessons,
@@ -217,13 +235,19 @@ public class StudentHomeService {
 
     /** 기록이 없으면 not_started·0·지문 수. 집계의 지문 수가 실제와 다르면 실제 수(2.3과 같음) */
     LessonProgressView progressView(ClassBoard board, long lessonId) {
-        int total = board.lessons().get(lessonId).passageCount();
+        LessonSummary lesson = board.lessons().get(lessonId);
+        int total = lesson.passageCount();
         LessonProgressRow row = board.progress().get(lessonId);
         if (row == null) {
             return new LessonProgressView(LessonProgressStatus.NOT_STARTED.value(), 0, total);
         }
         if (row.passagesTotal() != total) {
-            log.warn("회차 집계의 지문 수가 실제와 다르다: lesson {} 집계 {} 실제 {}", lessonId, row.passagesTotal(), total);
+            log.warn(
+                    "회차 집계의 지문 수가 실제와 다르다: student {} lesson {} 집계 {} 실제 {}",
+                    board.studentId(),
+                    lesson.code(),
+                    row.passagesTotal(),
+                    total);
         }
         return new LessonProgressView(row.status().value(), Math.min(row.passagesDone(), total), total);
     }

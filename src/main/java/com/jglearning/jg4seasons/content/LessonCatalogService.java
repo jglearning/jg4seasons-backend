@@ -10,6 +10,7 @@ import com.jglearning.jg4seasons.content.api.LessonSummary;
 import com.jglearning.jg4seasons.content.api.PassageTrack;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore.LessonRow;
+import com.jglearning.jg4seasons.content.persistence.LessonContentStore.LessonSummaryRow;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore.PassageRow;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore.SentenceRow;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore.TimingRow;
@@ -71,9 +72,18 @@ class LessonCatalogService implements LessonCatalog {
     @Override
     public List<LessonSummary> lessonsOfBook(long bookId) {
         return store.lessonsOfBook(bookId).stream()
-                .map(row -> new LessonSummary(
-                        row.id(), row.code(), row.number(), row.module(), row.title(), row.type(), row.passageCount()))
+                .map(LessonCatalogService::summary)
                 .toList();
+    }
+
+    /** 묶음은 8회차씩 1~3(회차 목록 묶음·"겨울 1" 라벨). 범위 밖은 콘텐츠 import 오류 — 조용히 4번째 묶음을 만들지 않는다 */
+    private static LessonSummary summary(LessonSummaryRow row) {
+        if (row.module() < 1 || row.module() > 3 || row.number() < 1) {
+            throw new IllegalStateException(
+                    "회차의 묶음·번호가 범위 밖이다: " + row.code() + " module " + row.module() + " number " + row.number());
+        }
+        return new LessonSummary(
+                row.id(), row.code(), row.number(), row.module(), row.title(), row.type(), row.passageCount());
     }
 
     private LessonContent assemble(LessonRow lesson) {
