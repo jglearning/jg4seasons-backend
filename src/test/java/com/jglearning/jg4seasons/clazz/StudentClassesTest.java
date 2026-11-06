@@ -132,4 +132,19 @@ class StudentClassesTest {
         assertThat(studentClasses.access(clazz, data.lessonId("L2-B1-02"), NOV_5))
                 .isEqualTo(LessonAccess.OPEN);
     }
+
+    @Test
+    void 휴강_뒤_다시_잡힌_회차는_새_수업일에_열림() {
+        long classId = activeClass("겨울 그린 A반");
+        data.enroll(classId, studentId);
+        data.session(classId, 5, "L2-B1-05", LocalDate.of(2026, 11, 3), "cancelled");
+        data.session(classId, 6, "L2-B1-05", NOV_5, "scheduled");
+        StudentClass clazz = studentClasses.currentClass(academyId, studentId).orElseThrow();
+        long lessonId = data.lessonId("L2-B1-05");
+
+        assertThat(studentClasses.access(clazz, lessonId, NOV_5.minusDays(1)))
+                .as("휴강일은 지났지만 새 수업일 전")
+                .isEqualTo(LessonAccess.LOCKED);
+        assertThat(studentClasses.access(clazz, lessonId, NOV_5)).isEqualTo(LessonAccess.OPEN);
+    }
 }

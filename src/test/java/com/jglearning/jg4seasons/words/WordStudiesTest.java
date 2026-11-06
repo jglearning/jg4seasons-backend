@@ -35,6 +35,9 @@ class WordStudiesTest {
                 lessonId);
 
         assertThat(wordStudies.memKnown(studentId, lessonId)).isEqualTo(40);
+        assertThat(wordStudies.memKnown(studentId, data.lessonId("L2-B1-04")))
+                .as("같은 학생의 다른 회차")
+                .isZero();
         assertThat(wordStudies.memKnown(otherId, lessonId)).as("기록 없음").isZero();
     }
 }

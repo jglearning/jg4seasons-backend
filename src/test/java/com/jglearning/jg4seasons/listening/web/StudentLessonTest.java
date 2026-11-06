@@ -250,11 +250,14 @@ class StudentLessonTest {
     }
 
     @Test
-    void 문장_응답에_빈칸_칸이_없다() throws Exception {
-        String body =
-                getAsStudent(TODAY_CODE).getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+    void 문장_응답은_번호_원문_화자만() {
+        MvcTestResult result = getAsStudent(TODAY_CODE);
 
-        assertThat(body).doesNotContain("blank").doesNotContain("answer").doesNotContain("playCount");
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.passages[0].sentences[0]")
+                .asMap()
+                .containsOnlyKeys("no", "text", "speaker");
     }
 
     @Test
@@ -269,5 +272,31 @@ class StudentLessonTest {
 
         json.extractingPath("$.completion.passagesTotal").isEqualTo(2);
         json.extractingPath("$.completion.passagesDone").as("전체를 넘지 않음").isEqualTo(2);
+    }
+
+    @Test
+    void 학원_타임존이_UTC면_UTC_날짜로_연다() {
+        jdbc.update("update academy set settings = '{\"timezone\":\"UTC\"}' where id = ?", academyId);
+        clock.set(Instant.parse("2026-11-10T15:00:00Z")); // 서울은 11/11 00:00, UTC는 아직 11/10
+
+        assertThat(getAsStudent(TOMORROW_CODE)).hasStatus(423);
+    }
+
+    @Test
+    void 휴강만_있는_회차는_423() {
+        data.lessonContent("L2-B1-03", 1, 1, List.of("1.0"));
+        data.session(classId, 3, "L2-B1-03", LocalDate.of(2026, 11, 5), "cancelled");
+
+        MvcTestResult result = getAsStudent("L2-B1-03");
+
+        assertThat(result).hasStatus(423);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("LESSON_LOCKED");
+    }
+
+    @Test
+    void 반이_finished면_404() {
+        jdbc.update("update `class` set status = 'finished' where id = ?", classId);
+
+        assertThat(getAsStudent(TODAY_CODE)).hasStatus(404);
     }
 }

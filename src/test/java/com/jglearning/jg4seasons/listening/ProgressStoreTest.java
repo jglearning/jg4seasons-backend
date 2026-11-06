@@ -92,7 +92,15 @@ class ProgressStoreTest {
                 studentId,
                 lessonId);
 
-        assertThat(store.lessonProgress(studentId, lessonId)).contains(new LessonProgressRow("in_progress", 4, 6));
+        jdbc.update(
+                "insert into lesson_progress (student_id, lesson_id, status, passages_total, passages_done)"
+                        + " values (?, ?, 'completed', 6, 6)",
+                studentId,
+                data.lessonId("L2-B1-04"));
+
+        assertThat(store.lessonProgress(studentId, lessonId))
+                .as("같은 학생의 다른 회차와 섞이지 않음")
+                .contains(new LessonProgressRow("in_progress", 4, 6));
         assertThat(store.lessonProgress(otherStudentId, lessonId)).isEmpty();
     }
 
