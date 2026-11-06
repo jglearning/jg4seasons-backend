@@ -451,4 +451,13 @@ class FlushTest {
                 .extractingPath("$.passages[0].speeds[1].heardRanges")
                 .isEqualTo(List.of(List.of(0, 3000)));
     }
+
+    @Test
+    void 바디가_null이면_400() {
+        MvcTestResult result = flush("null");
+
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("body");
+    }
 }

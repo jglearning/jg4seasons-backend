@@ -72,12 +72,17 @@ public class FlushController {
     }
 
     private FlushRequest read(String body, HttpServletRequest httpRequest) {
+        FlushRequest request;
         try {
-            return jsonMapper.readValue(body, FlushRequest.class);
+            request = jsonMapper.readValue(body, FlushRequest.class);
         } catch (JacksonException e) {
             throw new HttpMessageNotReadableException(
                     "flush 요청 JSON을 읽을 수 없다", e, new ServletServerHttpRequest(httpRequest));
         }
+        if (request == null) { // 바디가 JSON null — 형식 오류(500이면 클라이언트가 계속 재전송한다)
+            throw new HttpMessageNotReadableException("flush 요청이 비었다", new ServletServerHttpRequest(httpRequest));
+        }
+        return request;
     }
 
     /** 필수 칸 확인. 세그먼트 안의 빠진 칸은 400이 아니라 그 세그먼트만 버린다(SegmentFilter) */

@@ -28,8 +28,11 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -47,13 +50,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class FlushService {
 
-    /** 요청 값(컨트롤러가 형식을 확인한 뒤) */
+    /** 요청 값. 형식(UUID 등)은 컨트롤러가 400으로 확인하고, 필수 값의 null은 여기서도 막는다. 세그먼트 원소의 null은 버릴 대상이라 허용 */
     public record FlushCommand(
-            String clientSessionId,
-            long trackId,
-            Instant startedAt,
-            String userAgent,
-            List<IncomingSegment> segments) {}
+            String clientSessionId, long trackId, Instant startedAt, String userAgent, List<IncomingSegment> segments) {
+        public FlushCommand {
+            Objects.requireNonNull(clientSessionId, "clientSessionId");
+            Objects.requireNonNull(startedAt, "startedAt");
+            Objects.requireNonNull(segments, "segments");
+            segments = Collections.unmodifiableList(new ArrayList<>(segments));
+        }
+    }
 
     private static final String NOT_FOUND = "회차를 찾을 수 없어요";
 
