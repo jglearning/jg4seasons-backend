@@ -105,6 +105,16 @@ public class FlushStore {
                 sessionId));
     }
 
+    /** 그 학생·트랙의 청취 세션 수(정직성 지표 session_count). 트랙 행을 잠근 뒤 센다 */
+    public int sessionCount(long studentId, long trackId) {
+        Integer count = jdbc.queryForObject(
+                "select count(*) from listening_session where student_id = ? and track_id = ?",
+                Integer.class,
+                studentId,
+                trackId);
+        return count == null ? 0 : count;
+    }
+
     /** 원본 추가만 */
     public void insertSegments(long sessionId, List<Accepted> segments) {
         jdbc.batchUpdate(
@@ -189,12 +199,13 @@ public class FlushStore {
                 Long.class));
     }
 
-    /** required_* = passages_*(완료 규칙이 지문마다 하나라 같다) */
+    /** required_* = passages_*(완료 규칙이 지문마다 하나라 같다). completed_at은 처음 값을 유지한다(null로 덮지 않음) */
     public void updateLessonProgress(
             long studentId, long lessonId, LessonProgressStatus status, int done, int total, Instant completedAt) {
         jdbc.update(
                 "update lesson_progress set status = ?, required_done = ?, required_total = ?, passages_done = ?,"
-                        + " passages_total = ?, completed_at = ? where student_id = ? and lesson_id = ?",
+                        + " passages_total = ?, completed_at = coalesce(completed_at, ?)"
+                        + " where student_id = ? and lesson_id = ?",
                 status.value(),
                 done,
                 total,

@@ -1,5 +1,7 @@
 package com.jglearning.jg4seasons.listening.segment;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -41,6 +43,16 @@ public final class MergedRanges {
             merged.add(new Range(start, end));
         }
         return List.copyOf(merged);
+    }
+
+    /** 청취율 = 덮은 길이 / 트랙 길이, 소수 4자리 내림(기준 도달을 반올림으로 앞당기지 않음), 1 상한. 길이가 0 이하면 데이터 오류 */
+    public static BigDecimal coverage(int coveredMs, int durationMs) {
+        if (durationMs <= 0) {
+            throw new IllegalStateException("트랙 길이가 0 이하다: " + durationMs);
+        }
+        return BigDecimal.valueOf(coveredMs)
+                .divide(BigDecimal.valueOf(durationMs), 4, RoundingMode.DOWN)
+                .min(BigDecimal.ONE);
     }
 
     /** 병합된 구간 길이의 합(ms) */

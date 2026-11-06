@@ -104,6 +104,21 @@ class MergedRangesTest {
     }
 
     @Test
+    void 청취율은_소수_4자리_내림이고_1을_넘지_않는다() {
+        assertThat(MergedRanges.coverage(3000, 6500)).isEqualByComparingTo("0.4615");
+        assertThat(MergedRanges.coverage(5850, 6500)).isEqualByComparingTo("0.9");
+        assertThat(MergedRanges.coverage(5849, 6500)).isEqualByComparingTo("0.8998");
+        assertThat(MergedRanges.coverage(7000, 6500)).isEqualByComparingTo("1");
+        assertThat(MergedRanges.coverage(0, 6500)).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void 길이가_0_이하면_데이터_오류() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> MergedRanges.coverage(0, 0))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void 인접_기준은_200ms() {
         assertThat(MergedRanges.ADJACENT_MS).isEqualTo(200);
     }
