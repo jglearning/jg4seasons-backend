@@ -263,4 +263,13 @@ class LessonCatalogTest {
                 .as("passage_id 없음")
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void 트랙_길이가_0_이하면_IllegalState() {
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("1.0"));
+        long track = tracks.get("p1:1.0");
+        jdbc.update("update track set duration_ms = 0 where id = ?", track);
+
+        assertThatThrownBy(() -> catalog.findPassageTrack(track)).isInstanceOf(IllegalStateException.class);
+    }
 }

@@ -48,6 +48,9 @@ class LessonCatalogService implements LessonCatalog {
             if (row.passageNo() == null || row.passageLessonId() == null || row.passageLessonId() != row.lessonId()) {
                 throw new IllegalStateException("지문 트랙이 이 회차 지문을 가리키지 않는다: " + row.lessonCode() + " track " + trackId);
             }
+            if (row.durationMs() <= 0) {
+                throw new IllegalStateException("트랙 길이가 0 이하다: " + row.lessonCode() + " track " + trackId);
+            }
             Matcher variant = PASSAGE_VARIANT.matcher(row.variant());
             if (!variant.matches() || Integer.parseInt(variant.group(1)) != row.passageNo()) {
                 throw new IllegalStateException(
