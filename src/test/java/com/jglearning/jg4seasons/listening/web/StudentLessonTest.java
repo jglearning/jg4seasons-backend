@@ -256,4 +256,18 @@ class StudentLessonTest {
 
         assertThat(body).doesNotContain("blank").doesNotContain("answer").doesNotContain("playCount");
     }
+
+    @Test
+    void 집계의_지문_수가_실제와_다르면_실제_지문_수를_쓴다() {
+        jdbc.update(
+                "insert into lesson_progress (student_id, lesson_id, status, passages_total, passages_done)"
+                        + " values (?, ?, 'in_progress', 6, 5)",
+                studentId,
+                data.lessonId(TODAY_CODE));
+
+        var json = assertThat(getAsStudent(TODAY_CODE)).bodyJson();
+
+        json.extractingPath("$.completion.passagesTotal").isEqualTo(2);
+        json.extractingPath("$.completion.passagesDone").as("전체를 넘지 않음").isEqualTo(2);
+    }
 }

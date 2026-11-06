@@ -24,9 +24,12 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public class ProgressStore {
 
-    /** completed = completed_at이 있음(flush의 완료 판정 결과). coverage 0~1 */
+    /** completed = completed_at이 있음(flush의 완료 판정 결과). coverage 0~1 — 벗어나면 데이터 오류 */
     public record TrackProgressRow(long trackId, BigDecimal coverage, boolean completed, List<Range> mergedRanges) {
         public TrackProgressRow {
+            if (coverage == null || coverage.signum() < 0 || coverage.compareTo(BigDecimal.ONE) > 0) {
+                throw new IllegalStateException("청취율은 0~1이어야 한다: track " + trackId + " " + coverage);
+            }
             mergedRanges = List.copyOf(mergedRanges);
         }
     }
@@ -91,7 +94,12 @@ public class ProgressStore {
                     || !pair.get(1).isInt()) {
                 throw new IllegalStateException("merged_ranges 항목은 [start, end] 정수 쌍이어야 한다");
             }
-            ranges.add(new Range(pair.get(0).intValue(), pair.get(1).intValue()));
+            int start = pair.get(0).intValue();
+            int end = pair.get(1).intValue();
+            if (!Range.isValid(start, end)) {
+                throw new IllegalStateException("merged_ranges 구간은 0 <= 시작 < 끝이어야 한다: " + start + "~" + end);
+            }
+            ranges.add(new Range(start, end));
         }
         return ranges;
     }

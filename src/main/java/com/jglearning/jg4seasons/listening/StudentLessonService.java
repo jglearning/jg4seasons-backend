@@ -21,6 +21,8 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class StudentLessonService {
 
+    private static final Logger log = LoggerFactory.getLogger(StudentLessonService.class);
     private static final String NOT_STARTED = "not_started";
 
     private final AcademyDirectory academies;
@@ -85,8 +88,7 @@ public class StudentLessonService {
                 .map(LessonContent.Speed::trackId)
                 .toList();
         Map<Long, TrackProgressRow> tracks = progress.trackProgress(studentId, trackIds);
-        LessonProgressRow lessonProgress = progress.lessonProgress(studentId, lesson.lessonId())
-                .orElse(new LessonProgressRow(NOT_STARTED, 0, lesson.passages().size()));
+        LessonProgressRow lessonProgress = lessonProgress(studentId, lesson);
 
         return new LessonDetailResponse(
                 new LessonDetailResponse.Lesson(lesson.code(), lesson.number(), lesson.title(), lesson.type()),
@@ -103,6 +105,28 @@ public class StudentLessonService {
                         .map(passage -> passage(passage, rule, tracks))
                         .toList(),
                 new LessonDetailResponse.Words(lesson.wordTotal(), wordStudies.memKnown(studentId, lesson.lessonId())));
+    }
+
+    /**
+     * 회차 집계. 없으면 시작 전. 집계의 지문 수가 실제와 다르면(회차 내용을 다시 넣은 뒤 flush 전) 실제 지문 수를 쓰고 WARN — 다음 flush가 다시 계산한다.
+     * 500으로 막으면 학생이 그 회차를 듣지 못한다(리뷰 9, 결정 b)
+     */
+    private LessonProgressRow lessonProgress(long studentId, LessonContent lesson) {
+        int total = lesson.passages().size();
+        LessonProgressRow stored =
+                progress.lessonProgress(studentId, lesson.lessonId()).orElse(null);
+        if (stored == null) {
+            return new LessonProgressRow(NOT_STARTED, 0, total);
+        }
+        if (stored.passagesTotal() == total) {
+            return stored;
+        }
+        log.warn(
+                "회차 집계의 지문 수가 실제와 다르다: lesson {} 집계 {} 실제 {} — 실제 지문 수로 보낸다",
+                lesson.code(),
+                stored.passagesTotal(),
+                total);
+        return new LessonProgressRow(stored.status(), Math.min(stored.passagesDone(), total), total);
     }
 
     private LessonDetailResponse.Passage passage(

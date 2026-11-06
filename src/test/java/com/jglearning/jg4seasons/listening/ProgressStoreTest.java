@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.listening;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
@@ -93,5 +94,18 @@ class ProgressStoreTest {
 
         assertThat(store.lessonProgress(studentId, lessonId)).contains(new LessonProgressRow("in_progress", 4, 6));
         assertThat(store.lessonProgress(otherStudentId, lessonId)).isEmpty();
+    }
+
+    @Test
+    void 구간이_뒤집혔거나_청취율이_1을_넘으면_IllegalState() {
+        long one = tracks.get("p1:1.0");
+        long slow = tracks.get("p1:0.8");
+        trackProgress(studentId, one, "[[5000,100]]", "0.5000", false);
+        trackProgress(otherStudentId, slow, "[[0,100]]", "1.2000", false);
+
+        assertThatThrownBy(() -> store.trackProgress(studentId, List.of(one)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> store.trackProgress(otherStudentId, List.of(slow)))
+                .isInstanceOf(IllegalStateException.class);
     }
 }
