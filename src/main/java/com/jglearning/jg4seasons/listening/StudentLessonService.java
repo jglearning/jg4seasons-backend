@@ -35,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class StudentLessonService {
 
     private static final Logger log = LoggerFactory.getLogger(StudentLessonService.class);
-    private static final String NOT_STARTED = "not_started";
 
     private final AcademyDirectory academies;
     private final StudentClasses studentClasses;
@@ -97,7 +96,7 @@ public class StudentLessonService {
                         lesson.level().nameKo(),
                         lesson.level().colorHex()),
                 new LessonDetailResponse.Completion(
-                        lessonProgress.status(),
+                        lessonProgress.status().value(),
                         lessonProgress.passagesDone(),
                         lessonProgress.passagesTotal(),
                         plain(rule.threshold())),
@@ -116,7 +115,7 @@ public class StudentLessonService {
         LessonProgressRow stored =
                 progress.lessonProgress(studentId, lesson.lessonId()).orElse(null);
         if (stored == null) {
-            return new LessonProgressRow(NOT_STARTED, 0, total);
+            return new LessonProgressRow(LessonProgressStatus.NOT_STARTED, 0, total);
         }
         if (stored.passagesTotal() == total) {
             return stored;

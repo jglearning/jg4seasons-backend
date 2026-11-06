@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.listening.persistence;
 
+import com.jglearning.jg4seasons.listening.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -34,8 +35,7 @@ public class ProgressStore {
         }
     }
 
-    /** status: not_started · in_progress · completed */
-    public record LessonProgressRow(String status, int passagesDone, int passagesTotal) {}
+    public record LessonProgressRow(LessonProgressStatus status, int passagesDone, int passagesTotal) {}
 
     private final NamedParameterJdbcTemplate jdbc;
     private final JsonMapper jsonMapper;
@@ -70,7 +70,9 @@ public class ProgressStore {
                                 + " where student_id = :studentId and lesson_id = :lessonId",
                         new MapSqlParameterSource("studentId", studentId).addValue("lessonId", lessonId),
                         (rs, i) -> new LessonProgressRow(
-                                rs.getString("status"), rs.getInt("passages_done"), rs.getInt("passages_total")))
+                                LessonProgressStatus.fromValue(rs.getString("status")),
+                                rs.getInt("passages_done"),
+                                rs.getInt("passages_total")))
                 .stream()
                 .findFirst();
     }

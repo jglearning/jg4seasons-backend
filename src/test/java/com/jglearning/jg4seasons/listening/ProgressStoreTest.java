@@ -100,7 +100,7 @@ class ProgressStoreTest {
 
         assertThat(store.lessonProgress(studentId, lessonId))
                 .as("같은 학생의 다른 회차와 섞이지 않음")
-                .contains(new LessonProgressRow("in_progress", 4, 6));
+                .contains(new LessonProgressRow(LessonProgressStatus.IN_PROGRESS, 4, 6));
         assertThat(store.lessonProgress(otherStudentId, lessonId)).isEmpty();
     }
 
