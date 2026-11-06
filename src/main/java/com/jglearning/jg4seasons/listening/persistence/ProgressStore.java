@@ -5,6 +5,7 @@ import com.jglearning.jg4seasons.listening.segment.Range;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -58,6 +59,27 @@ public class ProgressStore {
                         RangesJson.read(jsonMapper, rs.getString("merged_ranges"))));
         return Collections.unmodifiableMap(
                 rows.stream().collect(Collectors.toMap(TrackProgressRow::trackId, Function.identity())));
+    }
+
+    /** 여러 회차 진도를 한 번에(홈·회차 목록). 진도가 있는 회차만 담는다(없으면 시작 전) */
+    public Map<Long, LessonProgressRow> lessonProgress(long studentId, Collection<Long> lessonIds) {
+        if (lessonIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, LessonProgressRow> rows = new HashMap<>();
+        jdbc.query(
+                "select lesson_id, status, passages_done, passages_total from lesson_progress"
+                        + " where student_id = :studentId and lesson_id in (:lessonIds)",
+                new MapSqlParameterSource("studentId", studentId).addValue("lessonIds", lessonIds),
+                rs -> {
+                    rows.put(
+                            rs.getLong("lesson_id"),
+                            new LessonProgressRow(
+                                    LessonProgressStatus.fromValue(rs.getString("status")),
+                                    rs.getInt("passages_done"),
+                                    rs.getInt("passages_total")));
+                });
+        return Collections.unmodifiableMap(rows);
     }
 
     public Optional<LessonProgressRow> lessonProgress(long studentId, long lessonId) {
