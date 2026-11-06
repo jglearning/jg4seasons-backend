@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -39,7 +40,15 @@ public final class LessonBoard {
     }
 
     /** overdueKind는 OVERDUE일 때만, 아니면 null */
-    public record Entry(ClassLesson lesson, LessonState state, OverdueKind overdueKind) {}
+    public record Entry(ClassLesson lesson, LessonState state, OverdueKind overdueKind) {
+        public Entry {
+            Objects.requireNonNull(lesson, "lesson");
+            Objects.requireNonNull(state, "state");
+            if ((state == LessonState.OVERDUE) != (overdueKind != null)) {
+                throw new IllegalArgumentException("overdueKind는 OVERDUE일 때만: " + state + " " + overdueKind);
+            }
+        }
+    }
 
     /** entries는 seq 순, overdue는 오래된 순(수업일, seq) */
     public record Board(

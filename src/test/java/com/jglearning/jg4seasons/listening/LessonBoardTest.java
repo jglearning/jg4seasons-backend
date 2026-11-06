@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.listening;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.listening.LessonBoard.Board;
@@ -135,6 +136,42 @@ class LessonBoardTest {
         assertThat(board.today()).map(ClassLesson::lessonId).contains(24L);
         assertThat(board.next()).isEmpty();
         assertThat(board.overdue()).hasSize(23);
+    }
+
+    @Test
+    void 같은_날_두_회차면_seq가_큰_것이_오늘이고_앞_회차는_밀림() {
+        // 휴강 보강 등으로 4·5회차가 같은 날(오늘). 오늘 회차는 하나 — 앞 회차는 수업 당일에도 밀린 수업(결정: 리뷰 8 a)
+        List<ClassLesson> lessons = new ArrayList<>(lessons(6, TODAY, false));
+        lessons.set(4, new ClassLesson(5, 5, TODAY, true, true, true));
+
+        Board board = board(lessons, Map.of());
+
+        assertThat(board.today()).map(ClassLesson::lessonId).contains(5L);
+        assertThat(state(board, 4)).isEqualTo(LessonState.OVERDUE);
+        assertThat(board.overdue())
+                .extracting(entry -> entry.lesson().lessonId())
+                .containsExactly(1L, 2L, 3L, 4L);
+    }
+
+    @Test
+    void 같은_날이면_목록_순서와_무관하게_seq로_고른다() {
+        List<ClassLesson> lessons = new ArrayList<>(lessons(6, TODAY, false));
+        lessons.set(4, new ClassLesson(5, 5, TODAY, true, true, true));
+        java.util.Collections.reverse(lessons);
+
+        assertThat(board(lessons, Map.of()).today()).map(ClassLesson::lessonId).contains(5L);
+    }
+
+    @Test
+    void 밀림_종류는_overdue에만_있다() {
+        ClassLesson lesson = new ClassLesson(1, 1, DAY1, true, true, true);
+
+        assertThatThrownBy(() -> new Entry(lesson, LessonState.OVERDUE, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new Entry(lesson, LessonState.TODAY, OverdueKind.STOPPED))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new Entry(null, LessonState.TODAY, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new Entry(lesson, null, null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
