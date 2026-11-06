@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -41,16 +42,27 @@ class LessonCatalogService implements LessonCatalog {
     }
 
     private LessonContent assemble(LessonRow lesson) {
+        if (lesson.coverageThreshold() == null || lesson.requiredTracksJson() == null) {
+            throw new IllegalStateException("레벨 완료 규칙이 없다: " + lesson.code());
+        }
+        List<PassageRow> passageRows = store.passages(lesson.id());
+        List<TrackRow> trackRows = store.passageTracks(lesson.id());
+        Set<Long> passageIds = passageRows.stream().map(PassageRow::id).collect(Collectors.toSet());
+        for (TrackRow track : trackRows) {
+            if (track.passageId() == null || !passageIds.contains(track.passageId())) {
+                throw new IllegalStateException("지문 트랙이 이 회차 지문을 가리키지 않는다: " + lesson.code() + " track " + track.id());
+            }
+        }
         Map<Long, List<SentenceRow>> sentencesByPassage =
                 store.sentences(lesson.id()).stream().collect(Collectors.groupingBy(SentenceRow::passageId));
         Map<Long, List<TrackRow>> tracksByPassage =
-                store.passageTracks(lesson.id()).stream().collect(Collectors.groupingBy(TrackRow::passageId));
+                trackRows.stream().collect(Collectors.groupingBy(TrackRow::passageId));
         Map<Long, Map<Long, TimingRow>> timingsByTrack = store.timings(lesson.id()).stream()
                 .collect(Collectors.groupingBy(
                         TimingRow::trackId, Collectors.toMap(TimingRow::sentenceId, timing -> timing)));
 
         List<Passage> passages = new ArrayList<>();
-        for (PassageRow passage : store.passages(lesson.id())) {
+        for (PassageRow passage : passageRows) {
             List<SentenceRow> sentences = sentencesByPassage.getOrDefault(passage.id(), List.of());
             List<Speed> speeds = tracksByPassage.getOrDefault(passage.id(), List.of()).stream()
                     .map(track -> speed(

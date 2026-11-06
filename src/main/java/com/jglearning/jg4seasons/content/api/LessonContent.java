@@ -26,9 +26,15 @@ public record LessonContent(
     public record Rule(BigDecimal coverageThreshold, String requiredTracksJson) {}
 
     public record Passage(int no, String title, int wordCount, List<Sentence> sentences, List<Speed> speeds) {
+        /** 속도마다 시각은 비어 있거나(아직 없음) 문장 수와 같다 */
         public Passage {
             sentences = List.copyOf(sentences);
             speeds = List.copyOf(speeds);
+            for (Speed speed : speeds) {
+                if (!speed.timings().isEmpty() && speed.timings().size() != sentences.size()) {
+                    throw new IllegalArgumentException("문장 시각 수가 문장 수와 다르다: 지문 " + no);
+                }
+            }
         }
     }
 
@@ -51,6 +57,12 @@ public record LessonContent(
         }
     }
 
-    /** 지문 음원 안의 구간(ms) */
-    public record TimeRange(int startMs, int endMs) {}
+    /** 지문 음원 안의 구간(ms). 0 <= 시작 < 끝(sentence_timing CHECK와 같음) */
+    public record TimeRange(int startMs, int endMs) {
+        public TimeRange {
+            if (startMs < 0 || endMs <= startMs) {
+                throw new IllegalArgumentException("구간은 0 <= 시작 < 끝이어야 한다: " + startMs + "~" + endMs);
+            }
+        }
+    }
 }

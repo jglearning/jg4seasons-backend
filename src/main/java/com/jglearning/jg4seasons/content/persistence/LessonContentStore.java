@@ -27,7 +27,7 @@ public class LessonContentStore {
 
     public record SentenceRow(long id, long passageId, int no, String text, String speaker) {}
 
-    public record TrackRow(long id, long passageId, String variant, String fileKey, int durationMs) {}
+    public record TrackRow(long id, Long passageId, String variant, String fileKey, int durationMs) {}
 
     public record TimingRow(long trackId, long sentenceId, int startMs, int endMs, boolean approximate) {}
 
@@ -37,7 +37,7 @@ public class LessonContentStore {
         this.jdbc = jdbc;
     }
 
-    /** 회차 + 레벨 + 그 레벨 완료 규칙 */
+    /** 회차 + 레벨 + 그 레벨 완료 규칙(규칙이 없으면 coverageThreshold·requiredTracksJson이 null — 서비스가 데이터 오류로 다룬다) */
     public Optional<LessonRow> findLesson(String code) {
         return jdbc
                 .query(
@@ -47,7 +47,7 @@ public class LessonContentStore {
                                 + " from lesson l"
                                 + " join book b on b.id = l.book_id"
                                 + " join level v on v.id = b.level_id"
-                                + " join completion_rule r on r.level_id = v.id"
+                                + " left join completion_rule r on r.level_id = v.id"
                                 + " where l.code = ?",
                         (rs, i) -> new LessonRow(
                                 rs.getLong("id"),
@@ -90,15 +90,15 @@ public class LessonContentStore {
                 lessonId);
     }
 
-    /** 지문 트랙(kind=passage)만, sort_order 순 */
+    /** 지문 트랙(kind=passage)만, sort_order 순. passage_id가 없거나 다른 회차 지문이어도 읽는다(서비스가 데이터 오류로 다룬다) */
     public List<TrackRow> passageTracks(long lessonId) {
         return jdbc.query(
                 "select id, passage_id, variant, file_key, duration_ms from track"
-                        + " where lesson_id = ? and kind = 'passage' and passage_id is not null"
+                        + " where lesson_id = ? and kind = 'passage'"
                         + " order by sort_order, id",
                 (rs, i) -> new TrackRow(
                         rs.getLong("id"),
-                        rs.getLong("passage_id"),
+                        rs.getObject("passage_id", Long.class),
                         rs.getString("variant"),
                         rs.getString("file_key"),
                         rs.getInt("duration_ms")),
