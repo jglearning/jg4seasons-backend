@@ -74,6 +74,25 @@ class AcademyDirectoryTest {
     }
 
     @Test
+    void 설정이_객체가_아니면_IllegalState() {
+        long text = new TestData(jdbc).academy("문자열 설정");
+        long array = new TestData(jdbc).academy("배열 설정");
+        jdbc.update("update academy set settings = '\"Asia/Tokyo\"' where id = ?", text);
+        jdbc.update("update academy set settings = '[]' where id = ?", array);
+
+        assertThatThrownBy(() -> academies.zoneOf(text)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> academies.zoneOf(array)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 타임존이_문자열이_아니면_IllegalState() {
+        long id = new TestData(jdbc).academy("숫자 타임존");
+        jdbc.update("update academy set settings = '{\"timezone\":9}' where id = ?", id);
+
+        assertThatThrownBy(() -> academies.zoneOf(id)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void 없는_학원의_타임존은_IllegalState() {
         assertThatThrownBy(() -> academies.zoneOf(-1L)).isInstanceOf(IllegalStateException.class);
     }

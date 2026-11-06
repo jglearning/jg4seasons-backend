@@ -44,7 +44,11 @@ class AcademyDirectoryService implements AcademyDirectory {
         if (academy.getSettings() == null) {
             return DEFAULT_ZONE;
         }
-        JsonNode timezone = jsonMapper.readTree(academy.getSettings()).get("timezone");
+        JsonNode settings = jsonMapper.readTree(academy.getSettings());
+        if (!settings.isObject()) {
+            throw new IllegalStateException("학원 settings가 객체가 아니다: " + academyId);
+        }
+        JsonNode timezone = settings.get("timezone");
         if (timezone == null || timezone.isNull()) {
             return DEFAULT_ZONE;
         }
