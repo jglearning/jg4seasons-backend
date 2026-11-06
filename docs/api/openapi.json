@@ -530,6 +530,47 @@
         "summary" : "내 정보",
         "tags" : [ "me-controller" ]
       }
+    },
+    "/api/v1/student/lessons/{lessonCode}" : {
+      "get" : {
+        "description" : "지문·문장·속도별 음원·문장 시각·들은 구간·완료 상태. 내 반 진도표에 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED",
+        "operationId" : "detail",
+        "parameters" : [ {
+          "description" : "회차 코드",
+          "example" : "L2-B1-05",
+          "in" : "path",
+          "name" : "lessonCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[A-Za-z0-9-]{1,10}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "회차 상세",
+        "tags" : [ "student-lesson-controller" ]
+      }
     }
   },
   "components" : {
@@ -797,6 +838,217 @@
           }
         },
         "required" : [ "class" ]
+      },
+      "LessonDetailCompletion" : {
+        "type" : "object",
+        "properties" : {
+          "passagesDone" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "passagesTotal" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "not_started", "in_progress", "completed" ]
+          },
+          "threshold" : {
+            "type" : "number",
+            "description" : "트랙 완료 기준 청취율(0~1)"
+          }
+        },
+        "required" : [ "passagesDone", "passagesTotal", "status", "threshold" ]
+      },
+      "LessonDetailLesson" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "number" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Reading Day 5"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "regular", "module_review", "integrated" ]
+          }
+        },
+        "required" : [ "code", "number", "title", "type" ]
+      },
+      "LessonDetailLevel" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "colorHex" : {
+            "type" : "string",
+            "example" : "#1F7A4F"
+          },
+          "nameKo" : {
+            "type" : "string",
+            "example" : "그린"
+          }
+        },
+        "required" : [ "code", "colorHex", "nameKo" ]
+      },
+      "LessonDetailPassage" : {
+        "type" : "object",
+        "properties" : {
+          "no" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "sentences" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/LessonDetailSentence"
+            }
+          },
+          "speeds" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/LessonDetailSpeed"
+            }
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "wordCount" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "no", "sentences", "speeds", "title", "wordCount" ]
+      },
+      "LessonDetailResponse" : {
+        "type" : "object",
+        "properties" : {
+          "completion" : {
+            "$ref" : "#/components/schemas/LessonDetailCompletion"
+          },
+          "lesson" : {
+            "$ref" : "#/components/schemas/LessonDetailLesson"
+          },
+          "level" : {
+            "$ref" : "#/components/schemas/LessonDetailLevel"
+          },
+          "passages" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/LessonDetailPassage"
+            }
+          },
+          "words" : {
+            "$ref" : "#/components/schemas/LessonDetailWords"
+          }
+        },
+        "required" : [ "completion", "lesson", "level", "passages", "words" ]
+      },
+      "LessonDetailSentence" : {
+        "type" : "object",
+        "properties" : {
+          "no" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "speaker" : {
+            "type" : [ "string", "null" ],
+            "description" : "대화문 화자. 대화문이 아니면 null"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "no", "speaker", "text" ]
+      },
+      "LessonDetailSpeed" : {
+        "type" : "object",
+        "properties" : {
+          "audioUrl" : {
+            "type" : "string",
+            "description" : "같은 도메인 상대 경로"
+          },
+          "completed" : {
+            "type" : "boolean"
+          },
+          "coverage" : {
+            "type" : "number",
+            "description" : "청취율 0~1(병합된 구간 / 길이)"
+          },
+          "durationMs" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "음원 길이(ms)"
+          },
+          "heardRanges" : {
+            "type" : "array",
+            "description" : "병합된 들은 구간 [시작, 끝] ms. 들은 적 없으면 빈 배열",
+            "items" : {
+              "type" : "array",
+              "example" : [ 0, 52000 ],
+              "items" : {
+                "type" : "integer",
+                "format" : "int32"
+              }
+            }
+          },
+          "required" : {
+            "type" : "boolean",
+            "description" : "지문 완료에 필요한 속도인가(완료 규칙 결과)"
+          },
+          "timings" : {
+            "type" : "array",
+            "description" : "timings[i] = sentences[i]의 [시작, 끝] ms. 문장 시각이 아직 없으면 빈 배열",
+            "items" : {
+              "type" : "array",
+              "example" : [ 0, 3000 ],
+              "items" : {
+                "type" : "integer",
+                "format" : "int32"
+              }
+            }
+          },
+          "timingsApproximate" : {
+            "type" : "boolean",
+            "description" : "true면 1.0 시각을 길이 비율로 늘이거나 줄인 근사"
+          },
+          "trackId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "variant" : {
+            "type" : "string",
+            "description" : "속도(0.8·1.0·1.2)",
+            "example" : "1.0"
+          }
+        },
+        "required" : [ "audioUrl", "completed", "coverage", "durationMs", "heardRanges", "required", "timings", "timingsApproximate", "trackId", "variant" ]
+      },
+      "LessonDetailWords" : {
+        "type" : "object",
+        "properties" : {
+          "memKnown" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "암기 모드 '알아요' 최고 수"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "회차 단어 수"
+          }
+        },
+        "required" : [ "memKnown", "total" ]
       },
       "LevelInfo" : {
         "type" : "object",

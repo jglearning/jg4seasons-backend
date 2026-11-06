@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.clazz;
 import com.jglearning.jg4seasons.clazz.api.ClassStatus;
 import com.jglearning.jg4seasons.infra.persistence.AcademyScopedRepository;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
@@ -14,6 +15,8 @@ interface ClassRepository extends AcademyScopedRepository<Clazz, Long> {
     Optional<Clazz> findByAcademyIdAndId(Long academyId, Long id);
 
     List<Clazz> findByAcademyIdOrderById(Long academyId);
+
+    List<Clazz> findByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
 
     List<Clazz> findByAcademyIdAndStatusOrderById(Long academyId, ClassStatus status);
 

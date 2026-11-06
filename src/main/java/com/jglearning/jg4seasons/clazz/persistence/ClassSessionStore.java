@@ -49,4 +49,18 @@ public class ClassSessionStore {
                         rs.getString("status")),
                 classId);
     }
+
+    /** 한 회차의 진도표 행(휴강 시프트 뒤에는 둘 이상일 수 있음), seq 순 */
+    public List<SessionRow> findByClassAndLesson(long classId, long lessonId) {
+        return jdbc.query(
+                "select seq, lesson_id, scheduled_date, status from class_session"
+                        + " where class_id = ? and lesson_id = ? order by seq",
+                (rs, i) -> new SessionRow(
+                        rs.getInt("seq"),
+                        rs.getLong("lesson_id"),
+                        rs.getObject("scheduled_date", LocalDate.class),
+                        rs.getString("status")),
+                classId,
+                lessonId);
+    }
 }

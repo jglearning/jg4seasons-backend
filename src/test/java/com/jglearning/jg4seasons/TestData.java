@@ -4,6 +4,10 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,6 +91,100 @@ public final class TestData {
                 classId,
                 studentId,
                 LocalDate.of(2026, 11, 1));
+    }
+
+    public long lessonId(String code) {
+        return Objects.requireNonNull(jdbc.queryForObject("select id from lesson where code = ?", Long.class, code));
+    }
+
+    /** 진도표 한 행. status: scheduled · done · cancelled */
+    public void session(long classId, int seq, String lessonCode, LocalDate date, String status) {
+        jdbc.update(
+                "insert into class_session (class_id, seq, lesson_id, scheduled_date, status) values (?, ?, ?, ?, ?)",
+                classId,
+                seq,
+                lessonId(lessonCode),
+                date,
+                status);
+    }
+
+    /** 문장 길이(1.0 기준)와 문장 사이 간격. 1.0 첫 문장 시각 = [0, 3000] */
+    public static final int SENTENCE_MS = 3000;
+
+    public static final int GAP_MS = 500;
+
+    /**
+     * 회차 내용: 지문 passages개 × 문장 sentencesPerPassage개(직접 지은 문장 — 교재 지문 아님), 속도마다 지문 트랙과 문장 시각. 1.0은 정확한 시각, 다른 속도는
+     * 1.0 시각을 길이 비율(1.0 / 속도)로 늘이거나 줄인 근사. 반환: "p1:1.0" → trackId
+     */
+    public Map<String, Long> lessonContent(
+            String lessonCode, int passages, int sentencesPerPassage, List<String> speeds) {
+        long lessonId = lessonId(lessonCode);
+        Map<String, Long> tracks = new LinkedHashMap<>();
+        for (int p = 1; p <= passages; p++) {
+            long passageId = insert(
+                    "insert into passage (lesson_id, no, title, word_count) values (?, ?, ?, ?)",
+                    lessonId,
+                    p,
+                    "Made-up Passage " + p,
+                    100 + p);
+            List<Long> sentenceIds = new ArrayList<>();
+            for (int s = 1; s <= sentencesPerPassage; s++) {
+                sentenceIds.add(insert(
+                        "insert into sentence (passage_id, no, text, speaker) values (?, ?, ?, ?)",
+                        passageId,
+                        s,
+                        "Passage " + p + " sentence " + s + " is a made-up line.",
+                        s == 2 ? "A" : null));
+            }
+            int oneSpeedMs = sentencesPerPassage * SENTENCE_MS + (sentencesPerPassage - 1) * GAP_MS;
+            for (int i = 0; i < speeds.size(); i++) {
+                String speed = speeds.get(i);
+                double ratio = 1.0 / Double.parseDouble(speed);
+                boolean approximate = !"1.0".equals(speed);
+                long trackId = insert(
+                        "insert into track (lesson_id, passage_id, kind, variant, file_key, duration_ms, sort_order)"
+                                + " values (?, ?, 'passage', ?, ?, ?, ?)",
+                        lessonId,
+                        passageId,
+                        "p" + p + ":" + speed,
+                        "audio/" + lessonCode + "/" + lessonCode + "_p" + p + "_" + speed + ".mp3",
+                        (int) Math.round(oneSpeedMs * ratio),
+                        p * 10 + i);
+                tracks.put("p" + p + ":" + speed, trackId);
+                for (int s = 0; s < sentencesPerPassage; s++) {
+                    int start = s * (SENTENCE_MS + GAP_MS);
+                    jdbc.update(
+                            "insert into sentence_timing (sentence_id, track_id, start_ms, end_ms, approximate)"
+                                    + " values (?, ?, ?, ?, ?)",
+                            sentenceIds.get(s),
+                            trackId,
+                            (int) Math.round(start * ratio),
+                            (int) Math.round((start + SENTENCE_MS) * ratio),
+                            approximate);
+                }
+            }
+        }
+        return tracks;
+    }
+
+    /** 회차 단어 count개(지문 1에 붙임). lessonContent 다음에 부른다 */
+    public void words(String lessonCode, int count) {
+        long lessonId = lessonId(lessonCode);
+        long passageId = Objects.requireNonNull(
+                jdbc.queryForObject("select id from passage where lesson_id = ? and no = 1", Long.class, lessonId));
+        for (int i = 1; i <= count; i++) {
+            jdbc.update(
+                    "insert into word (lesson_id, passage_id, sort_order, english, korean, pos, example_en, example_ko)"
+                            + " values (?, ?, ?, ?, ?, 'n', ?, ?)",
+                    lessonId,
+                    passageId,
+                    i,
+                    "word" + i,
+                    "단어" + i,
+                    "A made-up example " + i + ".",
+                    "지어낸 예문 " + i);
+        }
     }
 
     public void leave(long classId, long studentId) {
