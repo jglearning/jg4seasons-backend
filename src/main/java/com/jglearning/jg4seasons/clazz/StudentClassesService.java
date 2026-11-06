@@ -82,7 +82,8 @@ class StudentClassesService implements StudentClasses {
                 representative.seq(),
                 representative.scheduledDate(),
                 reached,
-                LessonOpening.isOpen(rows, today, allowFuture));
+                LessonOpening.isOpen(rows, today, allowFuture),
+                !held.isEmpty());
     }
 
     @Override

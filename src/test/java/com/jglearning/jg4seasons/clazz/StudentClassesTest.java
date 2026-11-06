@@ -223,6 +223,7 @@ class StudentClassesTest {
         assertThat(lessons.get(0).seq()).isEqualTo(6);
         assertThat(lessons.get(0).scheduledDate()).isEqualTo(NOV_5);
         assertThat(lessons.get(0).reached()).as("휴강일은 지났지만 새 수업일 전").isFalse();
+        assertThat(lessons.get(0).held()).isTrue();
         assertThat(lessons.get(0).open()).isFalse();
     }
 
@@ -238,5 +239,6 @@ class StudentClassesTest {
         assertThat(lesson.scheduledDate()).isEqualTo(NOV_5.minusDays(2));
         assertThat(lesson.reached()).isFalse();
         assertThat(lesson.open()).isFalse();
+        assertThat(lesson.held()).as("휴강 행만").isFalse();
     }
 }
