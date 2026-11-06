@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -78,7 +79,7 @@ public class FlushService {
         this.clock = clock;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public FlushResponse flush(long academyId, long studentId, FlushCommand command) {
         if (!academies.isActive(academyId)) {
             throw new ApiException(CommonErrorCode.UNAUTHORIZED);

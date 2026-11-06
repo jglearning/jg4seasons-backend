@@ -23,15 +23,17 @@ import tools.jackson.databind.json.JsonMapper;
  * 학생의 학원 반 소속·회차 열림을 먼저 확인한다. 시각은 UTC LocalDateTime으로 쓰고 읽는다(JVM 시간대와 무관하게).
  *
  * <p>잠금 순서는 호출자(FlushService)가 지킨다: 회차 행(lockLessonProgress) → 트랙 행(lockTrackProgress) → 다른 트랙 잠금 읽기(completedTracksForShare).
- * 행 확보는 INSERT IGNORE — 동시 첫 요청은 UNIQUE·PK로 한쪽만 만든다. INSERT IGNORE는 FK 위반도 경고로 넘기므로 학생·트랙·회차는 호출 전에 확인돼 있어야 한다.
+ * 행 확보는 {@code INSERT … ON DUPLICATE KEY UPDATE <키> = <키>}(아무것도 바꾸지 않음) — 동시 첫 요청은 PK·UNIQUE로 한쪽만 만들고, 이미 있는
+ * 행에는 처음부터 배타 잠금을 잡는다. INSERT IGNORE는 이미 있는 행에 공유 잠금을 잡아, 두 요청이 이어지는 FOR UPDATE에서 서로 공유 잠금을 기다리는 교착이
+ * 났다(커밋 테스트로 재현).
  */
 @Component
 public class FlushStore {
 
     static final int USER_AGENT_MAX = 200;
 
-    /** created = 이번 호출이 세션을 만들었다(session_count를 올릴지). studentId·trackId는 저장된 값 — 요청과 다르면 호출자가 400 */
-    public record SessionRow(long id, long studentId, long trackId, boolean created) {}
+    /** studentId·trackId는 저장된 값 — 요청과 다르면 호출자가 400 */
+    public record SessionRow(long id, long studentId, long trackId) {}
 
     /** 잠근 트랙 집계. completedAt은 null 가능 */
     public record TrackProgressLock(
@@ -72,10 +74,10 @@ public class FlushStore {
     /** 없으면 만든다(started_at·user_agent는 이때만). 있고 학생·트랙이 같으면 last_seen_at만 고친다. 다르면 고치지 않고 저장된 값을 돌려준다 */
     public SessionRow upsertSession(
             String clientSessionId, long studentId, long trackId, Instant startedAt, String userAgent, Instant now) {
-        int inserted = jdbc.update(
-                "insert ignore into listening_session"
+        jdbc.update(
+                "insert into listening_session"
                         + " (client_session_id, student_id, track_id, started_at, last_seen_at, user_agent)"
-                        + " values (?, ?, ?, ?, ?, ?)",
+                        + " values (?, ?, ?, ?, ?, ?) on duplicate key update id = id",
                 clientSessionId,
                 studentId,
                 trackId,
@@ -84,17 +86,14 @@ public class FlushStore {
                 truncate(userAgent));
         SessionRow stored = jdbc.queryForObject(
                 "select id, student_id, track_id from listening_session where client_session_id = ?",
-                (rs, i) -> new SessionRow(
-                        rs.getLong("id"), rs.getLong("student_id"), rs.getLong("track_id"), inserted == 1),
+                (rs, i) -> new SessionRow(rs.getLong("id"), rs.getLong("student_id"), rs.getLong("track_id")),
                 clientSessionId);
-        if (inserted == 0) {
-            jdbc.update(
-                    "update listening_session set last_seen_at = ? where id = ? and student_id = ? and track_id = ?",
-                    utc(now),
-                    stored.id(),
-                    studentId,
-                    trackId);
-        }
+        jdbc.update(
+                "update listening_session set last_seen_at = ? where id = ? and student_id = ? and track_id = ?",
+                utc(now),
+                stored.id(),
+                studentId,
+                trackId);
         return stored;
     }
 
@@ -132,8 +131,8 @@ public class FlushStore {
     /** 회차 집계 행을 확보(없으면 not_started)하고 FOR UPDATE. 같은 학생·같은 회차 flush를 줄 세운다 — 트랜잭션에서 가장 먼저 잡는 잠금 */
     public LessonProgressRow lockLessonProgress(long studentId, long lessonId, int passagesTotal) {
         jdbc.update(
-                "insert ignore into lesson_progress (student_id, lesson_id, status, required_total, passages_total)"
-                        + " values (?, ?, 'not_started', ?, ?)",
+                "insert into lesson_progress (student_id, lesson_id, status, required_total, passages_total)"
+                        + " values (?, ?, 'not_started', ?, ?) on duplicate key update student_id = student_id",
                 studentId,
                 lessonId,
                 passagesTotal,
@@ -152,8 +151,8 @@ public class FlushStore {
     /** 트랙 집계 행을 확보(없으면 빈 구간)하고 FOR UPDATE */
     public TrackProgressLock lockTrackProgress(long studentId, long trackId, Instant now) {
         jdbc.update(
-                "insert ignore into track_progress (student_id, track_id, merged_ranges, last_played_at)"
-                        + " values (?, ?, '[]', ?)",
+                "insert into track_progress (student_id, track_id, merged_ranges, last_played_at)"
+                        + " values (?, ?, '[]', ?) on duplicate key update student_id = student_id",
                 studentId,
                 trackId,
                 utc(now));

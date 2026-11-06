@@ -54,12 +54,11 @@ class FlushStoreTest {
     }
 
     @Test
-    void 새_세션은_created이고_시각은_UTC로_저장한다() {
+    void 새_세션은_시각을_UTC로_저장한다() {
         long track = tracks.get("p1:1.0");
 
         SessionRow session = store.upsertSession(SESSION, studentId, track, STARTED, "UA", NOW);
 
-        assertThat(session.created()).isTrue();
         assertThat(session.studentId()).isEqualTo(studentId);
         assertThat(session.trackId()).isEqualTo(track);
         assertThat(jdbc.queryForObject(
@@ -68,13 +67,12 @@ class FlushStoreTest {
     }
 
     @Test
-    void 같은_세션_다시는_created_아님_last_seen만() {
+    void 같은_세션_다시는_last_seen만() {
         long track = tracks.get("p1:1.0");
         SessionRow first = store.upsertSession(SESSION, studentId, track, STARTED, "UA", NOW);
 
         SessionRow again = store.upsertSession(SESSION, studentId, track, STARTED, "다른 UA", NOW.plusSeconds(10));
 
-        assertThat(again.created()).isFalse();
         assertThat(again.id()).isEqualTo(first.id());
         assertThat(jdbc.queryForMap("select last_seen_at, user_agent from listening_session where id = ?", first.id()))
                 .containsEntry("last_seen_at", LocalDateTime.of(2026, 11, 10, 3, 0, 10))
@@ -88,7 +86,6 @@ class FlushStoreTest {
 
         SessionRow mine = store.upsertSession(SESSION, studentId, track, STARTED, "UA", NOW.plusSeconds(10));
 
-        assertThat(mine.created()).isFalse();
         assertThat(mine.studentId()).isEqualTo(otherStudentId);
         assertThat(jdbc.queryForObject(
                         "select last_seen_at from listening_session where id = ?", LocalDateTime.class, mine.id()))
