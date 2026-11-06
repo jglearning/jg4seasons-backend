@@ -170,9 +170,11 @@ public class FlushStore {
                 trackId);
     }
 
+    /** completed_at은 처음 값을 유지한다(결정 E — null로 덮지 않음) */
     public void updateTrackProgress(long studentId, long trackId, TrackProgressUpdate update) {
         jdbc.update(
-                "update track_progress set merged_ranges = ?, covered_ms = ?, coverage = ?, completed_at = ?,"
+                "update track_progress set merged_ranges = ?, covered_ms = ?, coverage = ?,"
+                        + " completed_at = coalesce(completed_at, ?),"
                         + " total_play_ms = ?, session_count = ?, last_played_at = ?"
                         + " where student_id = ? and track_id = ?",
                 RangesJson.write(update.merged()),

@@ -178,4 +178,22 @@ class FlushStoreTest {
                 .isEmpty();
         assertThat(store.completedTracksForShare(studentId, List.of())).isEmpty();
     }
+
+    @Test
+    void 완료된_트랙은_null로_갱신해도_완료_시각을_유지한다() {
+        long track = tracks.get("p1:1.0");
+        store.lockTrackProgress(studentId, track, NOW);
+        store.updateTrackProgress(
+                studentId,
+                track,
+                new TrackProgressUpdate(List.of(new Range(0, 9000)), 9000, BigDecimal.ONE, NOW, 9000, 1, NOW));
+
+        store.updateTrackProgress(
+                studentId,
+                track,
+                new TrackProgressUpdate(
+                        List.of(new Range(0, 9000)), 9000, BigDecimal.ONE, null, 9000, 1, NOW.plusSeconds(60)));
+
+        assertThat(store.lockTrackProgress(studentId, track, NOW).completedAt()).isEqualTo(NOW);
+    }
 }
