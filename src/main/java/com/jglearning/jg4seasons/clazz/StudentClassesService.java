@@ -12,7 +12,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,11 +32,6 @@ class StudentClassesService implements StudentClasses {
         this.enrollments = enrollments;
         this.classes = classes;
         this.sessions = sessions;
-    }
-
-    @Override
-    public Optional<StudentClass> currentClass(long academyId, long studentId) {
-        return currentClasses(academyId, studentId).stream().findFirst();
     }
 
     @Override
@@ -105,5 +99,20 @@ class StudentClassesService implements StudentClasses {
             return LessonAccess.NOT_IN_CLASS;
         }
         return LessonOpening.isOpen(rows, today, clazz.allowFutureLessons()) ? LessonAccess.OPEN : LessonAccess.LOCKED;
+    }
+
+    @Override
+    public LessonAccess access(List<StudentClass> classes, long lessonId, LocalDate today) {
+        LessonAccess result = LessonAccess.NOT_IN_CLASS;
+        for (StudentClass clazz : classes) {
+            LessonAccess access = access(clazz, lessonId, today);
+            if (access == LessonAccess.OPEN) {
+                return LessonAccess.OPEN;
+            }
+            if (access == LessonAccess.LOCKED) {
+                result = LessonAccess.LOCKED;
+            }
+        }
+        return result;
     }
 }

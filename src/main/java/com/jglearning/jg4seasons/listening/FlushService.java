@@ -40,7 +40,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 3.1 청취 구간 전송(TRK-04·05·06). 한 트랜잭션: 학원 활성 → 트랙 → 현재 반·권·열림(2.3과 같은 판정) → 세션 upsert·검증 → 세그먼트 걸러 추가 → (새 세그먼트가
+ * 3.1 청취 구간 전송(TRK-04·05·06). 한 트랜잭션: 학원 활성 → 트랙 → 그 권의 소속 반들 중 열림(2.3과 같은 판정) → 세션 upsert·검증 → 세그먼트 걸러 추가 → (새 세그먼트가
  * 있으면) 회차 행 잠금 → 트랙 행 잠금 → 병합·청취율·완료 → 다른 트랙 잠금 읽기 → 회차 재평가.
  *
  * <p>잠금 순서는 세션 행 → 회차 → 트랙 → 다른 트랙(FOR SHARE). 세션 행(upsertSession의 ON DUPLICATE KEY 배타 잠금)이 같은 세션 요청을 줄 세워 같은
@@ -94,12 +94,12 @@ public class FlushService {
         }
         PassageTrack track = catalog.findPassageTrack(command.trackId())
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, NOT_FOUND));
-        StudentClass clazz = studentClasses
-                .currentClass(academyId, studentId)
-                .filter(found -> found.bookId() == track.bookId())
-                .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, NOT_FOUND));
+        // 소속 반 중 그 트랙의 권인 반 전부(2.3과 같음). 하나도 없으면 NOT_IN_CLASS → 404
+        List<StudentClass> classes = studentClasses.currentClasses(academyId, studentId).stream()
+                .filter(clazz -> clazz.bookId() == track.bookId())
+                .toList();
         LocalDate today = LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
-        LessonAccess access = studentClasses.access(clazz, track.lessonId(), today);
+        LessonAccess access = studentClasses.access(classes, track.lessonId(), today);
         if (access == LessonAccess.NOT_IN_CLASS) {
             throw new ApiException(CommonErrorCode.NOT_FOUND, NOT_FOUND);
         }

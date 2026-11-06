@@ -49,7 +49,7 @@ class StudentClassesTest {
         long classId = activeClass("겨울 그린 A반");
         data.enroll(classId, studentId);
 
-        assertThat(studentClasses.currentClass(academyId, studentId))
+        assertThat(studentClasses.currentClasses(academyId, studentId).stream().findFirst())
                 .contains(new StudentClass(classId, academyId, data.bookId("L2-B1"), "겨울 그린 A반", false));
     }
 
@@ -59,7 +59,8 @@ class StudentClassesTest {
         data.enroll(classId, studentId);
         data.leave(classId, studentId);
 
-        assertThat(studentClasses.currentClass(academyId, studentId)).isEmpty();
+        assertThat(studentClasses.currentClasses(academyId, studentId).stream().findFirst())
+                .isEmpty();
     }
 
     @Test
@@ -67,7 +68,8 @@ class StudentClassesTest {
         long classId = data.clazz(academyId, "L2-B1", "끝난 반", TestData.uniqueAccessCode(), "finished");
         data.enroll(classId, studentId);
 
-        assertThat(studentClasses.currentClass(academyId, studentId)).isEmpty();
+        assertThat(studentClasses.currentClasses(academyId, studentId).stream().findFirst())
+                .isEmpty();
     }
 
     @Test
@@ -79,7 +81,7 @@ class StudentClassesTest {
         data.enroll(first, studentId);
         data.enroll(finished, studentId);
 
-        assertThat(studentClasses.currentClass(academyId, studentId))
+        assertThat(studentClasses.currentClasses(academyId, studentId).stream().findFirst())
                 .map(StudentClass::classId)
                 .contains(first);
     }
@@ -90,7 +92,9 @@ class StudentClassesTest {
         data.enroll(classId, studentId);
         long otherAcademy = data.academy("다른 학원");
 
-        assertThat(studentClasses.currentClass(otherAcademy, studentId)).isEmpty();
+        assertThat(studentClasses.currentClasses(otherAcademy, studentId).stream()
+                        .findFirst())
+                .isEmpty();
     }
 
     @Test
@@ -99,7 +103,9 @@ class StudentClassesTest {
         data.enroll(classId, studentId);
         data.session(classId, 1, "L2-B1-01", NOV_5, "scheduled");
         data.session(classId, 2, "L2-B1-02", NOV_5.plusDays(2), "scheduled");
-        StudentClass clazz = studentClasses.currentClass(academyId, studentId).orElseThrow();
+        StudentClass clazz = studentClasses.currentClasses(academyId, studentId).stream()
+                .findFirst()
+                .orElseThrow();
 
         assertThat(studentClasses.access(clazz, data.lessonId("L2-B1-01"), NOV_5))
                 .isEqualTo(LessonAccess.OPEN);
@@ -112,7 +118,9 @@ class StudentClassesTest {
         long classId = activeClass("겨울 그린 A반");
         data.enroll(classId, studentId);
         data.session(classId, 1, "L2-B1-01", NOV_5, "scheduled");
-        StudentClass clazz = studentClasses.currentClass(academyId, studentId).orElseThrow();
+        StudentClass clazz = studentClasses.currentClasses(academyId, studentId).stream()
+                .findFirst()
+                .orElseThrow();
 
         assertThat(studentClasses.access(clazz, data.lessonId("L2-B1-03"), NOV_5))
                 .as("같은 권, 진도표에 없음")
@@ -128,7 +136,9 @@ class StudentClassesTest {
         jdbc.update("update `class` set allow_future_lessons = true where id = ?", classId);
         data.enroll(classId, studentId);
         data.session(classId, 2, "L2-B1-02", NOV_5.plusDays(1), "scheduled");
-        StudentClass clazz = studentClasses.currentClass(academyId, studentId).orElseThrow();
+        StudentClass clazz = studentClasses.currentClasses(academyId, studentId).stream()
+                .findFirst()
+                .orElseThrow();
 
         assertThat(clazz.allowFutureLessons()).isTrue();
         assertThat(studentClasses.access(clazz, data.lessonId("L2-B1-02"), NOV_5))
@@ -141,7 +151,9 @@ class StudentClassesTest {
         data.enroll(classId, studentId);
         data.session(classId, 5, "L2-B1-05", LocalDate.of(2026, 11, 3), "cancelled");
         data.session(classId, 6, "L2-B1-05", NOV_5, "scheduled");
-        StudentClass clazz = studentClasses.currentClass(academyId, studentId).orElseThrow();
+        StudentClass clazz = studentClasses.currentClasses(academyId, studentId).stream()
+                .findFirst()
+                .orElseThrow();
         long lessonId = data.lessonId("L2-B1-05");
 
         assertThat(studentClasses.access(clazz, lessonId, NOV_5.minusDays(1)))
@@ -177,7 +189,9 @@ class StudentClassesTest {
         for (int n = 1; n <= 24; n++) {
             data.session(classId, n, String.format("L2-B1-%02d", n), NOV_5.plusDays(n - 5), "scheduled");
         }
-        return studentClasses.currentClass(academyId, studentId).orElseThrow();
+        return studentClasses.currentClasses(academyId, studentId).stream()
+                .findFirst()
+                .orElseThrow();
     }
 
     @Test
@@ -215,7 +229,9 @@ class StudentClassesTest {
         data.enroll(classId, studentId);
         data.session(classId, 5, "L2-B1-05", NOV_5.minusDays(2), "cancelled");
         data.session(classId, 6, "L2-B1-05", NOV_5, "scheduled");
-        StudentClass clazz = studentClasses.currentClass(academyId, studentId).orElseThrow();
+        StudentClass clazz = studentClasses.currentClasses(academyId, studentId).stream()
+                .findFirst()
+                .orElseThrow();
 
         List<ClassLesson> lessons = studentClasses.lessons(clazz, NOV_5.minusDays(1));
 
@@ -232,7 +248,9 @@ class StudentClassesTest {
         long classId = activeClass("겨울 그린 A반");
         data.enroll(classId, studentId);
         data.session(classId, 5, "L2-B1-05", NOV_5.minusDays(2), "cancelled");
-        StudentClass clazz = studentClasses.currentClass(academyId, studentId).orElseThrow();
+        StudentClass clazz = studentClasses.currentClasses(academyId, studentId).stream()
+                .findFirst()
+                .orElseThrow();
 
         ClassLesson lesson = studentClasses.lessons(clazz, NOV_5).get(0);
 

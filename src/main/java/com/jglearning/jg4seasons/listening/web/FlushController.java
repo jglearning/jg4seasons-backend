@@ -49,7 +49,7 @@ public class FlushController {
     @Operation(
             summary = "청취 구간 전송",
             description = "같은 세션의 같은 구간은 다시 세지 않는다(멱등). 잘못된 세그먼트는 버리고 dropped로 알린다(200)."
-                    + " 내 반 진도표에 없는 회차 트랙 404, 수업일 전 423 LESSON_LOCKED, 다른 학생·트랙의 세션 id 400."
+                    + " 어느 소속 반 진도표에도 없는 회차 트랙 404, 수업일 전 423 LESSON_LOCKED(소속 반이 둘이면 어느 반에서든 열렸으면 받는다), 다른 학생·트랙의 세션 id 400."
                     + " CSRF는 헤더 X-CSRF 또는 바디 csrf(sendBeacon)")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,
