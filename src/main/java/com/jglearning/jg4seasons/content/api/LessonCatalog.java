@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.content.api;
 
+import java.util.List;
 import java.util.Optional;
 
 /** 다른 모듈이 쓰는 회차 내용 조회. */
@@ -16,4 +17,7 @@ public interface LessonCatalog {
      * variant가 p{지문 no}:{속도}가 아니면 데이터 오류라 IllegalStateException
      */
     Optional<PassageTrack> findPassageTrack(long trackId);
+
+    /** 권의 회차 전부, number 순. 없는 권이면 빈 목록 */
+    List<LessonSummary> lessonsOfBook(long bookId);
 }

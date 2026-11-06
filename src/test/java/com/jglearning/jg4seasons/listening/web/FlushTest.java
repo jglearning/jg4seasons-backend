@@ -340,6 +340,41 @@ class FlushTest {
     }
 
     @Test
+    void 두_번째_반_권의_트랙도_기록한다() {
+        long second = data.clazz(academyId, "L2-B2", "봄 그린 반", TestData.uniqueAccessCode(), "active");
+        data.enroll(second, studentId);
+        data.session(second, 1, "L2-B2-01", LocalDate.of(2026, 11, 10), "scheduled");
+        Map<String, Long> spring = data.lessonContent("L2-B2-01", 1, 1, List.of("1.0"));
+
+        assertThat(flush(body(newSession(), spring.get("p1:1.0"), seg(0, 1000))))
+                .hasStatusOk();
+        assertThat(count("select count(*) from listening_session")).isEqualTo(1);
+    }
+
+    @Test
+    void 같은_권_두_반_중_한_반에서_열렸으면_기록한다() {
+        long second = data.clazz(academyId, "L2-B1", "토요 반", TestData.uniqueAccessCode(), "active");
+        data.enroll(second, studentId);
+        data.session(second, 6, "L2-B1-06", LocalDate.of(2026, 11, 9), "scheduled");
+
+        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:1.0"), seg(0, 1000))))
+                .hasStatusOk();
+    }
+
+    @Test
+    void 다른_학원_반의_진도표로는_기록하지_않는다() {
+        long otherAcademy = data.academy("다른 학원");
+        long other = data.clazz(otherAcademy, "L2-B2", "다른 학원 반", TestData.uniqueAccessCode(), "active");
+        data.enroll(other, studentId);
+        data.session(other, 1, "L2-B2-01", LocalDate.of(2026, 11, 10), "scheduled");
+        Map<String, Long> spring = data.lessonContent("L2-B2-01", 1, 1, List.of("1.0"));
+
+        assertThat(flush(body(newSession(), spring.get("p1:1.0"), seg(0, 1000))))
+                .hasStatus(404);
+        assertThat(count("select count(*) from listening_session")).isZero();
+    }
+
+    @Test
     void 진도표에_없는_회차는_404() {
         Map<String, Long> other = data.lessonContent("L2-B1-07", 1, 1, List.of("1.0"));
 

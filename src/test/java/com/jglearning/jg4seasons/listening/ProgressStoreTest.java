@@ -117,4 +117,33 @@ class ProgressStoreTest {
         assertThatThrownBy(() -> store.trackProgress(otherStudentId, List.of(slow)))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void 여러_회차_진도를_한_번에() {
+        long l4 = data.lessonId("L2-B1-04");
+        long l5 = data.lessonId("L2-B1-05");
+        long l6 = data.lessonId("L2-B1-06");
+        for (Object[] row : new Object[][] {
+            {studentId, l4, "completed", 6, 6},
+            {studentId, l5, "in_progress", 6, 2},
+            {otherStudentId, l6, "in_progress", 6, 1}
+        }) {
+            jdbc.update(
+                    "insert into lesson_progress (student_id, lesson_id, status, passages_total, passages_done)"
+                            + " values (?, ?, ?, ?, ?)",
+                    row);
+        }
+
+        Map<Long, LessonProgressRow> found = store.lessonProgress(studentId, List.of(l4, l5, l6));
+
+        assertThat(found)
+                .containsOnlyKeys(l4, l5)
+                .containsEntry(l4, new LessonProgressRow(LessonProgressStatus.COMPLETED, 6, 6))
+                .containsEntry(l5, new LessonProgressRow(LessonProgressStatus.IN_PROGRESS, 2, 6));
+    }
+
+    @Test
+    void 회차_목록이_비면_빈_결과() {
+        assertThat(store.lessonProgress(studentId, List.of())).isEmpty();
+    }
 }

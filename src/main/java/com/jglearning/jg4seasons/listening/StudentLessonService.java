@@ -28,7 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 2.3 회차 상세. 학생·학원은 JWT에서만. 순서: 학원 활성 → 현재 반 → 회차 → 그 반 진도표에 있고 열렸는가 → 집계 읽기. 진도표에 없는 회차(다른 권·다른
+ * 2.3 회차 상세. 학생·학원은 JWT에서만. 순서: 학원 활성 → 회차 → 그 권의 소속 반들 중 하나라도 진도표에 있고 열렸는가 → 집계 읽기. 진도표에 없는 회차(다른 권·다른
  * 학원)는 404, 아직 안 열린 회차는 423. 집계(track_progress·lesson_progress·word_study)는 학생이 그 학원 반 소속임을 확인한 뒤에만 읽는다.
  */
 @Service
@@ -66,14 +66,14 @@ public class StudentLessonService {
         if (!academies.isActive(academyId)) {
             throw new ApiException(CommonErrorCode.UNAUTHORIZED);
         }
-        StudentClass clazz = studentClasses
-                .currentClass(academyId, studentId)
-                .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요"));
         LessonContent lesson = catalog.findByCode(lessonCode)
-                .filter(found -> found.bookId() == clazz.bookId())
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요"));
+        // 소속 반 중 그 회차의 권인 반 전부(리뷰 7 a). 하나도 없으면 NOT_IN_CLASS → 404
+        List<StudentClass> classes = studentClasses.currentClasses(academyId, studentId).stream()
+                .filter(clazz -> clazz.bookId() == lesson.bookId())
+                .toList();
         LocalDate today = LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
-        LessonAccess access = studentClasses.access(clazz, lesson.lessonId(), today);
+        LessonAccess access = studentClasses.access(classes, lesson.lessonId(), today);
         if (access == LessonAccess.NOT_IN_CLASS) {
             throw new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요");
         }

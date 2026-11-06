@@ -10,6 +10,7 @@ import com.jglearning.jg4seasons.content.api.LessonContent;
 import com.jglearning.jg4seasons.content.api.LessonContent.Passage;
 import com.jglearning.jg4seasons.content.api.LessonContent.Speed;
 import com.jglearning.jg4seasons.content.api.LessonContent.TimeRange;
+import com.jglearning.jg4seasons.content.api.LessonSummary;
 import com.jglearning.jg4seasons.content.api.PassageTrack;
 import java.util.List;
 import java.util.Map;
@@ -271,5 +272,48 @@ class LessonCatalogTest {
         jdbc.update("update track set duration_ms = 0 where id = ?", track);
 
         assertThatThrownBy(() -> catalog.findPassageTrack(track)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 권의_회차를_번호_순으로_지문_수와() {
+        data.lessonContent(CODE, 2, 1, List.of("1.0"));
+
+        List<LessonSummary> lessons = catalog.lessonsOfBook(data.bookId("L2-B1"));
+
+        assertThat(lessons).hasSize(24);
+        assertThat(lessons)
+                .extracting(LessonSummary::number)
+                .isSorted()
+                .startsWith(1)
+                .endsWith(24);
+        LessonSummary fifth = lessons.get(4);
+        assertThat(fifth).isEqualTo(new LessonSummary(data.lessonId(CODE), CODE, 5, 1, "Reading Day 5", "regular", 2));
+        assertThat(lessons.get(0).passageCount()).as("지문 없음").isZero();
+        assertThat(lessons.get(7).type()).isEqualTo("module_review");
+        assertThat(lessons.get(8).module()).isEqualTo(2);
+        assertThat(lessons.get(23).module()).isEqualTo(3);
+    }
+
+    @Test
+    void 묶음_번호가_1에서_3_밖이면_데이터_오류() {
+        jdbc.update("update lesson set module = 4 where code = ?", CODE);
+
+        assertThatThrownBy(() -> catalog.lessonsOfBook(data.bookId("L2-B1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(CODE);
+    }
+
+    @Test
+    void 회차_번호가_1보다_작으면_데이터_오류() {
+        jdbc.update("update lesson set number = 0 where code = ?", CODE);
+
+        assertThatThrownBy(() -> catalog.lessonsOfBook(data.bookId("L2-B1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(CODE);
+    }
+
+    @Test
+    void 없는_권은_빈_목록() {
+        assertThat(catalog.lessonsOfBook(-1L)).isEmpty();
     }
 }

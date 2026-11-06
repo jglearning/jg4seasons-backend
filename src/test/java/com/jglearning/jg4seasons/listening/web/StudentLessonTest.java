@@ -209,6 +209,39 @@ class StudentLessonTest {
     }
 
     @Test
+    void 두_번째_반_권의_회차도_열린다() {
+        long second = data.clazz(academyId, "L2-B2", "봄 그린 반", TestData.uniqueAccessCode(), "active");
+        data.enroll(second, studentId);
+        data.session(second, 1, "L2-B2-01", LocalDate.of(2026, 11, 10), "scheduled");
+        data.lessonContent("L2-B2-01", 1, 1, List.of("1.0"));
+
+        MvcTestResult result = getAsStudent("L2-B2-01");
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.lesson.code").isEqualTo("L2-B2-01");
+    }
+
+    @Test
+    void 같은_권_두_반_중_한_반에서_열렸으면_열린다() {
+        long second = data.clazz(academyId, "L2-B1", "토요 반", TestData.uniqueAccessCode(), "active");
+        data.enroll(second, studentId);
+        data.session(second, 6, TOMORROW_CODE, LocalDate.of(2026, 11, 9), "scheduled");
+
+        assertThat(getAsStudent(TOMORROW_CODE)).as("첫 반에서는 내일, 둘째 반에서는 어제").hasStatusOk();
+    }
+
+    @Test
+    void 다른_학원_반의_진도표로는_열리지_않는다() {
+        long otherAcademy = data.academy("다른 학원");
+        long other = data.clazz(otherAcademy, "L2-B2", "다른 학원 반", TestData.uniqueAccessCode(), "active");
+        data.enroll(other, studentId);
+        data.session(other, 1, "L2-B2-01", LocalDate.of(2026, 11, 10), "scheduled");
+        data.lessonContent("L2-B2-01", 1, 1, List.of("1.0"));
+
+        assertThat(getAsStudent("L2-B2-01")).hasStatus(404);
+    }
+
+    @Test
     void 퇴원한_학생은_404() {
         data.leave(classId, studentId);
 

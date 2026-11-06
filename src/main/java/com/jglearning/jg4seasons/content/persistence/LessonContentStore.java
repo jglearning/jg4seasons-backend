@@ -40,6 +40,9 @@ public class LessonContentStore {
             String variant,
             int durationMs) {}
 
+    public record LessonSummaryRow(
+            long id, String code, int number, int module, String title, String type, int passageCount) {}
+
     public record TimingRow(long trackId, long sentenceId, int startMs, int endMs, boolean approximate) {}
 
     private final JdbcTemplate jdbc;
@@ -152,6 +155,24 @@ public class LessonContentStore {
                         trackId)
                 .stream()
                 .findFirst();
+    }
+
+    /** 권의 회차와 지문 수(쿼리 1개), number 순 */
+    public List<LessonSummaryRow> lessonsOfBook(long bookId) {
+        return jdbc.query(
+                "select l.id, l.code, l.number, l.module, l.title, l.type, count(p.id) as passages from lesson l"
+                        + " left join passage p on p.lesson_id = l.id"
+                        + " where l.book_id = ? group by l.id, l.code, l.number, l.module, l.title, l.type"
+                        + " order by l.number",
+                (rs, i) -> new LessonSummaryRow(
+                        rs.getLong("id"),
+                        rs.getString("code"),
+                        rs.getInt("number"),
+                        rs.getInt("module"),
+                        rs.getString("title"),
+                        rs.getString("type"),
+                        rs.getInt("passages")),
+                bookId);
     }
 
     public int wordCount(long lessonId) {

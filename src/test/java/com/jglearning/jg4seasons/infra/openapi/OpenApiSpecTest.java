@@ -72,6 +72,37 @@ class OpenApiSpecTest {
     }
 
     @Test
+    void null_가능한_객체_칸은_anyOf로_ref와_null을_나란히_둔다() {
+        var json = assertThat(apiDocs()).bodyJson();
+        String today = "$.components.schemas.StudentHomeResponse.properties.today";
+
+        json.extractingPath(today + ".anyOf[0].$ref").isEqualTo("#/components/schemas/StudentHomeToday");
+        json.extractingPath(today + ".anyOf[1].type").isEqualTo("null");
+        json.extractingPath(today + ".description").asString().contains("null");
+    }
+
+    @Test
+    void ref_옆에_type을_두는_속성이_없다() throws IOException {
+        // OAS 3.1에서 {"type":"null","$ref":…}는 "null이면서 그 객체"라 타입 생성기가 null로만 읽는다
+        String body = apiDocs().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        var root = new tools.jackson.databind.ObjectMapper().readTree(body);
+        java.util.List<String> bad = new java.util.ArrayList<>();
+        root.path("components")
+                .path("schemas")
+                .properties()
+                .forEach(schema -> schema.getValue()
+                        .path("properties")
+                        .properties()
+                        .forEach(property -> {
+                            if (property.getValue().has("$ref")
+                                    && property.getValue().has("type")) {
+                                bad.add(schema.getKey() + "." + property.getKey());
+                            }
+                        }));
+        assertThat(bad).isEmpty();
+    }
+
+    @Test
     void 인증_없이_다른_경로는_막힌다() {
         int status =
                 mvc.get().uri("/api/v1/student/home").exchange().getResponse().getStatus();
