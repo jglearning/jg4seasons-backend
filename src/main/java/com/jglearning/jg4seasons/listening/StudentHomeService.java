@@ -12,9 +12,11 @@ import com.jglearning.jg4seasons.content.api.LessonSummary;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import com.jglearning.jg4seasons.listening.LessonBoard.Board;
+import com.jglearning.jg4seasons.listening.LessonBoard.Entry;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.LessonProgressRow;
+import com.jglearning.jg4seasons.listening.web.dto.ClassLessonsResponse;
 import com.jglearning.jg4seasons.listening.web.dto.LessonProgressView;
 import com.jglearning.jg4seasons.listening.web.dto.StudentClassInfo;
 import com.jglearning.jg4seasons.listening.web.dto.StudentHomeResponse;
@@ -23,6 +25,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -117,6 +120,54 @@ public class StudentHomeService {
                 classes.stream()
                         .filter(other -> other.classId() != studentClassId)
                         .map(other -> new StudentHomeResponse.OtherClass(other.classId(), other.name()))
+                        .toList());
+    }
+
+    /** 2.2 회차 목록: classId는 학생이 지금 소속된 active 반이어야 한다(결정 F — 홈의 otherClasses로 넘어갈 수 있게). 아니면 404 */
+    public ClassLessonsResponse lessons(long academyId, long studentId, long classId) {
+        StudentClass clazz = currentClasses(academyId, studentId).stream()
+                .filter(candidate -> candidate.classId() == classId)
+                .findFirst()
+                .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "반을 찾을 수 없어요"));
+        ClassBoard board = board(studentId, clazz, academyId);
+        Map<Integer, List<Entry>> byModule = board.board().entries().stream()
+                .collect(Collectors.groupingBy(
+                        entry -> board.lessons().get(entry.lesson().lessonId()).module(),
+                        TreeMap::new,
+                        Collectors.toList()));
+        List<ClassLessonsResponse.Group> groups = byModule.entrySet().stream()
+                .map(group -> group(board, group.getKey(), group.getValue()))
+                .toList();
+        return new ClassLessonsResponse(classInfo(board), groups);
+    }
+
+    private ClassLessonsResponse.Group group(ClassBoard board, int module, List<Entry> entries) {
+        LocalDate from = entries.stream()
+                .map(entry -> entry.lesson().scheduledDate())
+                .min(LocalDate::compareTo)
+                .orElseThrow();
+        LocalDate to = entries.stream()
+                .map(entry -> entry.lesson().scheduledDate())
+                .max(LocalDate::compareTo)
+                .orElseThrow();
+        LessonSummary first = board.lessons().get(entries.get(0).lesson().lessonId());
+        return new ClassLessonsResponse.Group(
+                module,
+                groupLabel(board.book(), first),
+                new ClassLessonsResponse.Range(from, to),
+                entries.stream()
+                        .map(entry -> {
+                            LessonSummary summary =
+                                    board.lessons().get(entry.lesson().lessonId());
+                            return new ClassLessonsResponse.Lesson(
+                                    summary.code(),
+                                    summary.number(),
+                                    summary.title(),
+                                    summary.type(),
+                                    entry.lesson().scheduledDate(),
+                                    entry.state().value(),
+                                    progressView(board, summary.lessonId()));
+                        })
                         .toList());
     }
 
