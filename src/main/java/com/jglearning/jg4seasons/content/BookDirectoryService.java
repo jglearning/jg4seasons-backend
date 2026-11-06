@@ -46,6 +46,7 @@ class BookDirectoryService implements BookDirectory {
         return new BookSummary(
                 book.getCode(),
                 SEASONS.get(book.getSeason() - 1),
+                "Book " + book.getSeason(),
                 level.getCode(),
                 level.getNameKo(),
                 level.getColorHex());

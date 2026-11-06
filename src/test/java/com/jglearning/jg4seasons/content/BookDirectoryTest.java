@@ -28,7 +28,7 @@ class BookDirectoryTest {
     void 책_요약은_시즌을_한국어로_준다() {
         long bookId = new TestData(jdbc).bookId("L2-B1");
 
-        assertThat(books.summaryOf(bookId)).isEqualTo(new BookSummary("L2-B1", "겨울", "L2", "그린", "#1F7A4F"));
+        assertThat(books.summaryOf(bookId)).isEqualTo(new BookSummary("L2-B1", "겨울", "Book 1", "L2", "그린", "#1F7A4F"));
     }
 
     @Test
@@ -84,5 +84,13 @@ class BookDirectoryTest {
 
     private long lessonId(String code) {
         return jdbc.queryForObject("select id from lesson where code = ?", Long.class, code);
+    }
+
+    @Test
+    void 권_표시_이름은_Book_시즌_번호() {
+        TestData data = new TestData(jdbc);
+
+        assertThat(books.summaryOf(data.bookId("L2-B3")).label()).isEqualTo("Book 3");
+        assertThat(books.summaryOf(data.bookId("L4-B2")).label()).isEqualTo("Book 2");
     }
 }

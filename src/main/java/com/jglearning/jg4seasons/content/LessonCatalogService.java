@@ -6,6 +6,7 @@ import com.jglearning.jg4seasons.content.api.LessonContent.Passage;
 import com.jglearning.jg4seasons.content.api.LessonContent.Sentence;
 import com.jglearning.jg4seasons.content.api.LessonContent.Speed;
 import com.jglearning.jg4seasons.content.api.LessonContent.TimeRange;
+import com.jglearning.jg4seasons.content.api.LessonSummary;
 import com.jglearning.jg4seasons.content.api.PassageTrack;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore.LessonRow;
@@ -65,6 +66,14 @@ class LessonCatalogService implements LessonCatalog {
                     variant.group(2),
                     row.durationMs());
         });
+    }
+
+    @Override
+    public List<LessonSummary> lessonsOfBook(long bookId) {
+        return store.lessonsOfBook(bookId).stream()
+                .map(row -> new LessonSummary(
+                        row.id(), row.code(), row.number(), row.module(), row.title(), row.type(), row.passageCount()))
+                .toList();
     }
 
     private LessonContent assemble(LessonRow lesson) {
