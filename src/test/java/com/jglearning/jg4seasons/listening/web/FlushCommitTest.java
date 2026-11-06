@@ -132,7 +132,7 @@ class FlushCommitTest {
 
     private Map<String, Object> trackRow(long studentId, long trackId) {
         return jdbc.queryForMap(
-                "select merged_ranges, covered_ms, session_count, completed_at from track_progress"
+                "select merged_ranges, covered_ms, session_count, completed_at, total_play_ms from track_progress"
                         + " where student_id = ? and track_id = ?",
                 studentId,
                 trackId);
@@ -281,6 +281,58 @@ class FlushCommitTest {
             assertThat(trackRow(studentId, one))
                     .as("round %d", round)
                     .containsEntry("merged_ranges", "[[0, 2000]]")
+                    .containsEntry("session_count", 1);
+        }
+    }
+
+    private int segmentCount(String sessionId) {
+        return jdbc.queryForObject(
+                "select count(*) from listening_segment where listening_session_id ="
+                        + " (select id from listening_session where client_session_id = ?)",
+                Integer.class,
+                sessionId);
+    }
+
+    /** fetch 직후 beacon처럼 같은 세션이 같은 구간을 거의 동시에 다시 보낸다 — 세션 행 잠금이 줄을 세워 한 번만 센다 */
+    @Test
+    void 같은_세션_같은_구간_동시_재전송은_한_번만_센다() throws Exception {
+        long one = tracks.get("p1:1.0");
+        for (int round = 0; round < 20; round++) {
+            long studentId = newStudent(round);
+            String session = UUID.randomUUID().toString();
+
+            List<Integer> statuses =
+                    together(flush(studentId, session, one, 0, 3000), flush(studentId, session, one, 0, 3000));
+
+            assertThat(statuses).as("round %d", round).containsOnly(200);
+            assertThat(segmentCount(session)).as("round %d", round).isEqualTo(1);
+            assertThat(trackRow(studentId, one))
+                    .as("round %d", round)
+                    .containsEntry("total_play_ms", 3000)
+                    .containsEntry("session_count", 1);
+        }
+    }
+
+    @Test
+    void 이미_있는_세션에_같은_구간_동시_재전송도_한_번만_센다() throws Exception {
+        long one = tracks.get("p1:1.0");
+        for (int round = 0; round < 20; round++) {
+            long studentId = newStudent(round);
+            String session = UUID.randomUUID().toString();
+            assertThat(flush(studentId, session, one, 0, 100)
+                            .call()
+                            .getResponse()
+                            .getStatus())
+                    .isEqualTo(200);
+
+            List<Integer> statuses =
+                    together(flush(studentId, session, one, 100, 3000), flush(studentId, session, one, 100, 3000));
+
+            assertThat(statuses).as("round %d", round).containsOnly(200);
+            assertThat(segmentCount(session)).as("round %d", round).isEqualTo(2);
+            assertThat(trackRow(studentId, one))
+                    .as("round %d", round)
+                    .containsEntry("total_play_ms", 3000)
                     .containsEntry("session_count", 1);
         }
     }

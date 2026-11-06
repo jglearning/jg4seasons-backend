@@ -176,6 +176,10 @@ class FlushTest {
 
         assertThat(again).hasStatusOk();
         assertThat(again).bodyJson().extractingPath("$.dropped").isEqualTo(0);
+        assertThat(again).bodyJson().extractingPath("$.track.coverage").isEqualTo(0.6153); // 4000 / 6500 내림
+        assertThat(again).bodyJson().extractingPath("$.track.completed").isEqualTo(false);
+        assertThat(again).bodyJson().extractingPath("$.lesson.status").isEqualTo("in_progress");
+        assertThat(again).bodyJson().extractingPath("$.lesson.requiredDone").isEqualTo(0);
         assertThat(trackRow(one))
                 .containsEntry("merged_ranges", once.get("merged_ranges"))
                 .containsEntry("total_play_ms", once.get("total_play_ms"))
@@ -251,6 +255,10 @@ class FlushTest {
                 .isZero();
         assertThat(count("select count(*) from lesson_progress where student_id = ?", studentId))
                 .isZero();
+        assertThat(count("select count(*) from listening_segment")).isZero();
+        assertThat(count("select count(*) from listening_session where student_id = ?", studentId))
+                .as("세션은 만든다(upsert가 필터보다 먼저)")
+                .isEqualTo(1);
     }
 
     @Test
@@ -283,7 +291,12 @@ class FlushTest {
         String session = newSession();
         flush(body(session, tracks.get("p1:1.0"), seg(0, 1000)));
 
-        assertThat(flush(body(session, tracks.get("p2:1.0"), seg(0, 1000)))).hasStatus(400);
+        MvcTestResult result = flush(body(session, tracks.get("p2:1.0"), seg(0, 1000)));
+
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("clientSessionId");
+        assertThat(count("select count(*) from track_progress where track_id = ?", tracks.get("p2:1.0")))
+                .isZero();
     }
 
     @Test
@@ -323,6 +336,7 @@ class FlushTest {
 
         assertThat(flushAs(l3Student, academyId, body(newSession(), tracks.get("p1:1.0"), seg(0, 1000))))
                 .hasStatus(404);
+        assertThat(count("select count(*) from listening_session")).isZero();
     }
 
     @Test
@@ -330,6 +344,7 @@ class FlushTest {
         Map<String, Long> other = data.lessonContent("L2-B1-07", 1, 1, List.of("1.0"));
 
         assertThat(flush(body(newSession(), other.get("p1:1.0"), seg(0, 1000)))).hasStatus(404);
+        assertThat(count("select count(*) from listening_session")).isZero();
     }
 
     @Test
@@ -344,6 +359,7 @@ class FlushTest {
     @Test
     void 없는_트랙은_404() {
         assertThat(flush(body(newSession(), 999_999_999L, seg(0, 1000)))).hasStatus(404);
+        assertThat(count("select count(*) from listening_session")).isZero();
     }
 
     @Test
@@ -393,7 +409,16 @@ class FlushTest {
                 .content(bodyWith(newSession(), tracks.get("p1:1.0"), AuthCookieSupport.CSRF_VALUE, seg(0, 1000)))
                 .exchange();
 
+        MvcTestResult wrongHeaderRightBody = mvc.post()
+                .uri(URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .cookie(cookies.studentAccess(studentId, academyId), AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, "wrong")
+                .content(bodyWith(newSession(), tracks.get("p1:1.0"), AuthCookieSupport.CSRF_VALUE, seg(0, 1000)))
+                .exchange();
+
         assertThat(wrongBody).hasStatus(403);
+        assertThat(wrongHeaderRightBody).as("헤더가 있으면 헤더로만 판단").hasStatus(403);
         assertThat(wrongHeader).hasStatus(403);
         assertThat(noCookie).as("csrf 쿠키 없음").hasStatus(403);
     }
@@ -471,5 +496,75 @@ class FlushTest {
         assertThat(trackRow(one))
                 .containsEntry("merged_ranges", "[[6000, 6500]]")
                 .containsEntry("total_play_ms", 500);
+    }
+
+    @Test
+    void 완료한_트랙에_잘못된_세그먼트만_오면_현재_값_그대로() {
+        long one = tracks.get("p1:1.0");
+        flush(body(newSession(), one, seg(0, 6500)));
+        Map<String, Object> before = trackRow(one);
+
+        MvcTestResult result = flush(body(newSession(), one, seg(-5, 100)));
+
+        var json = assertThat(result).bodyJson();
+        json.extractingPath("$.track.completed").isEqualTo(true);
+        json.extractingPath("$.track.coverage").isEqualTo(1);
+        json.extractingPath("$.dropped").isEqualTo(1);
+        assertThat(trackRow(one))
+                .containsEntry("merged_ranges", before.get("merged_ranges"))
+                .containsEntry("total_play_ms", before.get("total_play_ms"))
+                .containsEntry("session_count", before.get("session_count"));
+    }
+
+    @Test
+    void 회차_완료_시각은_처음_값을_유지한다() {
+        flush(body(newSession(), tracks.get("p1:1.0"), seg(0, 6500)));
+        flush(body(newSession(), tracks.get("p2:1.0"), seg(0, 6500)));
+        clock.set(NOON.plusSeconds(60));
+
+        flush(body(newSession(), tracks.get("p1:0.8"), seg(0, 1000)));
+
+        assertThat(jdbc.queryForMap(
+                        "select status, completed_at from lesson_progress where student_id = ? and lesson_id = ?",
+                        studentId,
+                        data.lessonId("L2-B1-05")))
+                .containsEntry("status", "completed")
+                .hasEntrySatisfying("completed_at", v -> assertThat(v).hasToString("2026-11-10T03:00"));
+    }
+
+    @Test
+    void 첫_flush가_모두_버려진_세션도_나중에_세션_수_1() {
+        long one = tracks.get("p1:1.0");
+        String session = newSession();
+        flush(body(session, one, seg(-5, 100)));
+
+        flush(body(session, one, seg(0, 1000)));
+
+        assertThat(trackRow(one)).containsEntry("session_count", 1).containsEntry("total_play_ms", 1000);
+    }
+
+    @Test
+    void 서울_자정_직전은_내일_회차_423() {
+        clock.set(Instant.parse("2026-11-10T14:59:59Z")); // 서울 11/10 23:59:59
+
+        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:1.0"), seg(0, 1000))))
+                .hasStatus(423);
+    }
+
+    @Test
+    void 서울_자정이_지나면_내일_회차가_열린다() {
+        clock.set(Instant.parse("2026-11-10T15:00:30Z")); // 서울 11/11 00:00:30, UTC는 아직 11/10
+
+        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:1.0"), seg(0, 1000))))
+                .hasStatusOk();
+    }
+
+    @Test
+    void 정지_학원_학생은_401_행이_안_생긴다() {
+        jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
+
+        assertThat(flush(body(newSession(), tracks.get("p1:1.0"), seg(0, 1000))))
+                .hasStatus(401);
+        assertThat(count("select count(*) from listening_session")).isZero();
     }
 }
