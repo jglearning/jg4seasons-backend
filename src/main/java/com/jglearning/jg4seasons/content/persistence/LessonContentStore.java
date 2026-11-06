@@ -29,6 +29,17 @@ public class LessonContentStore {
 
     public record TrackRow(long id, Long passageId, String variant, String fileKey, int durationMs) {}
 
+    /** passageNo·passageLessonId는 트랙의 지문이 없으면 null */
+    public record TrackLookupRow(
+            long trackId,
+            long lessonId,
+            String lessonCode,
+            long bookId,
+            Integer passageNo,
+            Long passageLessonId,
+            String variant,
+            int durationMs) {}
+
     public record TimingRow(long trackId, long sentenceId, int startMs, int endMs, boolean approximate) {}
 
     private final JdbcTemplate jdbc;
@@ -118,6 +129,29 @@ public class LessonContentStore {
                         rs.getInt("end_ms"),
                         rs.getBoolean("approximate")),
                 lessonId);
+    }
+
+    /** 지문 트랙(kind=passage)만. 지문은 left join(없거나 다른 회차여도 읽어 서비스가 데이터 오류로 다룬다) */
+    public Optional<TrackLookupRow> findPassageTrack(long trackId) {
+        return jdbc
+                .query(
+                        "select t.id, t.lesson_id, l.code, l.book_id, p.no as passage_no, p.lesson_id as passage_lesson_id,"
+                                + " t.variant, t.duration_ms from track t"
+                                + " join lesson l on l.id = t.lesson_id"
+                                + " left join passage p on p.id = t.passage_id"
+                                + " where t.id = ? and t.kind = 'passage'",
+                        (rs, i) -> new TrackLookupRow(
+                                rs.getLong("id"),
+                                rs.getLong("lesson_id"),
+                                rs.getString("code"),
+                                rs.getLong("book_id"),
+                                rs.getObject("passage_no", Integer.class),
+                                rs.getObject("passage_lesson_id", Long.class),
+                                rs.getString("variant"),
+                                rs.getInt("duration_ms")),
+                        trackId)
+                .stream()
+                .findFirst();
     }
 
     public int wordCount(long lessonId) {

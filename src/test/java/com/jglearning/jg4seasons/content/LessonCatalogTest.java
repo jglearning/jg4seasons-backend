@@ -10,6 +10,7 @@ import com.jglearning.jg4seasons.content.api.LessonContent;
 import com.jglearning.jg4seasons.content.api.LessonContent.Passage;
 import com.jglearning.jg4seasons.content.api.LessonContent.Speed;
 import com.jglearning.jg4seasons.content.api.LessonContent.TimeRange;
+import com.jglearning.jg4seasons.content.api.PassageTrack;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -215,5 +216,60 @@ class LessonCatalogTest {
         assertThat(catalog.findByCode(CODE).orElseThrow().passages().get(0).speeds())
                 .extracting(Speed::speed)
                 .containsExactly("1.0", "0.8");
+    }
+
+    @Test
+    void 지문_트랙으로_회차와_속도를_찾는다() {
+        Map<String, Long> tracks = data.lessonContent(CODE, 2, 3, List.of("0.8", "1.0"));
+
+        assertThat(catalog.findPassageTrack(tracks.get("p2:0.8")))
+                .contains(new PassageTrack(
+                        tracks.get("p2:0.8"), data.lessonId(CODE), CODE, data.bookId("L2-B1"), 2, "0.8", (int)
+                                Math.round((3 * TestData.SENTENCE_MS + 2 * TestData.GAP_MS) / 0.8)));
+    }
+
+    @Test
+    void 없는_트랙은_empty() {
+        assertThat(catalog.findPassageTrack(-1L)).isEmpty();
+    }
+
+    @Test
+    void 단어_트랙은_empty() {
+        long lessonId = data.lessonId(CODE);
+        jdbc.update(
+                "insert into track (lesson_id, kind, variant, file_key, duration_ms, sort_order)"
+                        + " values (?, 'word', 'w01', 'audio/L2-B1-05/L2-B1-05_w01.mp3', 900, 1)",
+                lessonId);
+        long wordTrack = jdbc.queryForObject(
+                "select id from track where file_key = 'audio/L2-B1-05/L2-B1-05_w01.mp3'", Long.class);
+
+        assertThat(catalog.findPassageTrack(wordTrack)).isEmpty();
+    }
+
+    @Test
+    void 트랙_지문이_어긋나면_IllegalState() {
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("1.0"));
+        data.lessonContent("L2-B1-04", 1, 1, List.of("1.0"));
+        long track = tracks.get("p1:1.0");
+        jdbc.update(
+                "update track set passage_id = (select p.id from passage p join lesson l on l.id = p.lesson_id"
+                        + " where l.code = 'L2-B1-04' and p.no = 1) where id = ?",
+                track);
+
+        assertThatThrownBy(() -> catalog.findPassageTrack(track)).isInstanceOf(IllegalStateException.class);
+
+        jdbc.update("update track set passage_id = null where id = ?", track);
+        assertThatThrownBy(() -> catalog.findPassageTrack(track))
+                .as("passage_id 없음")
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 트랙_길이가_0_이하면_IllegalState() {
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("1.0"));
+        long track = tracks.get("p1:1.0");
+        jdbc.update("update track set duration_ms = 0 where id = ?", track);
+
+        assertThatThrownBy(() -> catalog.findPassageTrack(track)).isInstanceOf(IllegalStateException.class);
     }
 }

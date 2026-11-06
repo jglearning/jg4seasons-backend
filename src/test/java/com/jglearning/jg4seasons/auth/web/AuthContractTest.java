@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import java.nio.charset.StandardCharsets;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /** 학생 입장·세션 API 계약(03 API명세 §1). 프론트가 openapi.json에서 타입을 만든다. */
 @IntegrationTest
@@ -85,11 +87,45 @@ class AuthContractTest {
                 .containsExactlyInAnyOrder("id", "name", "academyName", "level", "book");
     }
 
+    /**
+     * 응답이 참조하는 스키마(중첩 $ref 포함)에만 토큰 이름의 필드가 없어야 한다. 요청 스키마는 대상이 아니다 — flush 요청은 sendBeacon이 헤더를 못 붙여
+     * 바디에 csrf를 싣는다(03 §3.1).
+     */
     @Test
     void 응답_스키마에_토큰_필드가_없다() throws Exception {
-        String json = apiDocs().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        Matcher names = Pattern.compile("\"(access|refresh|csrf|token|accessToken|refreshToken)\"\\s*:")
-                .matcher(json);
-        assertThat(names.find()).as("토큰은 쿠키로만 나간다(ADR-18)").isFalse();
+        JsonNode docs = JsonMapper.builder()
+                .build()
+                .readTree(apiDocs().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        JsonNode schemas = docs.path("components").path("schemas");
+        Set<String> responseSchemas = new HashSet<>();
+        for (JsonNode path : docs.path("paths")) {
+            for (JsonNode operation : path) {
+                collectRefs(operation.path("responses"), schemas, responseSchemas);
+            }
+        }
+        assertThat(responseSchemas).as("응답 스키마를 찾았다").isNotEmpty();
+        Set<String> tokenNames = Set.of("access", "refresh", "csrf", "token", "accessToken", "refreshToken");
+        for (String name : responseSchemas) {
+            for (String field : schemas.path(name).path("properties").propertyNames()) {
+                assertThat(tokenNames)
+                        .as("토큰은 쿠키로만 나간다(ADR-18): %s.%s", name, field)
+                        .doesNotContain(field);
+            }
+        }
+    }
+
+    private static void collectRefs(JsonNode node, JsonNode schemas, Set<String> found) {
+        if (node.isObject()) {
+            JsonNode ref = node.get("$ref");
+            if (ref != null && ref.isString()) {
+                String name = ref.asString().substring(ref.asString().lastIndexOf('/') + 1);
+                if (found.add(name)) {
+                    collectRefs(schemas.path(name), schemas, found);
+                }
+            }
+        }
+        for (JsonNode child : node) {
+            collectRefs(child, schemas, found);
+        }
     }
 }

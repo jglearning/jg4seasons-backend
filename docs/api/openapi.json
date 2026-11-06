@@ -501,6 +501,51 @@
         "tags" : [ "auth-controller" ]
       }
     },
+    "/api/v1/listening/flush" : {
+      "post" : {
+        "description" : "같은 세션의 같은 구간은 다시 세지 않는다(멱등). 잘못된 세그먼트는 버리고 dropped로 알린다(200). 내 반 진도표에 없는 회차 트랙 404, 수업일 전 423 LESSON_LOCKED, 다른 학생·트랙의 세션 id 400. CSRF는 헤더 X-CSRF 또는 바디 csrf(sendBeacon)",
+        "operationId" : "flush",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlushRequest"
+              }
+            },
+            "text/plain" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlushRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlushResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "청취 구간 전송",
+        "tags" : [ "flush-controller" ]
+      }
+    },
     "/api/v1/me" : {
       "get" : {
         "description" : "access 쿠키가 없거나 만료면 401 UNAUTHORIZED",
@@ -838,6 +883,125 @@
           }
         },
         "required" : [ "class" ]
+      },
+      "FlushLesson" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "requiredDone" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "완료한 지문 수"
+          },
+          "requiredTotal" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "지문 수"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "not_started", "in_progress", "completed" ]
+          }
+        },
+        "required" : [ "code", "requiredDone", "requiredTotal", "status" ]
+      },
+      "FlushRequest" : {
+        "type" : "object",
+        "properties" : {
+          "clientSessionId" : {
+            "type" : "string",
+            "description" : "트랙 재생 시작 때 클라이언트가 만든 UUID. 재전송·멱등 키",
+            "example" : "7c2e0000-0000-4000-8000-000000000001"
+          },
+          "csrf" : {
+            "type" : "string",
+            "description" : "sendBeacon(text/plain)일 때만. fetch는 헤더 X-CSRF"
+          },
+          "final" : {
+            "type" : "boolean",
+            "description" : "pause·ended·pagehide에서 true. 서버 동작은 같다"
+          },
+          "segments" : {
+            "type" : "array",
+            "description" : "빈 배열 허용. 앞 50개만 보고 나머지는 dropped",
+            "items" : {
+              "$ref" : "#/components/schemas/FlushSegment"
+            }
+          },
+          "startedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "세션 시작 시각(클라이언트, 첫 flush만 저장)"
+          },
+          "trackId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "userAgent" : {
+            "type" : "string",
+            "description" : "첫 flush만 저장, 200자에서 자름"
+          }
+        },
+        "required" : [ "clientSessionId", "segments", "startedAt", "trackId" ]
+      },
+      "FlushResponse" : {
+        "type" : "object",
+        "properties" : {
+          "dropped" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "버린 세그먼트 수(범위·길이·빠진 칸·50개 초과). 재전송 중복은 세지 않음"
+          },
+          "lesson" : {
+            "$ref" : "#/components/schemas/FlushLesson"
+          },
+          "track" : {
+            "$ref" : "#/components/schemas/FlushTrack"
+          }
+        },
+        "required" : [ "dropped", "lesson", "track" ]
+      },
+      "FlushSegment" : {
+        "type" : "object",
+        "properties" : {
+          "endMs" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "트랙 안 끝(ms), 시작보다 큼"
+          },
+          "recordedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "기록 시각(클라이언트)"
+          },
+          "startMs" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "트랙 안 시작(ms)"
+          }
+        },
+        "required" : [ "endMs", "recordedAt", "startMs" ]
+      },
+      "FlushTrack" : {
+        "type" : "object",
+        "properties" : {
+          "completed" : {
+            "type" : "boolean",
+            "description" : "완료 기준 도달(한 번 되면 유지)"
+          },
+          "coverage" : {
+            "type" : "number",
+            "description" : "청취율 0~1"
+          },
+          "trackId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "completed", "coverage", "trackId" ]
       },
       "LessonDetailCompletion" : {
         "type" : "object",
