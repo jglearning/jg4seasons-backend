@@ -460,4 +460,16 @@ class FlushTest {
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
         assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("body");
     }
+
+    @Test
+    void 트랙_길이를_넘는_부분은_총_재생_시간에_더하지_않는다() {
+        long one = tracks.get("p1:1.0");
+        String session = newSession();
+
+        flush(body(session, one, seg(6000, 7000), seg(6600, 7400)));
+
+        assertThat(trackRow(one))
+                .containsEntry("merged_ranges", "[[6000, 6500]]")
+                .containsEntry("total_play_ms", 500);
+    }
 }

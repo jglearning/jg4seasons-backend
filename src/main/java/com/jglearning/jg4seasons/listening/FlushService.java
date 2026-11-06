@@ -153,8 +153,9 @@ public class FlushService {
         Instant completedAt = lock.completedAt() != null
                 ? lock.completedAt()
                 : CompletionRuleEvaluator.isTrackComplete(rule, coverage) ? now : null;
+        // 정직성 지표(TRK-05): 반복은 세되 트랙 길이를 넘는 부분(받기만 하는 1초 여유)은 세지 않는다 — 끝부분만 반복 전송해 부풀리지 못하게
         int played = added.stream()
-                .mapToInt(range -> range.endMs() - range.startMs())
+                .mapToInt(range -> Math.max(0, Math.min(range.endMs(), track.durationMs()) - range.startMs()))
                 .sum();
         store.updateTrackProgress(
                 studentId,
