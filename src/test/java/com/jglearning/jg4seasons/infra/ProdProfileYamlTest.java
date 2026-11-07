@@ -37,6 +37,19 @@ class ProdProfileYamlTest {
     }
 
     @Test
+    void 첫_학원_설정은_필수이고_환경_변수에서_받는다() {
+        // 학원이 하나도 없는 운영 DB에 값이 없으면 서버가 뜨지 않는다(아무도 로그인할 수 없는 서버 금지).
+        // 학원이 생긴 뒤에는 읽지 않으므로 기본값을 빈 값으로 둔다(파라미터를 지워도 뜬다)
+        Properties yaml = prodYaml();
+        assertThat(yaml.getProperty("jg4seasons.initial.required")).isEqualTo("true");
+        assertThat(yaml.getProperty("jg4seasons.initial.academy-name")).isEqualTo("${INITIAL_ACADEMY_NAME:}");
+        assertThat(yaml.getProperty("jg4seasons.initial.academy-slug")).isEqualTo("${INITIAL_ACADEMY_SLUG:}");
+        assertThat(yaml.getProperty("jg4seasons.initial.admin-login-id")).isEqualTo("${INITIAL_ADMIN_LOGIN_ID:}");
+        assertThat(yaml.getProperty("jg4seasons.initial.admin-password")).isEqualTo("${INITIAL_ADMIN_PASSWORD:}");
+        assertThat(yaml.getProperty("jg4seasons.initial.admin-name")).isEqualTo("${INITIAL_ADMIN_NAME:}");
+    }
+
+    @Test
     void API_문서는_운영에서_끈다() {
         assertThat(prodYaml().getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
     }

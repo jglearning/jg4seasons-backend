@@ -14,6 +14,15 @@ jg4seasons:
     # Nginx가 CloudFront-Viewer-Address에서 포트를 뗀 IP 하나로 덮어쓴다(요청이 보낸 값은 버린다).
     # 앱 포트는 서버 안(127.0.0.1)에만 열려 Nginx를 거치지 않는 요청은 없다
     client-ip-header: X-Forwarded-For
+  # 첫 학원·관리자(SYS-01). 학원이 하나도 없을 때만 읽는다 — 그때 값이 없거나 반쪽이면 서버가 뜨지 않는다.
+  # 학원이 생긴 뒤에는 읽지 않으므로 기본값을 빈 값으로 둔다
+  initial:
+    required: true
+    academy-name: ${INITIAL_ACADEMY_NAME:}
+    academy-slug: ${INITIAL_ACADEMY_SLUG:}
+    admin-login-id: ${INITIAL_ADMIN_LOGIN_ID:}
+    admin-password: ${INITIAL_ADMIN_PASSWORD:}
+    admin-name: ${INITIAL_ADMIN_NAME:}
 
 springdoc:
   api-docs:
