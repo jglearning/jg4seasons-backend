@@ -102,6 +102,13 @@ class NginxConfigTest {
         assertThat(status("/")).isEqualTo(404);
     }
 
+    // proxy_pass 끝에 /를 붙이거나 location을 바꾸면 앱에 /v1/...이 가서 모든 API가 404가 된다. 배포 확인(/api/health)은 다른 location이라 못 잡는다
+    @Test
+    void api_요청은_경로와_쿼리를_그대로_앱에_넘긴다() throws Exception {
+        assertThat(get("/api/v1/student/home?lesson=L2-B1-05&x=1"))
+                .contains("uri=[/api/v1/student/home?lesson=L2-B1-05&x=1]");
+    }
+
     @Test
     void api_ping은_앱_없이_Nginx가_답한다() throws Exception {
         HttpResponse<String> response = send("/api/ping");
