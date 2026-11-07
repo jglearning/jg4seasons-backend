@@ -1,0 +1,21 @@
+# 운영 프로파일(SPRING_PROFILES_ACTIVE=prod). 비밀값은 환경 변수로만 받는다 — 값을 이 파일에 쓰지 않는다.
+# 서버의 배포 스크립트가 Parameter Store에서 환경 변수 파일을 만든다(권한 600).
+spring:
+  datasource:
+    # 기본값이 없다. 빠지면 서버가 뜨지 않는다(엉뚱한 DB로 뜨지 않게)
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+jg4seasons:
+  auth:
+    # 기본값과 같지만 운영에서 꺼지지 않게 명시한다. TLS는 CloudFront가 하고 브라우저는 https로만 온다
+    cookie-secure: true
+    # Nginx가 CloudFront-Viewer-Address에서 포트를 뗀 IP 하나로 덮어쓴다(요청이 보낸 값은 버린다).
+    # 앱 포트는 서버 안(127.0.0.1)에만 열려 Nginx를 거치지 않는 요청은 없다
+    client-ip-header: X-Forwarded-For
+
+springdoc:
+  api-docs:
+    # 기본값과 같지만 명시한다
+    enabled: false
