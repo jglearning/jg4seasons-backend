@@ -23,6 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # 수동 실행은 배포를 다시 돌리려는 것이다. 태그가 아닌 ref면 배포 잡이 건너뛰어진 채 초록으로 끝나 배포했다고 믿게 된다
+      - name: 수동 실행은 릴리스 태그에서만
+        if: github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "::error::수동 실행은 릴리스 태그에서만 배포한다(지금 ref: $GITHUB_REF). gh workflow run ci.yml --ref <태그>"
+          exit 1
+
       - uses: actions/checkout@v7
 
       - uses: actions/setup-java@v6
@@ -142,7 +149,8 @@ jobs:
       - name: 이미지 올리기
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          # 서버의 compose.yaml이 받는 이름과 같아야 한다(변수로 두면 어긋나도 올리기는 성공한다)
+          REPOSITORY: jg4seasons-app
         run: |
           found=$(aws ecr batch-get-image --repository-name "$REPOSITORY" --image-ids imageTag="$GITHUB_SHA" \
             --query 'length(images)' --output text)
