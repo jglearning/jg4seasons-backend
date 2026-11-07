@@ -58,6 +58,15 @@ spotless {
 	}
 }
 
+// 이미지(Dockerfile)가 이 이름으로 받는다. 실행할 수 없는 plain jar는 만들지 않는다
+tasks.bootJar {
+	archiveFileName = "app.jar"
+}
+
+tasks.jar {
+	enabled = false
+}
+
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
@@ -68,4 +77,6 @@ tasks.test {
 	systemProperty("openapi.write", gradle.startParameter.projectProperties["writeOpenApi"] ?: "false")
 	// 파일이 없어도 되도록 files(최초 생성 전). 커밋본이 바뀌면 테스트를 다시 돈다
 	inputs.files("docs/api/openapi.json").withPropertyName("openapiSpec")
+	// NginxConfigTest가 읽는다. 설정만 바꿔도 테스트를 다시 돈다(입력으로 알리지 않으면 UP-TO-DATE로 건너뛴다)
+	inputs.dir("infra/nginx").withPropertyName("nginxConfig")
 }

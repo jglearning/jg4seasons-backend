@@ -54,7 +54,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**")
                         .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health")
+                        // readiness·liveness(배포 스크립트·Nginx /api/health). 다른 actuator는 노출하지 않는다
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, PublicEndpoints.NO_AUTH.toArray(String[]::new))
                         .permitAll()

@@ -40,6 +40,24 @@ class ApplicationYamlTest {
     }
 
     @Test
+    void readiness는_DB에_닿아야_UP이다() {
+        // 배포 스크립트가 readiness를 보고 새 슬롯으로 옮긴다. DB에 닿기 전에 UP이면 고장 난 슬롯으로 옮긴다
+        Properties yaml = mainApplicationYaml();
+        assertThat(yaml.getProperty("management.endpoint.health.probes.enabled"))
+                .isEqualTo("true");
+        assertThat(yaml.getProperty("management.endpoint.health.group.readiness.include"))
+                .isEqualTo("readinessState,db");
+        assertThat(yaml.getProperty("management.endpoints.web.exposure.include"))
+                .isEqualTo("health");
+    }
+
+    @Test
+    void 종료_대기는_컨테이너_정지_대기_30초보다_짧다() {
+        assertThat(mainApplicationYaml().getProperty("spring.lifecycle.timeout-per-shutdown-phase"))
+                .isEqualTo("20s");
+    }
+
+    @Test
     void 스키마는_Flyway가_만들고_JPA는_검증만_한다() {
         assertThat(mainApplicationYaml().getProperty("spring.jpa.hibernate.ddl-auto"))
                 .isEqualTo("validate");

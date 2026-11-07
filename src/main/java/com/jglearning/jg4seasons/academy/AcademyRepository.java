@@ -13,6 +13,11 @@ interface AcademyRepository extends Repository<Academy, Long> {
 
     Optional<Academy> findBySlug(String slug);
 
+    /** 첫 학원 부트스트랩: 학원이 하나도 없는지 */
+    long count();
+
+    Academy save(Academy academy);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a.id from Academy a where a.id = :id")
     Optional<Long> lockById(@Param("id") Long id);

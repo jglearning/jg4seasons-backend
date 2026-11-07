@@ -97,6 +97,18 @@ class DevSeedTest {
         assertThat(dates.get(0)).isBefore(LocalDate.of(2026, 11, 4));
     }
 
+    // 운영 시험(trial)은 Parameter Store의 가입 코드로 반을 만든다
+    @Test
+    void 넘긴_가입_코드로_반을_만든다() {
+        assertThat(new DevSeed(jdbc, AFTER_SEOUL_MIDNIGHT, "ZQ7W2XM9").seed()).isTrue();
+
+        assertThat(count("select count(*) from `class` c join academy a on a.id = c.academy_id"
+                        + " where a.slug = 'demo' and c.access_code = 'ZQ7W2XM9'"))
+                .isEqualTo(1);
+        assertThat(count("select count(*) from `class` where access_code = 'G7KM2XP4'"))
+                .isZero();
+    }
+
     @Test
     void 시드를_두_번_돌려도_한_벌이다() {
         assertThat(devSeed().seed()).isTrue();
