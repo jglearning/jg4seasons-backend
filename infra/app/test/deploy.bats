@@ -38,7 +38,7 @@ ps) [[ -f $FAKE/nginx_running ]] && echo nginx-id; exit 0 ;;
 up) [[ " $* " == *" nginx "* ]] && touch "$FAKE/nginx_running"; exit 0 ;;
 pull) exit "${FAKE_PULL_RC:-0}" ;;
 logs) echo "APP-LOG-LINE jdbc:mysql://db.internal.example"; exit 0 ;;
-stop) exit 0 ;;
+stop) exit "${FAKE_STOP_RC:-0}" ;;
 exec)
 	if [[ " $* " == *" -t -q"* ]]; then exit "${FAKE_NGINX_T_RC:-0}"; fi
 	n=$(($(cat "$FAKE/reloads" 2>/dev/null || echo 0) + 1)); echo "$n" >"$FAKE/reloads"
@@ -56,7 +56,10 @@ EOF
 url="${*: -1}"
 case "$url" in
 *readiness*) exit "${FAKE_READY_RC:-0}" ;;
-*/api/health) exit "${FAKE_HEALTH_RC:-0}" ;;
+*/api/health)
+	n=$(($(cat "$FAKE/healths" 2>/dev/null || echo 0) + 1)); echo "$n" >"$FAKE/healths"
+	((n >= ${FAKE_HEALTH_FAIL_FROM:-999999})) && exit 7
+	exit "${FAKE_HEALTH_RC:-0}" ;;
 esac
 exit 0
 EOF
@@ -192,6 +195,57 @@ last_line() { printf '%s\n' "$output" | tail -n 1; }
 		[[ "$(last_line)" == "kept none: "*"SPRING_PROFILES_INCLUDE"* ]]
 		[ "$(cat "$JG4S_BASE/runtime/app.env")" = old-app-env ]
 	done
+}
+
+# 값의 줄바꿈은 다음 줄을 이름 없는 변수로, 하위 경로는 조용히 빠진다. 이름 형식이 틀리면 멈춘다
+@test "파라미터 이름 형식이 틀리면(줄바꿈 값·하위 경로) app.env를 바꾸지 않는다" {
+	local extra
+	for extra in '/jg4seasons/prod/DB_URL2\tfirst\nsecond-line' '/jg4seasons/prod/sub/NAME\tvalue'; do
+		params ok
+		printf '%b\n' "$extra" >>"$FAKE/params"
+		run bash "$SCRIPT" "$SHA"
+		[ "$status" -eq 1 ]
+		[[ "$(last_line)" == "kept none: 파라미터 이름 형식이 틀렸다"* ]]
+		[ "$(cat "$JG4S_BASE/runtime/app.env")" = old-app-env ]
+	done
+}
+
+# 첫 배포에서 실제로 날 법한 실패(서버 역할의 ECR 권한)
+@test "이미지를 받지 못하면 새 슬롯을 띄우지 않고 태그를 되돌린다" {
+	serving_blue
+	FAKE_PULL_RC=1 run bash "$SCRIPT" "$SHA"
+	[ "$status" -eq 1 ]
+	[[ "$(last_line)" == "kept blue: 이미지를 받지 못했다"* ]]
+	grep -q '^GREEN_TAG=$' "$JG4S_BASE/runtime/slots.env"
+	run ! grep -q "force-recreate" "$FAKE/calls"
+}
+
+@test "성공하면 이전 슬롯을 멈춘다" {
+	serving_blue
+	run bash "$SCRIPT" "$SHA"
+	[ "$status" -eq 0 ]
+	[ "$(last_line)" = "deployed green $SHA" ]
+	grep -q "compose .* stop -t 30 app-blue" "$FAKE/calls"
+}
+
+# reload 직후 확인에는 아직 남은 이전 worker·이전 슬롯이 답할 수 있다. 이전 슬롯을 멈춘 뒤 한 번 더 본다
+@test "이전 슬롯을 멈춘 뒤 Nginx 경유 확인이 실패하면 failed로 알린다" {
+	serving_blue
+	FAKE_HEALTH_FAIL_FROM=2 run bash "$SCRIPT" "$SHA"
+	[ "$status" -eq 1 ]
+	[[ "$(last_line)" == "failed green: 이전 슬롯을 멈춘 뒤"* ]]
+}
+
+@test "실패한 새 슬롯을 멈추지 못하거나 로그를 남기지 못하면 출력에 남긴다" {
+	serving_blue
+	rm -rf "$JG4S_BASE/state"
+	touch "$JG4S_BASE/state" # 로그 파일을 쓸 수 없게
+	FAKE_READY_RC=1 FAKE_STOP_RC=1 READY_TIMEOUT_SECONDS=0 run bash "$SCRIPT" "$SHA"
+	[ "$status" -eq 1 ]
+	[[ "$(last_line)" == "kept blue: readiness"* ]]
+	[[ "$output" == *"app-green를 멈추지 못했다"* ]]
+	[[ "$output" == *"로그를 남기지 못했다"* ]]
+	[[ "$output" != *"app-green의 로그:"* ]]
 }
 
 @test "태그가 커밋 SHA 형식이 아니면 아무것도 하지 않는다" {

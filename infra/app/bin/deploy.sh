@@ -78,9 +78,13 @@ set_slot_tag() {
 # 새 슬롯을 세우다 실패했을 때: 로그를 서버 파일에 남기고, 새 슬롯을 내리고, 태그를 되돌린다.
 abandon_target() {
 	local log="$BASE/state/failed-app-$target.log"
-	{ : >"$log" && chmod 600 "$log" && compose logs --no-color --tail 200 "app-$target" >>"$log" 2>&1; } || true
-	echo "app-$target의 로그: $log"
-	compose stop -t 30 "app-$target" || true
+	if { : >"$log" && chmod 600 "$log" && compose logs --no-color --tail 200 "app-$target" >>"$log" 2>&1; } 2>/dev/null; then
+		echo "app-$target의 로그: $log"
+	else
+		echo "app-$target의 로그를 남기지 못했다($log). 서버에서 docker logs로 본다"
+	fi
+	# 멈추지 못하면 restart: unless-stopped로 다시 뜨며 메모리를 차지한다 — 사람이 봐야 한다.
+	compose stop -t 30 "app-$target" || echo "app-$target를 멈추지 못했다(서버에서 직접 멈춘다)"
 	set_slot_tag "$target" "$previous_tag"
 	kept "$1"
 }
@@ -106,11 +110,17 @@ restore_upstream() {
 
 write_app_env() {
 	local raw tmp name value missing=()
-	raw="$(aws ssm get-parameters-by-path --path "$PARAM_PATH" --with-decryption \
+	# --recursive: 하위 경로에 잘못 넣은 값도 받아 아래 이름 검사에서 멈춘다(빼면 조용히 빠진다).
+	raw="$(aws ssm get-parameters-by-path --path "$PARAM_PATH" --recursive --with-decryption \
 		--query 'Parameters[].[Name,Value]' --output text)" || kept "Parameter Store를 읽지 못했다"
 	tmp="$(mktemp "$RUNTIME/app.env.XXXXXX")"
 	while IFS=$'\t' read -r name value; do
 		[[ -z $name ]] && continue
+		# 값에 줄바꿈이 있으면 다음 줄이 경로 없는 "이름"으로 읽힌다. 이름은 비밀값이 아니라 출력해도 된다.
+		if [[ $name != "$PARAM_PATH"* || ! ${name#"$PARAM_PATH"} =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+			rm -f "$tmp"
+			kept "파라미터 이름 형식이 틀렸다(하위 경로·값의 줄바꿈): ${name:0:80}"
+		fi
 		name="${name#"$PARAM_PATH"}"
 		# env 파일은 공백·따옴표·$·#·백틱·역슬래시를 다르게 읽는다. 그런 값은 조용히 바뀌지 않게 거부한다.
 		if [[ $value =~ [[:space:]\$\"\'\`\\#] ]]; then
@@ -209,6 +219,9 @@ main() {
 		# reload 전에 받은 요청이 이전 슬롯에서 끝날 시간을 준 뒤 graceful 종료한다.
 		sleep 5
 		compose stop -t 30 "app-$current" || echo "이전 슬롯 app-$current를 멈추지 못했다(요청은 새 슬롯이 받는다)"
+		# reload 직후의 확인은 남아 있던 이전 worker·이전 슬롯이 답했을 수 있다. 이전 슬롯이 없는 지금 다시 본다.
+		health_through_nginx ||
+			failed "$target" "이전 슬롯을 멈춘 뒤 Nginx 경유 확인이 실패했다. 서버에서 Nginx·app-$target을 직접 본다(app-$current는 멈춤)"
 	fi
 	docker image prune -f >/dev/null || true
 	echo "deployed $target $tag"
