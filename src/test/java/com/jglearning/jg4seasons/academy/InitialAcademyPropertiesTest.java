@@ -117,6 +117,20 @@ class InitialAcademyPropertiesTest {
                 .withMessageContaining("admin-name");
     }
 
+    // 시험 데이터(trial)는 slug demo를 데모 학원으로 본다. 첫 학원이 demo면 데모 데이터가 빠지고 공개 개인 코드가 이 학원 학생에게 붙는다
+    @Test
+    void 시험_데이터용_slug_demo는_쓸_수_없다() {
+        assertThatIllegalStateException()
+                .isThrownBy(() ->
+                        props("첫 학원", "demo", "owner", PASSWORD, null, true).resolve())
+                .withMessageContaining("academy-slug")
+                .withMessageContaining("demo");
+        assertThatIllegalStateException()
+                .isThrownBy(() ->
+                        props("첫 학원", " demo ", "owner", PASSWORD, null, true).resolve())
+                .withMessageContaining("academy-slug");
+    }
+
     @Test
     void toString에_비밀번호가_없다() {
         assertThat(props("첫 학원", "main", "owner", PASSWORD, null, true).toString())

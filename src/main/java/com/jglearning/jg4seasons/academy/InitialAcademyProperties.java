@@ -38,6 +38,11 @@ record InitialAcademyProperties(
     static final int MAX_ADMIN_NAME = 30;
     /** academy.slug VARCHAR(30). 소문자·숫자·-, 영숫자로 시작 */
     private static final Pattern SLUG = Pattern.compile("^[a-z0-9][a-z0-9-]{1,29}$");
+    /**
+     * 시험 데이터(trial)가 데모 학원으로 보는 slug(DevSeed.ACADEMY_SLUG — infra는 이 모듈에서 참조할 수 없어 같은 값을 둔다). 첫 학원이 이 slug면 데모
+     * 데이터가 빠지고 공개 개인 코드가 이 학원 학생에게 붙는다
+     */
+    private static final String RESERVED_TRIAL_SLUG = "demo";
 
     private static final Pattern LOGIN_ID = Pattern.compile(StaffAccounts.LOGIN_ID_REQUEST_REGEXP);
 
@@ -76,6 +81,9 @@ record InitialAcademyProperties(
         String slug = academySlug.strip();
         if (!SLUG.matcher(slug).matches()) {
             throw invalid("academy-slug", "소문자·숫자·- 2~30자, 영숫자로 시작");
+        }
+        if (slug.equals(RESERVED_TRIAL_SLUG)) {
+            throw invalid("academy-slug", RESERVED_TRIAL_SLUG + "는 시험 데이터(trial)의 데모 학원 자리라 쓸 수 없다");
         }
         if (!LOGIN_ID.matcher(adminLoginId).matches()) {
             throw invalid("admin-login-id", StaffAccounts.LOGIN_ID_MESSAGE);
