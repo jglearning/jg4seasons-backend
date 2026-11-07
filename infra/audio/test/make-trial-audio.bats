@@ -64,6 +64,17 @@ EOF
 	[ ! -f "$FAKE/calls" ]
 }
 
+# 공백만 있으면 파일 0개로 성공 종료하고, 이어지는 업로드가 음원 없이 끝난다(빈 문자열은 기본값을 쓴다)
+@test "속도 목록이 공백뿐이면 아무것도 만들지 않고 실패한다" {
+	local speeds
+	for speeds in " " "   "; do
+		SPEEDS="$speeds" run bash "$SCRIPT" "$OUT" L2-B1-05
+		[ "$status" -ne 0 ]
+		[[ "$output" == *SPEEDS* ]]
+		[ ! -e "$OUT" ]
+	done
+}
+
 @test "인자가 모자라면 사용법을 알린다" {
 	run bash "$SCRIPT" "$OUT"
 	[ "$status" -ne 0 ]

@@ -32,6 +32,10 @@ for code in "$@"; do
 	}
 done
 read -r -a speeds <<<"$SPEEDS"
+((${#speeds[@]} > 0)) || {
+	echo "SPEEDS가 비었다(예: SPEEDS=\"0.8 1.0\")" >&2
+	exit 2
+}
 for speed in "${speeds[@]}"; do
 	[[ $speed =~ ^[0-9]\.[0-9]$ ]] || {
 		echo "속도 형식이 아니다(예: 1.0): $speed" >&2
