@@ -43,8 +43,11 @@ public class DevSeed {
         this(jdbc, clock, ACCESS_CODE);
     }
 
-    /** @param accessCode 반 가입 코드. 운영 시험(trial)은 SeedAccessCode가 검사한 Parameter Store 값 */
-    public DevSeed(JdbcTemplate jdbc, Clock clock, String accessCode) {
+    /**
+     * @param accessCode 반 가입 코드. 운영 시험(trial)은 SeedAccessCode가 검사한 Parameter Store 값. 검사를 건너뛰지 않게 패키지 안(DevSeedRunner)에서만
+     *     부른다
+     */
+    DevSeed(JdbcTemplate jdbc, Clock clock, String accessCode) {
         this.jdbc = jdbc;
         this.clock = clock;
         this.accessCode = accessCode;
