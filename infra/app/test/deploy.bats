@@ -181,6 +181,19 @@ last_line() { printf '%s\n' "$output" | tail -n 1; }
 	[ "$(cat "$JG4S_BASE/runtime/app.env")" = old-app-env ]
 }
 
+# INCLUDE로 local을 켜면 공개 저장소의 비밀번호·가입 코드로 계정이 생긴다. trial 하나만 받는다
+@test "SPRING_PROFILES_INCLUDE가 trial이 아니면 app.env를 바꾸지 않는다" {
+	local value
+	for value in local trial,local prod; do
+		params ok
+		printf '/jg4seasons/prod/SPRING_PROFILES_INCLUDE\t%s\n' "$value" >>"$FAKE/params"
+		run bash "$SCRIPT" "$SHA"
+		[ "$status" -eq 1 ]
+		[[ "$(last_line)" == "kept none: "*"SPRING_PROFILES_INCLUDE"* ]]
+		[ "$(cat "$JG4S_BASE/runtime/app.env")" = old-app-env ]
+	done
+}
+
 @test "태그가 커밋 SHA 형식이 아니면 아무것도 하지 않는다" {
 	run bash "$SCRIPT" latest
 	[ "$status" -eq 1 ]

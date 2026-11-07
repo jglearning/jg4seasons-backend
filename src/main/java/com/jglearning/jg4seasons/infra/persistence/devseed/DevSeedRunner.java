@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * local·trial 프로파일에서 서버가 뜰 때 데모 데이터를 넣는다. 테스트·운영(prod만)에서는 빈이 만들어지지 않는다.
  *
- * <p>trial은 운영 시험용(SPRING_PROFILES_ACTIVE=prod,trial — 실제 사용 전 운영 DB를 다시 만든다). 가입 코드는 Parameter Store 값이어야 하고,
+ * <p>trial은 운영 시험용(운영 프로파일 prod에 파라미터 SPRING_PROFILES_INCLUDE=trial로 더한다 — 실제 사용 전 운영 DB를 다시 만든다). 가입 코드는 Parameter Store 값이어야 하고,
  * 아니면 이 빈을 만들 때 서버가 멈춘다(SeedAccessCode).
  */
 @Component

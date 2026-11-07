@@ -25,7 +25,7 @@ readonly READY_TIMEOUT_SECONDS="${READY_TIMEOUT_SECONDS:-180}"
 # INITIAL_*(첫 학원·관리자)는 학원이 생긴 뒤에는 없어도 된다.
 readonly REQUIRED_PARAMS=(DB_URL DB_USERNAME DB_PASSWORD JG4SEASONS_PERSONAL_CODE_PEPPER JG4SEASONS_JWT_SECRET)
 # 운영 프로파일(prod)은 compose.yaml이 고정한다. 파라미터로 바꿔치기하지 못하게 거부한다.
-# 시험 데이터(trial)는 SPRING_PROFILES_INCLUDE=trial 파라미터로만 켠다.
+# 시험 데이터(trial)는 SPRING_PROFILES_INCLUDE=trial 파라미터로만 켠다(다른 값은 거부 — write_app_env).
 readonly FORBIDDEN_PARAMS=(SPRING_PROFILES_ACTIVE)
 export AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 
@@ -132,6 +132,11 @@ write_app_env() {
 			kept "파라미터 ${name}는 쓰지 않는다(운영 프로파일은 compose.yaml이 정한다)"
 		fi
 	done
+	# 더하는 프로파일은 trial 하나만. local 등을 더하면 공개 저장소의 비밀번호·가입 코드로 계정이 생긴다.
+	if grep -q "^SPRING_PROFILES_INCLUDE=" "$tmp" && ! grep -qx "SPRING_PROFILES_INCLUDE=trial" "$tmp"; then
+		rm -f "$tmp"
+		kept "파라미터 SPRING_PROFILES_INCLUDE는 trial만 쓸 수 있다"
+	fi
 	chmod 600 "$tmp"
 	mv -f "$tmp" "$APP_ENV"
 }

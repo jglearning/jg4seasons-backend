@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.FileSystemResource;
 
 /**
- * 운영 시험 데이터 프로파일 trial(SPRING_PROFILES_ACTIVE=prod,trial — 이슈 #23 결정 I·J). 데모 학원·반·학생·진도표·회차 내용과 학생 개인 코드만
+ * 운영 시험 데이터 프로파일 trial(운영 prod에 SPRING_PROFILES_INCLUDE=trial로 더한다 — 이슈 #23 결정 I·J). 데모 학원·반·학생·진도표·회차 내용과 학생 개인 코드만
  * 넣고, 공개 비밀번호를 쓰는 교사·관리자 로그인 시드는 넣지 않는다. 테스트 컨텍스트를 하나로 유지하려고 프로파일을 켜지 않고 선언을 본다.
  */
 class TrialProfileTest {
