@@ -41,3 +41,20 @@ jobs:
         with:
           name: test-reports
           path: build/reports/tests/
+
+  # 서버 쪽 파일의 검사: 배포 스크립트·시험 음원 스크립트(shellcheck, 실패 경로 시험).
+  # Nginx 설정은 build의 NginxConfigTest가 실제 nginx로 본다
+  infra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Shellcheck
+        run: >-
+          docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:v0.10.0
+          /mnt/infra/app/bin/deploy.sh /mnt/infra/app/test/deploy.bats
+          /mnt/infra/audio/make-trial-audio.sh /mnt/infra/audio/test/make-trial-audio.bats
+
+      - name: 스크립트 시험(bats)
+        run: docker run --rm -v "$PWD:/repo" -w /repo bats/bats:1.11.0 infra/app/test infra/audio/test
