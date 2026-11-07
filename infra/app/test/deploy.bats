@@ -200,13 +200,15 @@ last_line() { printf '%s\n' "$output" | tail -n 1; }
 # 값의 줄바꿈은 다음 줄을 이름 없는 변수로, 하위 경로는 조용히 빠진다. 이름 형식이 틀리면 멈춘다
 @test "파라미터 이름 형식이 틀리면(줄바꿈 값·하위 경로) app.env를 바꾸지 않는다" {
 	local extra
-	for extra in '/jg4seasons/prod/DB_URL2\tfirst\nsecond-line' '/jg4seasons/prod/sub/NAME\tvalue'; do
+	for extra in '/jg4seasons/prod/DB_URL2\tfirst\nsecret-second-line' '/jg4seasons/prod/sub/NAME\tvalue'; do
 		params ok
 		printf '%b\n' "$extra" >>"$FAKE/params"
 		run bash "$SCRIPT" "$SHA"
 		[ "$status" -eq 1 ]
-		[[ "$(last_line)" == "kept none: 파라미터 이름 형식이 틀렸다"* ]]
+		[[ "$(last_line)" == "kept none: 파라미터 "* ]]
 		[ "$(cat "$JG4S_BASE/runtime/app.env")" = old-app-env ]
+		# 줄바꿈 뒤는 비밀값의 일부다. 배포 출력(CI 로그)에 싣지 않는다
+		[[ "$output" != *secret-second-line* ]]
 	done
 }
 

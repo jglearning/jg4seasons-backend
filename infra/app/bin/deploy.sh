@@ -116,10 +116,15 @@ write_app_env() {
 	tmp="$(mktemp "$RUNTIME/app.env.XXXXXX")"
 	while IFS=$'\t' read -r name value; do
 		[[ -z $name ]] && continue
-		# 값에 줄바꿈이 있으면 다음 줄이 경로 없는 "이름"으로 읽힌다. 이름은 비밀값이 아니라 출력해도 된다.
-		if [[ $name != "$PARAM_PATH"* || ! ${name#"$PARAM_PATH"} =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+		# 값에 줄바꿈이 있으면 다음 줄이 경로 없는 "이름"으로 읽힌다. 그 줄은 비밀값의 일부라 출력하지 않는다.
+		if [[ $name != "$PARAM_PATH"* ]]; then
 			rm -f "$tmp"
-			kept "파라미터 이름 형식이 틀렸다(하위 경로·값의 줄바꿈): ${name:0:80}"
+			kept "파라미터 값에 줄바꿈이 있다(어느 값인지·내용은 출력하지 않는다 — Parameter Store에서 값 끝의 줄바꿈을 본다)"
+		fi
+		# 경로 안의 이름은 비밀값이 아니라 출력해도 된다(하위 경로·소문자 등).
+		if [[ ! ${name#"$PARAM_PATH"} =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+			rm -f "$tmp"
+			kept "파라미터 이름 형식이 틀렸다(하위 경로는 쓰지 않는다): ${name:0:80}"
 		fi
 		name="${name#"$PARAM_PATH"}"
 		# env 파일은 공백·따옴표·$·#·백틱·역슬래시를 다르게 읽는다. 그런 값은 조용히 바뀌지 않게 거부한다.
