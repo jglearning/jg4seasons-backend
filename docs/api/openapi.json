@@ -2409,7 +2409,7 @@
                 "$ref" : "#/components/schemas/MatrixCell"
               }
             },
-            "description" : "학생 id(문자열) → 회차 코드 → 칸. 없는 조합은 not_started"
+            "description" : "학생 id(문자열) → 회차 코드 → 칸. 열린 회차(opened)는 현재 학생마다 칸이 항상 있다(안 들었어도 not_started 칸 — 밀림 표시 overdue를 싣는다). 열리지 않은 회차는 칸이 없다(수업 전)"
           },
           "class" : {
             "$ref" : "#/components/schemas/MatrixClass"
@@ -2854,6 +2854,42 @@
         },
         "required" : [ "created" ]
       },
+      "StudentDetailLesson" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "requiredDone" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "requiredTotal" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "not_started", "in_progress", "completed" ]
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Reading Day 5"
+          },
+          "tracks" : {
+            "type" : "array",
+            "description" : "지문 트랙(선택 속도 포함)",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentDetailTrack"
+            }
+          },
+          "words" : {
+            "$ref" : "#/components/schemas/StudentDetailWords"
+          }
+        },
+        "required" : [ "code", "requiredDone", "requiredTotal", "status", "title", "tracks", "words" ]
+      },
       "StudentDetailResponse" : {
         "type" : "object",
         "properties" : {
@@ -2861,7 +2897,7 @@
             "type" : "array",
             "description" : "그 반에서 열린 회차(seq 오름차순)",
             "items" : {
-              "$ref" : "#/components/schemas/StudentLesson"
+              "$ref" : "#/components/schemas/StudentDetailLesson"
             }
           },
           "student" : {
@@ -2893,6 +2929,80 @@
           }
         },
         "required" : [ "grade", "id", "lastLoginAt", "name", "school" ]
+      },
+      "StudentDetailTrack" : {
+        "type" : "object",
+        "properties" : {
+          "completed" : {
+            "type" : "boolean"
+          },
+          "coverage" : {
+            "type" : "number",
+            "format" : "double",
+            "description" : "들은 비율 0~1",
+            "maximum" : 1,
+            "minimum" : 0
+          },
+          "durationMs" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "트랙 길이 ms"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "passage" ]
+          },
+          "lastPlayedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "마지막 재생(UTC), 안 들었으면 null"
+          },
+          "passageNo" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "지문 번호 1~6"
+          },
+          "required" : {
+            "type" : "boolean",
+            "description" : "회차 완료에 필요한 트랙인가"
+          },
+          "sessionCount" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalPlayMs" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "반복 포함 총 재생 ms"
+          },
+          "variant" : {
+            "type" : "string",
+            "enum" : [ "0.8", "1.0", "1.2" ]
+          }
+        },
+        "required" : [ "completed", "coverage", "durationMs", "kind", "lastPlayedAt", "passageNo", "required", "sessionCount", "totalPlayMs", "variant" ]
+      },
+      "StudentDetailWords" : {
+        "type" : "object",
+        "properties" : {
+          "cardsViewed" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "memKnown" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "recallBest" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "spellBest" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "cardsViewed", "memKnown", "recallBest", "spellBest" ]
       },
       "StudentHomeLessonRef" : {
         "type" : "object",
@@ -3114,42 +3224,6 @@
         },
         "required" : [ "lessonCode", "memKnown", "total" ]
       },
-      "StudentLesson" : {
-        "type" : "object",
-        "properties" : {
-          "code" : {
-            "type" : "string",
-            "example" : "L2-B1-05"
-          },
-          "requiredDone" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "requiredTotal" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "status" : {
-            "type" : "string",
-            "enum" : [ "not_started", "in_progress", "completed" ]
-          },
-          "title" : {
-            "type" : "string",
-            "example" : "Reading Day 5"
-          },
-          "tracks" : {
-            "type" : "array",
-            "description" : "지문 트랙(선택 속도 포함)",
-            "items" : {
-              "$ref" : "#/components/schemas/StudentTrack"
-            }
-          },
-          "words" : {
-            "$ref" : "#/components/schemas/StudentWords"
-          }
-        },
-        "required" : [ "code", "requiredDone", "requiredTotal", "status", "title", "tracks", "words" ]
-      },
       "StudentListResponse" : {
         "type" : "object",
         "properties" : {
@@ -3309,56 +3383,6 @@
         },
         "required" : [ "items" ]
       },
-      "StudentTrack" : {
-        "type" : "object",
-        "properties" : {
-          "completed" : {
-            "type" : "boolean"
-          },
-          "coverage" : {
-            "type" : "number",
-            "format" : "double",
-            "description" : "들은 비율 0~1"
-          },
-          "durationMs" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "트랙 길이 ms"
-          },
-          "kind" : {
-            "type" : "string",
-            "enum" : [ "passage" ]
-          },
-          "lastPlayedAt" : {
-            "type" : [ "string", "null" ],
-            "format" : "date-time",
-            "description" : "마지막 재생(UTC), 안 들었으면 null"
-          },
-          "passageNo" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "지문 번호 1~6"
-          },
-          "required" : {
-            "type" : "boolean",
-            "description" : "회차 완료에 필요한 트랙인가"
-          },
-          "sessionCount" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "totalPlayMs" : {
-            "type" : "integer",
-            "format" : "int64",
-            "description" : "반복 포함 총 재생 ms"
-          },
-          "variant" : {
-            "type" : "string",
-            "enum" : [ "0.8", "1.0", "1.2" ]
-          }
-        },
-        "required" : [ "completed", "coverage", "durationMs", "kind", "lastPlayedAt", "passageNo", "required", "sessionCount", "totalPlayMs", "variant" ]
-      },
       "StudentUpdateRequest" : {
         "type" : "object",
         "properties" : {
@@ -3388,28 +3412,6 @@
             "pattern" : "^(active|inactive)$"
           }
         }
-      },
-      "StudentWords" : {
-        "type" : "object",
-        "properties" : {
-          "cardsViewed" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "memKnown" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "recallBest" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "spellBest" : {
-            "type" : "integer",
-            "format" : "int32"
-          }
-        },
-        "required" : [ "cardsViewed", "memKnown", "recallBest", "spellBest" ]
       },
       "TeacherClassBook" : {
         "type" : "object",
@@ -3718,7 +3720,9 @@
           "coverage" : {
             "type" : "number",
             "format" : "double",
-            "description" : "들은 비율 0~1"
+            "description" : "들은 비율 0~1",
+            "maximum" : 1,
+            "minimum" : 0
           }
         },
         "required" : [ "completed", "coverage" ]

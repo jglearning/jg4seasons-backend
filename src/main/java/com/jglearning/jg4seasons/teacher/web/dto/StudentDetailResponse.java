@@ -9,7 +9,7 @@ public record StudentDetailResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) StudentDetailStudent student,
 
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "그 반에서 열린 회차(seq 오름차순)")
-        List<StudentLesson> lessons) {
+        List<StudentDetailLesson> lessons) {
 
     public record StudentDetailStudent(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
@@ -30,7 +30,7 @@ public record StudentDetailResponse(
                     description = "마지막 로그인(UTC), 없으면 null")
             Instant lastLoginAt) {}
 
-    public record StudentLesson(
+    public record StudentDetailLesson(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "L2-B1-05")
             String code,
 
@@ -49,12 +49,12 @@ public record StudentDetailResponse(
             int requiredTotal,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 트랙(선택 속도 포함)")
-            List<StudentTrack> tracks,
+            List<StudentDetailTrack> tracks,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-            StudentWords words) {}
+            StudentDetailWords words) {}
 
-    public record StudentTrack(
+    public record StudentDetailTrack(
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
                     allowableValues = {"passage"})
@@ -71,7 +71,11 @@ public record StudentDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "회차 완료에 필요한 트랙인가")
             boolean required,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "들은 비율 0~1")
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    minimum = "0",
+                    maximum = "1",
+                    description = "들은 비율 0~1")
             double coverage,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
@@ -92,7 +96,7 @@ public record StudentDetailResponse(
                     description = "마지막 재생(UTC), 안 들었으면 null")
             Instant lastPlayedAt) {}
 
-    public record StudentWords(
+    public record StudentDetailWords(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             int cardsViewed,
 

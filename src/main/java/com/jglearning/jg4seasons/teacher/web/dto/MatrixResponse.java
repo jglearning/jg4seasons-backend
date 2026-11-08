@@ -18,7 +18,10 @@ public record MatrixResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "현재 소속 학생(이름 순)")
         List<MatrixStudent> students,
 
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "학생 id(문자열) → 회차 코드 → 칸. 없는 조합은 not_started")
+        @Schema(
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                description =
+                        "학생 id(문자열) → 회차 코드 → 칸. 열린 회차(opened)는 현재 학생마다 칸이 항상 있다(안 들었어도 not_started 칸 — 밀림 표시 overdue를 싣는다). 열리지 않은 회차는 칸이 없다(수업 전)")
         Map<String, Map<String, MatrixCell>> cells) {
 
     public record MatrixClass(

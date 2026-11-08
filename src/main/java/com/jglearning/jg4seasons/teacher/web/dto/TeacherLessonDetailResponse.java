@@ -68,7 +68,11 @@ public record TeacherLessonDetailResponse(
             String name) {}
 
     public record TeacherLessonTrackResult(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "들은 비율 0~1")
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    minimum = "0",
+                    maximum = "1",
+                    description = "들은 비율 0~1")
             double coverage,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
