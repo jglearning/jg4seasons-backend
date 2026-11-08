@@ -2717,10 +2717,31 @@
         "type" : "object",
         "properties" : {
           "user" : {
-            "$ref" : "#/components/schemas/UserInfo"
+            "$ref" : "#/components/schemas/StaffUserInfo"
           }
         },
         "required" : [ "user" ]
+      },
+      "StaffUserInfo" : {
+        "type" : "object",
+        "properties" : {
+          "academyId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "teacher", "admin" ]
+          }
+        },
+        "required" : [ "academyId", "id", "name", "role" ]
       },
       "StudentClassBook" : {
         "type" : "object",
