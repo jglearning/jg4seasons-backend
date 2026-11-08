@@ -2,3 +2,6 @@
 *.bat text eol=crlf
 *.jar binary
 docs/api/openapi.json text eol=lf
+# 리눅스 서버·컨테이너에서 그대로 쓰는 파일. CR이 섞이면 셸·Nginx가 읽지 못한다
+/infra/** text eol=lf
+/Dockerfile text eol=lf

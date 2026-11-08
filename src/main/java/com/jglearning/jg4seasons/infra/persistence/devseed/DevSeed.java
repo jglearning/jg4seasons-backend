@@ -15,9 +15,9 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 
 /**
- * 로컬 확인용 데이터: 데모 학원 1 · 관리자 1 · 반 1(L2-B1, 화·목) · 진도표 24 · 학생 14.
+ * 로컬·운영 시험(trial) 확인용 데이터: 데모 학원 1 · 관리자 1(로그인 없음) · 반 1(L2-B1, 화·목) · 진도표 24 · 학생 14.
  *
- * <p>실제 학원명은 쓰지 않는다(공개 저장소). 기준일은 서울 날짜이고, 반은 기준일 14일 전에 개강해 지난 수업·오늘 수업·밀린 수업을 바로 볼 수
+ * <p>실제 학원명은 쓰지 않는다(공개 저장소). 가입 코드는 local이면 공개 값, trial이면 Parameter Store 값(SeedAccessCode). 기준일은 서울 날짜이고, 반은 기준일 14일 전에 개강해 지난 수업·오늘 수업·밀린 수업을 바로 볼 수
  * 있다. 개인 코드·비밀번호(auth_identity)는 인증 이슈에서 추가한다. 이미 데모 학원이 있으면 아무것도 하지 않는다.
  */
 public class DevSeed {
@@ -36,9 +36,21 @@ public class DevSeed {
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
+    private final String accessCode;
+
+    /** 공개 가입 코드(G7KM2XP4) — local·테스트 */
     public DevSeed(JdbcTemplate jdbc, Clock clock) {
+        this(jdbc, clock, ACCESS_CODE);
+    }
+
+    /**
+     * @param accessCode 반 가입 코드. 운영 시험(trial)은 SeedAccessCode가 검사한 Parameter Store 값. 검사를 건너뛰지 않게 패키지 안(DevSeedRunner)에서만
+     *     부른다
+     */
+    DevSeed(JdbcTemplate jdbc, Clock clock, String accessCode) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.accessCode = accessCode;
     }
 
     /** @return 새로 넣었으면 true, 이미 있어서 건너뛰었으면 false */
@@ -72,7 +84,7 @@ public class DevSeed {
                 "겨울 그린 A반",
                 startDate,
                 WEEKDAYS,
-                ACCESS_CODE,
+                accessCode,
                 nowUtc);
         jdbc.update("insert into class_teacher (class_id, user_id) values (?, ?)", classId, adminId);
 
