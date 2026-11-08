@@ -97,4 +97,10 @@ class TeacherClassContractTest {
         assertValidation(asTeacher(MATRIX + "?fromSeq=a&toSeq=8"), "fromSeq");
         assertValidation(asTeacher("/api/v1/teacher/classes/0/matrix"), "classId");
     }
+
+    @Test
+    void 매트릭스_범위의_경계값은_통과한다() {
+        assertThat(asTeacher(MATRIX + "?fromSeq=5&toSeq=5")).hasStatus(501);
+        assertThat(asTeacher(MATRIX + "?fromSeq=1&toSeq=99")).hasStatus(501);
+    }
 }

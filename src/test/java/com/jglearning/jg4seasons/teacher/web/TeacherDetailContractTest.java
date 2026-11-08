@@ -122,8 +122,7 @@ class TeacherDetailContractTest {
         assertThat(asTeacher(HttpMethod.PATCH, SESSION, "{\"scheduledDate\":\"2026-13-01\"}"))
                 .hasStatus(400);
         // 회차 순서 바꾸기는 1차에 없다 — lessonCode는 명세에 없는 칸
-        assertThat(asTeacher(HttpMethod.PATCH, SESSION, "{\"lessonCode\":\"L2-B1-05\"}"))
-                .hasStatus(400);
+        assertValidation(asTeacher(HttpMethod.PATCH, SESSION, "{\"lessonCode\":\"L2-B1-05\"}"), "lessonCode");
     }
 
     @Test
@@ -148,5 +147,37 @@ class TeacherDetailContractTest {
         assertValidation(asTeacher(HttpMethod.GET, "/api/v1/teacher/classes/1/students/0", null), "studentId");
         assertValidation(
                 asTeacher(HttpMethod.POST, "/api/v1/teacher/students/0/personal-code/regenerate", null), "studentId");
+        assertValidation(asTeacher(HttpMethod.GET, "/api/v1/teacher/classes/0/sessions", null), "classId");
+    }
+
+    @Test
+    void 관리자도_교사_경로를_쓴다() {
+        // 역할 계층(admin ⊃ teacher) — 학원관리자가 T-04~T-06을 쓴다
+        long adminId = new TestData(jdbc).staff(academyId, "관리자", "admin");
+
+        for (Call c : CALLS) {
+            assertThat(call(c, as(adminId, UserRole.ADMIN), true))
+                    .as(c.method() + " " + c.path())
+                    .hasStatus(501);
+        }
+    }
+
+    @Test
+    void 쿠키가_없으면_401() {
+        assertThat(mvc.get().uri("/api/v1/teacher/classes/1/sessions").exchange())
+                .hasStatus(401);
+    }
+
+    @Test
+    void 진도표_수정의_경계() {
+        // 뒤를 밀지 여부만으로는 바뀌는 것이 없다
+        assertValidation(asTeacher(HttpMethod.PATCH, SESSION, "{\"shiftFollowing\":true}"), "body");
+        // 메모 빈 문자열 = 지우기, 경계값(seq 99·메모 100자)은 통과
+        assertThat(asTeacher(HttpMethod.PATCH, SESSION, "{\"note\":\"\"}")).hasStatus(501);
+        assertThat(asTeacher(
+                        HttpMethod.PATCH,
+                        "/api/v1/teacher/classes/1/sessions/99",
+                        "{\"note\":\"" + "가".repeat(100) + "\"}"))
+                .hasStatus(501);
     }
 }

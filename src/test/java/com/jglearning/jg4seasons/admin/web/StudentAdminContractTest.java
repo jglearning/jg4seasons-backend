@@ -202,4 +202,43 @@ class StudentAdminContractTest {
         assertValidation(asAdmin(HttpMethod.PATCH, "/api/v1/admin/students/1", "{}"), "body");
         assertValidation(asAdmin(HttpMethod.PATCH, "/api/v1/admin/students/1", "{\"name\":null}"), "body");
     }
+
+    @Test
+    void 상한값은_통과한다() {
+        String fifty = IntStream.rangeClosed(1, 50)
+                .mapToObj(i -> "{\"name\":\"" + "가".repeat(30) + "\",\"school\":\"" + "나".repeat(50) + "\",\"grade\":\""
+                        + "다".repeat(10) + "\"}")
+                .collect(Collectors.joining(",", "{\"students\":[", "]}"));
+        String fiftyIds =
+                IntStream.rangeClosed(1, 50).mapToObj(Integer::toString).collect(Collectors.joining(",", "[", "]"));
+
+        assertThat(asAdmin(HttpMethod.POST, "/api/v1/admin/classes/1/students", fifty))
+                .hasStatus(501);
+        assertThat(asAdmin(
+                        HttpMethod.POST,
+                        "/api/v1/admin/classes/1/students/personal-codes/regenerate",
+                        "{\"studentIds\":" + fiftyIds + "}"))
+                .hasStatus(501);
+    }
+
+    @Test
+    void 개인_코드_재발급_인원이_틀리면_400() {
+        String url = "/api/v1/admin/classes/1/students/personal-codes/regenerate";
+        String fiftyOne =
+                IntStream.rangeClosed(1, 51).mapToObj(Integer::toString).collect(Collectors.joining(",", "[", "]"));
+
+        assertValidation(asAdmin(HttpMethod.POST, url, "{\"studentIds\":" + fiftyOne + "}"), "studentIds");
+        assertValidation(asAdmin(HttpMethod.POST, url, "{}"), "studentIds");
+    }
+
+    @Test
+    void 역할이_맞지_않아도_틀린_본문은_403보다_400이_먼저다() {
+        // 순서: 인증 → 본문·경로 값 검증 → 역할(@RolesAllowed). 칸 이름만 드러나고 데이터는 아니다(issues.md) — 바뀌면 이 테스트가 알린다
+        MvcTestResult result = call(
+                new Call(HttpMethod.POST, "/api/v1/admin/classes/1/students", "{\"students\":[]}"),
+                as(teacherId, UserRole.TEACHER),
+                true);
+
+        assertValidation(result, "students");
+    }
 }

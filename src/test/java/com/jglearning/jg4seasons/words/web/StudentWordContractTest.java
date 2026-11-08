@@ -119,4 +119,19 @@ class StudentWordContractTest {
         // 숫자 칸에 문자열은 받지 않는다(엄격 JSON)
         assertThat(study("{\"memKnown\":\"3\"}")).hasStatus(400);
     }
+
+    @Test
+    void 상한값은_통과한다() {
+        assertThat(study("{\"cardsViewed\":127,\"memKnown\":0,\"recallCorrect\":127,\"spellCorrect\":127}"))
+                .hasStatus(501);
+    }
+
+    @Test
+    void 관리자는_학생_단어_경로에서_403() {
+        // 역할 계층에 STUDENT가 들어가면 관리자가 학생 API를 쓰게 된다 — 그러지 않음을 고정
+        long adminId = new TestData(jdbc).staff(academyId, "관리자", "admin");
+
+        assertThat(mvc.get().uri(WORDS).cookie(as(adminId, UserRole.ADMIN)).exchange())
+                .hasStatus(403);
+    }
 }
