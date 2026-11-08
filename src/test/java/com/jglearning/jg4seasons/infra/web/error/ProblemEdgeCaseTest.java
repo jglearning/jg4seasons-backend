@@ -1,9 +1,9 @@
 package com.jglearning.jg4seasons.infra.web.error;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.auth.AuthCookieSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -97,6 +97,33 @@ class ProblemEdgeCaseTest {
     }
 
     @Test
+    void 경로_변수_제약이_있어도_본문_검증_오류는_본문_칸_이름이다() {
+        // 메서드 검증으로 처리되면 칸 이름 대신 파라미터 이름(request)이 나가던 문제
+        MvcTestResult result = mvc.post()
+                .uri(BASE + "/typed/1/body")
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"a\",\"count\":0}")
+                .exchange();
+
+        assertValidationField(result, "count");
+    }
+
+    @Test
+    void 경로_변수_제약_위반은_본문이_맞아도_칸_이름이다() {
+        MvcTestResult result = mvc.post()
+                .uri(BASE + "/typed/0/body")
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"a\",\"count\":1}")
+                .exchange();
+
+        assertValidationField(result, "id");
+    }
+
+    @Test
     void 올바른_쿼리는_통과한다() {
         assertThat(mvc.get().uri(BASE + "/typed/1?date=2026-11-04&page=1").exchange())
                 .hasStatusOk();
@@ -117,7 +144,8 @@ class ProblemEdgeCaseTest {
     void 객체_단위_검증_오류의_칸은_body다() {
         MvcTestResult result = mvc.post()
                 .uri(BASE + "/consistent")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"first\":\"a\",\"second\":\"b\"}")
                 .exchange();
@@ -129,7 +157,8 @@ class ProblemEdgeCaseTest {
     void 입력_오류는_요청_ID와_함께_WARN으로_남고_입력값은_남지_않는다(CapturedOutput output) {
         MvcTestResult result = mvc.post()
                 .uri(BASE + "/validation")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"\",\"count\":-777}")
                 .exchange();

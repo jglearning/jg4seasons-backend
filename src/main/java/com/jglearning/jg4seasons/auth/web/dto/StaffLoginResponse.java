@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record StaffLoginResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UserInfo user) {
 
+    /** 학생 로그인 응답의 UserInfo와 이름이 겹쳐 openapi에서 덮이지 않게 스키마 이름을 따로 둔다 */
+    @Schema(name = "StaffUserInfo")
     public record UserInfo(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             long id,

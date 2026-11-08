@@ -8,7 +8,8 @@ import jakarta.validation.constraints.Size;
 public record StudentUpdateRequest(
         @Schema(description = "1~30자")
         @Size(min = 1, max = 30)
-        @Pattern(regexp = "(?s).*\\S.*", message = "이름을 입력해 주세요")
+        // 공백만은 안 된다. (?s) 같은 인라인 플래그 없이 써서 openapi pattern이 JS 정규식으로도 같게 동작한다
+        @Pattern(regexp = "[\\s\\S]*\\S[\\s\\S]*", message = "이름을 입력해 주세요")
         String name,
 
         @Schema(description = "50자 이하. 빈 문자열이면 지움") @Size(max = 50)
@@ -21,4 +22,10 @@ public record StudentUpdateRequest(
                 allowableValues = {"active", "inactive"},
                 description = "inactive = 퇴원(기록 보존, 로그인 불가)")
         @Pattern(regexp = "^(active|inactive)$", message = "상태는 active 또는 inactive예요")
-        String status) {}
+        String status) {
+
+    /** 바꿀 값이 하나라도 있는가 */
+    public boolean hasChange() {
+        return name != null || school != null || grade != null || status != null;
+    }
+}

@@ -1,9 +1,9 @@
 package com.jglearning.jg4seasons.infra.web.json;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.auth.AuthCookieSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -22,7 +22,8 @@ class StrictJsonTest {
     private MvcTestResult post(String json) {
         return mvc.post()
                 .uri("/test-support/errors/json")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json)
                 .exchange();
@@ -78,7 +79,8 @@ class StrictJsonTest {
     private void assertWideRejected(String json, String field) {
         MvcTestResult result = mvc.post()
                 .uri("/test-support/errors/json-wide")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json)
                 .exchange();
@@ -161,7 +163,8 @@ class StrictJsonTest {
         }) {
             assertThat(mvc.post()
                             .uri("/test-support/errors/json-wide")
-                            .with(csrf())
+                            .cookie(AuthCookieSupport.csrf())
+                            .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json)
                             .exchange())

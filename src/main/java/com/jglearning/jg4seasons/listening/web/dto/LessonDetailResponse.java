@@ -90,7 +90,11 @@ public record LessonDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             long trackId,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "1.0", description = "속도(0.8·1.0·1.2)")
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    example = "1.0",
+                    allowableValues = {"0.8", "1.0", "1.2"},
+                    description = "속도")
             String variant,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "같은 도메인 상대 경로")

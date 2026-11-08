@@ -14,6 +14,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterErrors;
 import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -149,6 +150,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         List<Map<String, String>> errors = new ArrayList<>();
         for (ParameterValidationResult result : ex.getParameterValidationResults()) {
+            // 경로 변수 제약과 @Valid 본문이 함께 있으면 본문 오류도 여기로 온다 — 파라미터 이름이 아니라 본문 칸 이름으로
+            if (result instanceof ParameterErrors bodyErrors) {
+                bodyErrors
+                        .getFieldErrors()
+                        .forEach(error -> errors.add(fieldError(error.getField(), error.getDefaultMessage())));
+                bodyErrors.getGlobalErrors().forEach(error -> errors.add(fieldError(BODY, error.getDefaultMessage())));
+                continue;
+            }
             String name = result.getMethodParameter().getParameterName();
             for (MessageSourceResolvable error : result.getResolvableErrors()) {
                 errors.add(fieldError(name != null ? name : BODY, error.getDefaultMessage()));

@@ -10,6 +10,7 @@ import com.jglearning.jg4seasons.admin.web.dto.StudentResponse;
 import com.jglearning.jg4seasons.admin.web.dto.StudentSearchRequest;
 import com.jglearning.jg4seasons.admin.web.dto.StudentSearchResponse;
 import com.jglearning.jg4seasons.admin.web.dto.StudentUpdateRequest;
+import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.NotImplemented;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.security.RolesAllowed;
@@ -60,9 +61,13 @@ public class StudentAdminController {
 
     @Operation(
             summary = "학생 변경",
-            description = "빠진 칸은 그대로, 학교·학년은 빈 문자열이면 지움. status inactive = 퇴원(기록 보존, 감사 로그). X-CSRF 필요" + NOT_YET)
+            description = "빠진 칸은 그대로, 학교·학년은 빈 문자열이면 지움. 바꿀 값이 없으면 400. status inactive = 퇴원(기록 보존, 감사 로그)."
+                    + " X-CSRF 필요" + NOT_YET)
     @PatchMapping("/students/{id}")
     public StudentResponse update(@PathVariable long id, @Valid @RequestBody StudentUpdateRequest request) {
+        if (!request.hasChange()) {
+            throw ApiException.validation("body", "바꿀 값이 없어요");
+        }
         throw NotImplemented.yet();
     }
 
