@@ -181,6 +181,23 @@ class ClassAdminTest {
     }
 
     @Test
+    void 반_응답에_레벨_이름과_색이_있다() {
+        MvcTestResult created = post(adminCookies(), URL, newClass("A반", "L2-B1", "[1]", "[]"));
+        long id = ((Number) JsonPath.read(body(created), "$.id")).longValue();
+
+        // V2 기준 데이터: L2 = 그린 #1F7A4F. 생성·상세·목록이 같은 모양
+        assertLevel(created, "$.level");
+        assertLevel(mvc.get().uri(URL + "/" + id).cookie(adminCookies()).exchange(), "$.level");
+        assertLevel(mvc.get().uri(URL).cookie(adminCookies()).exchange(), "$.items[0].level");
+    }
+
+    private static void assertLevel(MvcTestResult result, String path) {
+        assertThat(result).bodyJson().extractingPath(path + ".code").isEqualTo("L2");
+        assertThat(result).bodyJson().extractingPath(path + ".nameKo").isEqualTo("그린");
+        assertThat(result).bodyJson().extractingPath(path + ".colorHex").isEqualTo("#1F7A4F");
+    }
+
+    @Test
     void 교사는_403() {
         Cookie[] teacher = {cookies.access(teacherId, UserRole.TEACHER, academyId), AuthCookieSupport.csrf()};
 

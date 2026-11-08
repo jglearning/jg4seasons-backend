@@ -885,6 +885,24 @@
         },
         "required" : [ "class", "groups" ]
       },
+      "ClassLevel" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "colorHex" : {
+            "type" : "string",
+            "example" : "#1F7A4F"
+          },
+          "nameKo" : {
+            "type" : "string",
+            "example" : "그린"
+          }
+        },
+        "required" : [ "code", "colorHex", "nameKo" ]
+      },
       "ClassListResponse" : {
         "type" : "object",
         "properties" : {
@@ -937,8 +955,13 @@
             "type" : "integer",
             "format" : "int64"
           },
+          "level" : {
+            "$ref" : "#/components/schemas/ClassLevel",
+            "description" : "레벨 표시 정보(인쇄 카드 레벨 칩 등)"
+          },
           "levelCode" : {
             "type" : "string",
+            "description" : "level.code와 같다",
             "example" : "L2"
           },
           "name" : {
@@ -978,7 +1001,7 @@
             }
           }
         },
-        "required" : [ "accessCode", "allowFutureLessons", "bookCode", "codeIssuedAt", "id", "levelCode", "name", "season", "startDate", "status", "studentCount", "teachers", "weekdays" ]
+        "required" : [ "accessCode", "allowFutureLessons", "bookCode", "codeIssuedAt", "id", "level", "levelCode", "name", "season", "startDate", "status", "studentCount", "teachers", "weekdays" ]
       },
       "ClassTeacher" : {
         "type" : "object",

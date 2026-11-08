@@ -5,6 +5,7 @@ import com.jglearning.jg4seasons.admin.web.dto.AccessCodeResponse;
 import com.jglearning.jg4seasons.admin.web.dto.ClassCreateRequest;
 import com.jglearning.jg4seasons.admin.web.dto.ClassListResponse;
 import com.jglearning.jg4seasons.admin.web.dto.ClassResponse;
+import com.jglearning.jg4seasons.admin.web.dto.ClassResponse.ClassLevel;
 import com.jglearning.jg4seasons.admin.web.dto.ClassResponse.ClassTeacher;
 import com.jglearning.jg4seasons.admin.web.dto.ClassUpdateRequest;
 import com.jglearning.jg4seasons.auth.api.AccountStatus;
@@ -152,6 +153,7 @@ public class ClassAdminService {
                 detail.name(),
                 book.bookCode(),
                 book.levelCode(),
+                new ClassLevel(book.levelCode(), book.levelNameKo(), book.levelColorHex()),
                 book.season(),
                 detail.startDate(),
                 detail.weekdays(),
