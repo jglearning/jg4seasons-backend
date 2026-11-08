@@ -1,9 +1,9 @@
 package com.jglearning.jg4seasons.infra.web.error;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.auth.AuthCookieSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +28,8 @@ class ProblemResponseTest {
     private MvcTestResult postValidation(String json) {
         return mvc.post()
                 .uri(BASE + "/validation")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json)
                 .exchange();
@@ -60,7 +61,8 @@ class ProblemResponseTest {
     void 검증_메시지는_한국어다() {
         MvcTestResult result = mvc.post()
                 .uri(BASE + "/validation")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .header("Accept-Language", "en")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"\",\"count\":1}")
@@ -115,8 +117,11 @@ class ProblemResponseTest {
 
     @Test
     void 지원하지_않는_메서드는_METHOD_NOT_ALLOWED다() {
-        MvcTestResult result =
-                mvc.delete().uri(BASE + "/validation").with(csrf()).exchange();
+        MvcTestResult result = mvc.delete()
+                .uri(BASE + "/validation")
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
+                .exchange();
 
         assertThat(result).hasStatus(405);
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("METHOD_NOT_ALLOWED");
@@ -126,7 +131,8 @@ class ProblemResponseTest {
     void 지원하지_않는_형식은_UNSUPPORTED_MEDIA_TYPE이다() {
         MvcTestResult result = mvc.post()
                 .uri(BASE + "/validation")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .contentType(MediaType.TEXT_PLAIN)
                 .content("name")
                 .exchange();

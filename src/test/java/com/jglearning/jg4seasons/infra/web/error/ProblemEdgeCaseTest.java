@@ -1,9 +1,9 @@
 package com.jglearning.jg4seasons.infra.web.error;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.auth.AuthCookieSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -117,7 +117,8 @@ class ProblemEdgeCaseTest {
     void 객체_단위_검증_오류의_칸은_body다() {
         MvcTestResult result = mvc.post()
                 .uri(BASE + "/consistent")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"first\":\"a\",\"second\":\"b\"}")
                 .exchange();
@@ -129,7 +130,8 @@ class ProblemEdgeCaseTest {
     void 입력_오류는_요청_ID와_함께_WARN으로_남고_입력값은_남지_않는다(CapturedOutput output) {
         MvcTestResult result = mvc.post()
                 .uri(BASE + "/validation")
-                .with(csrf())
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"\",\"count\":-777}")
                 .exchange();
