@@ -97,6 +97,33 @@ class ProblemEdgeCaseTest {
     }
 
     @Test
+    void 경로_변수_제약이_있어도_본문_검증_오류는_본문_칸_이름이다() {
+        // 메서드 검증으로 처리되면 칸 이름 대신 파라미터 이름(request)이 나가던 문제
+        MvcTestResult result = mvc.post()
+                .uri(BASE + "/typed/1/body")
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"a\",\"count\":0}")
+                .exchange();
+
+        assertValidationField(result, "count");
+    }
+
+    @Test
+    void 경로_변수_제약_위반은_본문이_맞아도_칸_이름이다() {
+        MvcTestResult result = mvc.post()
+                .uri(BASE + "/typed/0/body")
+                .cookie(AuthCookieSupport.csrf())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"a\",\"count\":1}")
+                .exchange();
+
+        assertValidationField(result, "id");
+    }
+
+    @Test
     void 올바른_쿼리는_통과한다() {
         assertThat(mvc.get().uri(BASE + "/typed/1?date=2026-11-04&page=1").exchange())
                 .hasStatusOk();

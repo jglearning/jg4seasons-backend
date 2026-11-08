@@ -94,6 +94,12 @@ class ErrorProbeController {
         return Map.of("ok", true);
     }
 
+    /** 경로 변수 제약(@Min)과 본문 검증(@Valid)이 함께 있으면 Spring이 메서드 검증으로 한꺼번에 처리한다 */
+    @PostMapping("/typed/{id}/body")
+    Map<String, Boolean> typedWithBody(@PathVariable @Min(1) long id, @Valid @RequestBody ProbeRequest request) {
+        return Map.of("ok", true);
+    }
+
     @GetMapping("/model")
     Map<String, Boolean> model(@Valid @ModelAttribute ModelProbe probe) {
         return Map.of("ok", true);
