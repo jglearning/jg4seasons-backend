@@ -136,6 +136,21 @@ class ProblemResponseTest {
     }
 
     @Test
+    void 구현_전_경로는_501_NOT_IMPLEMENTED이고_ERROR로_남지_않는다(CapturedOutput output) {
+        MvcTestResult result = mvc.get().uri(BASE + "/not-implemented").exchange();
+
+        assertThat(result).hasStatus(501).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_IMPLEMENTED");
+        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo("아직 준비 중인 기능이에요");
+        assertThat(result).bodyJson().extractingPath("$.requestId").isEqualTo(requestIdHeader(result));
+        assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("아직 준비 중인 기능이에요");
+        // 구현 전 경로를 부를 때마다 ERROR·스택이 쌓이지 않게 WARN 한 줄
+        assertThat(output.getOut().lines().filter(line -> line.contains("NOT_IMPLEMENTED")))
+                .singleElement()
+                .satisfies(line -> assertThat(line).contains(" WARN ").doesNotContain(" ERROR "));
+    }
+
+    @Test
     void 서버_오류는_내부_메시지를_숨기고_로그에_남긴다(CapturedOutput output) throws Exception {
         MvcTestResult result = mvc.get().uri(BASE + "/boom").exchange();
 
