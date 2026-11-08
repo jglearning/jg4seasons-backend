@@ -21,4 +21,10 @@ public record StudentUpdateRequest(
                 allowableValues = {"active", "inactive"},
                 description = "inactive = 퇴원(기록 보존, 로그인 불가)")
         @Pattern(regexp = "^(active|inactive)$", message = "상태는 active 또는 inactive예요")
-        String status) {}
+        String status) {
+
+    /** 바꿀 값이 하나라도 있는가 */
+    public boolean hasChange() {
+        return name != null || school != null || grade != null || status != null;
+    }
+}

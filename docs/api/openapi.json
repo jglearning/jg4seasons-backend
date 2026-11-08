@@ -418,7 +418,7 @@
     },
     "/api/v1/admin/students/{id}" : {
       "patch" : {
-        "description" : "빠진 칸은 그대로, 학교·학년은 빈 문자열이면 지움. status inactive = 퇴원(기록 보존, 감사 로그). X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "빠진 칸은 그대로, 학교·학년은 빈 문자열이면 지움. 바꿀 값이 없으면 400. status inactive = 퇴원(기록 보존, 감사 로그). X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
         "operationId" : "update_1",
         "parameters" : [ {
           "in" : "path",

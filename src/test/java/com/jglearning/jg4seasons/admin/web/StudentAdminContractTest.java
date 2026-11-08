@@ -181,4 +181,11 @@ class StudentAdminContractTest {
 
         assertValidation(asAdmin(HttpMethod.POST, "/api/v1/admin/students/search", "{\"name\":\" \"}"), "name");
     }
+
+    @Test
+    void 학생_변경에_바꿀_값이_없으면_400() {
+        // 단어 학습 저장·진도표 수정과 같은 규칙: 아무것도 바꾸지 않는 요청은 성공으로 보이지 않게 막는다
+        assertValidation(asAdmin(HttpMethod.PATCH, "/api/v1/admin/students/1", "{}"), "body");
+        assertValidation(asAdmin(HttpMethod.PATCH, "/api/v1/admin/students/1", "{\"name\":null}"), "body");
+    }
 }
