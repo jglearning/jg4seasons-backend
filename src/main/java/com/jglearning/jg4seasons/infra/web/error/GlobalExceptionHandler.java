@@ -44,7 +44,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ProblemDetail> handleApiException(ApiException ex, HttpServletRequest request) {
-        if (ex.errorCode().status().is5xxServerError()) {
+        // 구현 전 경로(501)는 고장이 아니라 예정된 응답이라 ERROR·스택 대신 WARN 한 줄
+        if (ex.errorCode().status().is5xxServerError() && ex.errorCode() != CommonErrorCode.NOT_IMPLEMENTED) {
             ErrorLogs.serverError(ex.errorCode(), request, ex);
         } else {
             ErrorLogs.clientError(ex.errorCode(), request, ex);

@@ -126,7 +126,7 @@
       },
       "patch" : {
         "description" : "빠진 칸은 그대로. 권·개강일·요일은 바꿀 수 없음(새 반으로). active가 아니면 그 반 가입 코드로 입장할 수 없음. teacherIds는 전체 교체. 다른 학원 반·교사는 404. X-CSRF 필요",
-        "operationId" : "update_1",
+        "operationId" : "update_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -209,6 +209,309 @@
         },
         "summary" : "가입 코드 재발급",
         "tags" : [ "class-admin-controller" ]
+      }
+    },
+    "/api/v1/admin/classes/{id}/students" : {
+      "get" : {
+        "description" : "현재 소속 학생(이름 순). 개인 코드 평문 없음 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "list_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "반 학생 목록",
+        "tags" : [ "student-admin-controller" ]
+      },
+      "post" : {
+        "description" : "1~50명. 학생마다 개인 코드를 발급해 평문을 이 응답에서만 준다(카드 인쇄용, 다시 볼 수 없음). X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "create_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StudentCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentCreatedResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "학생 등록",
+        "tags" : [ "student-admin-controller" ]
+      }
+    },
+    "/api/v1/admin/classes/{id}/students/personal-codes/regenerate" : {
+      "post" : {
+        "description" : "그 반 학생만. 옛 코드는 바로 못 쓰고 그 학생들의 로그인이 끊긴다. 감사 로그. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "regeneratePersonalCodes",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonalCodesRegenerateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonalCodesResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "개인 코드 여러 명 재발급",
+        "tags" : [ "student-admin-controller" ]
+      }
+    },
+    "/api/v1/admin/dashboard" : {
+      "get" : {
+        "description" : "진행 중인 반별 오늘 회차·완료 비율, 오늘 들은 학생 수 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "dashboard",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DashboardResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "학원 현황",
+        "tags" : [ "dashboard-controller" ]
+      }
+    },
+    "/api/v1/admin/students/search" : {
+      "post" : {
+        "description" : "학원 전체(퇴원 포함). 이름은 본문으로만. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "search",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StudentSearchRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentSearchResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "학생 이름으로 찾기",
+        "tags" : [ "student-admin-controller" ]
+      }
+    },
+    "/api/v1/admin/students/{id}" : {
+      "patch" : {
+        "description" : "빠진 칸은 그대로, 학교·학년은 빈 문자열이면 지움. status inactive = 퇴원(기록 보존, 감사 로그). X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "update_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StudentUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "학생 변경",
+        "tags" : [ "student-admin-controller" ]
+      }
+    },
+    "/api/v1/admin/students/{id}/move" : {
+      "post" : {
+        "description" : "지금 반에서 나가고 새 반에 들어간다. 기록은 남는다. 감사 로그. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "move",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StudentMoveRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "학생 반 이동",
+        "tags" : [ "student-admin-controller" ]
       }
     },
     "/api/v1/admin/teachers" : {
@@ -885,6 +1188,24 @@
         },
         "required" : [ "class", "groups" ]
       },
+      "ClassLevel" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "colorHex" : {
+            "type" : "string",
+            "example" : "#1F7A4F"
+          },
+          "nameKo" : {
+            "type" : "string",
+            "example" : "그린"
+          }
+        },
+        "required" : [ "code", "colorHex", "nameKo" ]
+      },
       "ClassListResponse" : {
         "type" : "object",
         "properties" : {
@@ -937,8 +1258,13 @@
             "type" : "integer",
             "format" : "int64"
           },
+          "level" : {
+            "$ref" : "#/components/schemas/ClassLevel",
+            "description" : "레벨 표시 정보(인쇄 카드 레벨 칩 등)"
+          },
           "levelCode" : {
             "type" : "string",
+            "description" : "level.code와 같다",
             "example" : "L2"
           },
           "name" : {
@@ -978,7 +1304,7 @@
             }
           }
         },
-        "required" : [ "accessCode", "allowFutureLessons", "bookCode", "codeIssuedAt", "id", "levelCode", "name", "season", "startDate", "status", "studentCount", "teachers", "weekdays" ]
+        "required" : [ "accessCode", "allowFutureLessons", "bookCode", "codeIssuedAt", "id", "level", "levelCode", "name", "season", "startDate", "status", "studentCount", "teachers", "weekdays" ]
       },
       "ClassTeacher" : {
         "type" : "object",
@@ -1042,6 +1368,81 @@
           }
         },
         "required" : [ "class" ]
+      },
+      "DashboardClass" : {
+        "type" : "object",
+        "properties" : {
+          "completedRate" : {
+            "type" : "number",
+            "format" : "double",
+            "description" : "오늘 회차를 완료한 학생 비율 0~1"
+          },
+          "current" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/DashboardCurrent"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "오늘 회차. 개강 전이면 null"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "completedRate", "current", "id", "name" ]
+      },
+      "DashboardCurrent" : {
+        "type" : "object",
+        "properties" : {
+          "lesson" : {
+            "$ref" : "#/components/schemas/DashboardLesson"
+          },
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seq" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "lesson", "scheduledDate", "seq" ]
+      },
+      "DashboardLesson" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Reading Day 5"
+          }
+        },
+        "required" : [ "code", "title" ]
+      },
+      "DashboardResponse" : {
+        "type" : "object",
+        "properties" : {
+          "activeStudentsToday" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "오늘(학원 날짜) 한 번이라도 들은 학생 수"
+          },
+          "classes" : {
+            "type" : "array",
+            "description" : "진행 중(active) 반",
+            "items" : {
+              "$ref" : "#/components/schemas/DashboardClass"
+            }
+          }
+        },
+        "required" : [ "activeStudentsToday", "classes" ]
       },
       "FlushLesson" : {
         "type" : "object",
@@ -1432,6 +1833,52 @@
         },
         "required" : [ "academy", "id", "name", "role" ]
       },
+      "PersonalCodeItem" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "personalCode" : {
+            "type" : "string",
+            "description" : "숫자 4자리(0으로 시작 가능)",
+            "example" : "0482"
+          }
+        },
+        "required" : [ "id", "name", "personalCode" ]
+      },
+      "PersonalCodesRegenerateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "studentIds" : {
+            "type" : "array",
+            "description" : "그 반의 학생 id 1~50개",
+            "items" : {
+              "type" : "integer",
+              "format" : "int64"
+            },
+            "maxItems" : 50,
+            "minItems" : 1
+          }
+        },
+        "required" : [ "studentIds" ]
+      },
+      "PersonalCodesResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonalCodeItem"
+            }
+          }
+        },
+        "required" : [ "items" ]
+      },
       "Problem" : {
         "type" : "object",
         "description" : "RFC 9457 Problem Details + 확장 code·requestId",
@@ -1574,6 +2021,57 @@
           }
         },
         "required" : [ "code", "colorHex", "nameKo" ]
+      },
+      "StudentCreateItem" : {
+        "type" : "object",
+        "properties" : {
+          "grade" : {
+            "type" : "string",
+            "description" : "10자 이하(예: 중1)",
+            "maxLength" : 10,
+            "minLength" : 0
+          },
+          "name" : {
+            "type" : "string",
+            "description" : "1~30자",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "school" : {
+            "type" : "string",
+            "description" : "50자 이하",
+            "maxLength" : 50,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "name" ]
+      },
+      "StudentCreateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "students" : {
+            "type" : "array",
+            "description" : "1~50명",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentCreateItem"
+            },
+            "maxItems" : 50,
+            "minItems" : 1
+          }
+        },
+        "required" : [ "students" ]
+      },
+      "StudentCreatedResponse" : {
+        "type" : "object",
+        "properties" : {
+          "created" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonalCodeItem"
+            }
+          }
+        },
+        "required" : [ "created" ]
       },
       "StudentHomeLessonRef" : {
         "type" : "object",
@@ -1795,6 +2293,22 @@
         },
         "required" : [ "lessonCode", "memKnown", "total" ]
       },
+      "StudentListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentResponse"
+            }
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "items", "total" ]
+      },
       "StudentLoginRequest" : {
         "type" : "object",
         "properties" : {
@@ -1824,6 +2338,149 @@
           }
         },
         "required" : [ "class", "user" ]
+      },
+      "StudentMoveRequest" : {
+        "type" : "object",
+        "properties" : {
+          "toClassId" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "같은 학원의 반"
+          }
+        },
+        "required" : [ "toClassId" ]
+      },
+      "StudentResponse" : {
+        "type" : "object",
+        "properties" : {
+          "codeIssuedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "개인 코드 발급 시각(UTC). 코드가 없으면 null"
+          },
+          "grade" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "lastLoginAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "마지막 로그인(UTC). 한 번도 없으면 null"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "school" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "inactive = 퇴원(기록은 남음)",
+            "enum" : [ "active", "inactive" ]
+          }
+        },
+        "required" : [ "codeIssuedAt", "grade", "id", "lastLoginAt", "name", "school", "status" ]
+      },
+      "StudentSearchClass" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
+      },
+      "StudentSearchItem" : {
+        "type" : "object",
+        "properties" : {
+          "class" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/StudentSearchClass"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "지금 반. 없으면(퇴원) null"
+          },
+          "grade" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "school" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "active", "inactive" ]
+          }
+        },
+        "required" : [ "class", "grade", "id", "name", "school", "status" ]
+      },
+      "StudentSearchRequest" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "description" : "이름 일부, 1~30자",
+            "maxLength" : 30,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "name" ]
+      },
+      "StudentSearchResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentSearchItem"
+            }
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "StudentUpdateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "grade" : {
+            "type" : "string",
+            "description" : "10자 이하. 빈 문자열이면 지움",
+            "maxLength" : 10,
+            "minLength" : 0
+          },
+          "name" : {
+            "type" : "string",
+            "description" : "1~30자",
+            "maxLength" : 30,
+            "minLength" : 1,
+            "pattern" : "(?s).*\\S.*"
+          },
+          "school" : {
+            "type" : "string",
+            "description" : "50자 이하. 빈 문자열이면 지움",
+            "maxLength" : 50,
+            "minLength" : 0
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "inactive = 퇴원(기록 보존, 로그인 불가)",
+            "enum" : [ "active", "inactive" ],
+            "pattern" : "^(active|inactive)$"
+          }
+        }
       },
       "TeacherCreateRequest" : {
         "type" : "object",

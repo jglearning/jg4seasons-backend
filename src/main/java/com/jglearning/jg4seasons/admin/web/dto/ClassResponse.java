@@ -13,8 +13,11 @@ public record ClassResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "L2-B1")
         String bookCode,
 
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "L2")
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "L2", description = "level.code와 같다")
         String levelCode,
+
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "레벨 표시 정보(인쇄 카드 레벨 칩 등)")
+        ClassLevel level,
 
         @Schema(
                 requiredMode = Schema.RequiredMode.REQUIRED,
@@ -45,6 +48,16 @@ public record ClassResponse(
 
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "현재 소속 학생 수")
         int studentCount) {
+
+    public record ClassLevel(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "L2")
+            String code,
+
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "그린")
+            String nameKo,
+
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "#1F7A4F")
+            String colorHex) {}
 
     public record ClassTeacher(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)

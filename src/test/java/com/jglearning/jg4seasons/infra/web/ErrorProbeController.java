@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.infra.web;
 
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
+import com.jglearning.jg4seasons.infra.web.error.NotImplemented;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.annotation.security.PermitAll;
 import jakarta.validation.Constraint;
@@ -149,6 +150,11 @@ class ErrorProbeController {
     @GetMapping("/boom")
     Map<String, Boolean> boom() {
         throw new IllegalStateException("secret-detail-xyz");
+    }
+
+    @GetMapping("/not-implemented")
+    Map<String, Boolean> notImplemented() {
+        throw NotImplemented.yet();
     }
 
     @Target(ElementType.TYPE)
