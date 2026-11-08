@@ -1111,6 +1111,56 @@
         "tags" : [ "teacher-class-controller" ]
       }
     },
+    "/api/v1/teacher/classes/{classId}/lessons/{lessonCode}" : {
+      "get" : {
+        "description" : "학생 × 트랙 표(선택 속도 포함) — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "lesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        }, {
+          "description" : "회차 코드",
+          "example" : "L2-B1-05",
+          "in" : "path",
+          "name" : "lessonCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[A-Za-z0-9-]{1,10}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherLessonDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "회차 상세",
+        "tags" : [ "teacher-detail-controller" ]
+      }
+    },
     "/api/v1/teacher/classes/{classId}/matrix" : {
       "get" : {
         "description" : "학생 × 회차. fromSeq·toSeq는 둘 다 보내거나 둘 다 뺀다(빼면 오늘 회차가 든 8개 묶음). 휴강 행은 열로 오지 않는다 — 구현 전: 501 NOT_IMPLEMENTED",
@@ -1171,6 +1221,257 @@
         },
         "summary" : "청취 현황 매트릭스",
         "tags" : [ "teacher-class-controller" ]
+      }
+    },
+    "/api/v1/teacher/classes/{classId}/sessions" : {
+      "get" : {
+        "description" : "휴강 행 포함, seq 순 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "sessions",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SessionListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "진도표",
+        "tags" : [ "teacher-detail-controller" ]
+      }
+    },
+    "/api/v1/teacher/classes/{classId}/sessions/{seq}" : {
+      "patch" : {
+        "description" : "날짜·메모. shiftFollowing이면 뒤 수업도 같은 간격으로 민다. 바꿀 값이 없으면 400. 회차 순서 바꾸기는 1차에 없다. 바뀐 뒤 진도표 전체. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "updateSession",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        }, {
+          "description" : "진도표 행 번호 1~99",
+          "in" : "path",
+          "name" : "seq",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 99,
+            "minimum" : 1
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SessionUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SessionListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "진도표 한 행 수정",
+        "tags" : [ "teacher-detail-controller" ]
+      }
+    },
+    "/api/v1/teacher/classes/{classId}/sessions/{seq}/cancel" : {
+      "post" : {
+        "description" : "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(24회 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "cancelSession",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        }, {
+          "description" : "진도표 행 번호 1~99",
+          "in" : "path",
+          "name" : "seq",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 99,
+            "minimum" : 1
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SessionCancelRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SessionListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "휴강",
+        "tags" : [ "teacher-detail-controller" ]
+      }
+    },
+    "/api/v1/teacher/classes/{classId}/students/{studentId}" : {
+      "get" : {
+        "description" : "그 반에서 열린 회차(seq 순)별 트랙 청취·단어 학습 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "student",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        }, {
+          "in" : "path",
+          "name" : "studentId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "학생 상세",
+        "tags" : [ "teacher-detail-controller" ]
+      }
+    },
+    "/api/v1/teacher/students/{studentId}/personal-code/regenerate" : {
+      "post" : {
+        "description" : "담당 반 학생만. 새 코드 평문은 이 응답에서만, 그 학생의 로그인은 모두 끊긴다. 감사 로그. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "regeneratePersonalCode",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "studentId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonalCodeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "개인 코드 재발급",
+        "tags" : [ "teacher-detail-controller" ]
       }
     }
   },
@@ -2215,6 +2516,24 @@
         },
         "required" : [ "id", "name", "personalCode" ]
       },
+      "PersonalCodeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "personalCode" : {
+            "type" : "string",
+            "description" : "숫자 4자리(0으로 시작 가능)",
+            "example" : "0482"
+          },
+          "studentId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "name", "personalCode", "studentId" ]
+      },
       "PersonalCodesRegenerateRequest" : {
         "type" : "object",
         "properties" : {
@@ -2301,6 +2620,80 @@
           }
         },
         "required" : [ "code", "requestId", "status", "title" ]
+      },
+      "SessionCancelRequest" : {
+        "type" : "object",
+        "properties" : {
+          "note" : {
+            "type" : "string",
+            "description" : "메모 100자 이하",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "shiftFollowing" : {
+            "type" : "boolean",
+            "description" : "뒤 수업을 밀지 여부"
+          }
+        },
+        "required" : [ "shiftFollowing" ]
+      },
+      "SessionItem" : {
+        "type" : "object",
+        "properties" : {
+          "lesson" : {
+            "$ref" : "#/components/schemas/TeacherLessonRef"
+          },
+          "note" : {
+            "type" : [ "string", "null" ]
+          },
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seq" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "진도표 행 번호(휴강 행도 하나 차지 — 24를 넘을 수 있음)"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "scheduled", "done", "cancelled" ]
+          }
+        },
+        "required" : [ "lesson", "note", "scheduledDate", "seq", "status" ]
+      },
+      "SessionListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "description" : "seq 순",
+            "items" : {
+              "$ref" : "#/components/schemas/SessionItem"
+            }
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "SessionUpdateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "note" : {
+            "type" : "string",
+            "description" : "메모 100자 이하. 빈 문자열이면 지움",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "새 수업일(학원 날짜)"
+          },
+          "shiftFollowing" : {
+            "type" : "boolean",
+            "description" : "true면 뒤 수업들도 같은 간격으로 민다(수업 요일 유지). 기본 false"
+          }
+        }
       },
       "StaffLoginRequest" : {
         "type" : "object",
@@ -2436,6 +2829,46 @@
           }
         },
         "required" : [ "created" ]
+      },
+      "StudentDetailResponse" : {
+        "type" : "object",
+        "properties" : {
+          "lessons" : {
+            "type" : "array",
+            "description" : "그 반에서 열린 회차(seq 오름차순)",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentLesson"
+            }
+          },
+          "student" : {
+            "$ref" : "#/components/schemas/StudentDetailStudent"
+          }
+        },
+        "required" : [ "lessons", "student" ]
+      },
+      "StudentDetailStudent" : {
+        "type" : "object",
+        "properties" : {
+          "grade" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "lastLoginAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "마지막 로그인(UTC), 없으면 null"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "school" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "grade", "id", "lastLoginAt", "name", "school" ]
       },
       "StudentHomeLessonRef" : {
         "type" : "object",
@@ -2657,6 +3090,42 @@
         },
         "required" : [ "lessonCode", "memKnown", "total" ]
       },
+      "StudentLesson" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "requiredDone" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "requiredTotal" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "not_started", "in_progress", "completed" ]
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Reading Day 5"
+          },
+          "tracks" : {
+            "type" : "array",
+            "description" : "지문 트랙(선택 속도 포함)",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentTrack"
+            }
+          },
+          "words" : {
+            "$ref" : "#/components/schemas/StudentWords"
+          }
+        },
+        "required" : [ "code", "requiredDone", "requiredTotal", "status", "title", "tracks", "words" ]
+      },
       "StudentListResponse" : {
         "type" : "object",
         "properties" : {
@@ -2816,6 +3285,56 @@
         },
         "required" : [ "items" ]
       },
+      "StudentTrack" : {
+        "type" : "object",
+        "properties" : {
+          "completed" : {
+            "type" : "boolean"
+          },
+          "coverage" : {
+            "type" : "number",
+            "format" : "double",
+            "description" : "들은 비율 0~1"
+          },
+          "durationMs" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "트랙 길이 ms"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "passage" ]
+          },
+          "lastPlayedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "마지막 재생(UTC), 안 들었으면 null"
+          },
+          "passageNo" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "지문 번호 1~6"
+          },
+          "required" : {
+            "type" : "boolean",
+            "description" : "회차 완료에 필요한 트랙인가"
+          },
+          "sessionCount" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalPlayMs" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "반복 포함 총 재생 ms"
+          },
+          "variant" : {
+            "type" : "string",
+            "enum" : [ "0.8", "1.0", "1.2" ]
+          }
+        },
+        "required" : [ "completed", "coverage", "durationMs", "kind", "lastPlayedAt", "passageNo", "required", "sessionCount", "totalPlayMs", "variant" ]
+      },
       "StudentUpdateRequest" : {
         "type" : "object",
         "properties" : {
@@ -2845,6 +3364,28 @@
             "pattern" : "^(active|inactive)$"
           }
         }
+      },
+      "StudentWords" : {
+        "type" : "object",
+        "properties" : {
+          "cardsViewed" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "memKnown" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "recallBest" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "spellBest" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "cardsViewed", "memKnown", "recallBest", "spellBest" ]
       },
       "TeacherClassBook" : {
         "type" : "object",
@@ -3030,6 +3571,48 @@
         },
         "required" : [ "classIds", "loginId", "name", "password", "role" ]
       },
+      "TeacherLessonDetailResponse" : {
+        "type" : "object",
+        "properties" : {
+          "lesson" : {
+            "$ref" : "#/components/schemas/TeacherLessonInfo"
+          },
+          "rows" : {
+            "type" : "array",
+            "description" : "현재 소속 학생(이름 순)",
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherLessonRow"
+            }
+          },
+          "tracks" : {
+            "type" : "array",
+            "description" : "지문 트랙(선택 속도 포함, required로 구분)",
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherLessonTrack"
+            }
+          }
+        },
+        "required" : [ "lesson", "rows", "tracks" ]
+      },
+      "TeacherLessonInfo" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "scheduledDate" : {
+            "type" : [ "string", "null" ],
+            "format" : "date",
+            "description" : "그 반 진도표의 수업일. 휴강만 있으면 null"
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Reading Day 5"
+          }
+        },
+        "required" : [ "code", "scheduledDate", "title" ]
+      },
       "TeacherLessonRef" : {
         "type" : "object",
         "properties" : {
@@ -3043,6 +3626,78 @@
           }
         },
         "required" : [ "code", "title" ]
+      },
+      "TeacherLessonRow" : {
+        "type" : "object",
+        "properties" : {
+          "byTrack" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/TeacherLessonTrackResult"
+            },
+            "description" : "트랙 id(문자열) → 결과. 없으면 안 들음"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "not_started", "in_progress", "completed" ]
+          },
+          "student" : {
+            "$ref" : "#/components/schemas/TeacherLessonStudent"
+          }
+        },
+        "required" : [ "byTrack", "status", "student" ]
+      },
+      "TeacherLessonStudent" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
+      },
+      "TeacherLessonTrack" : {
+        "type" : "object",
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "passage" ]
+          },
+          "passageNo" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "trackId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "variant" : {
+            "type" : "string",
+            "enum" : [ "0.8", "1.0", "1.2" ]
+          }
+        },
+        "required" : [ "kind", "passageNo", "required", "trackId", "variant" ]
+      },
+      "TeacherLessonTrackResult" : {
+        "type" : "object",
+        "properties" : {
+          "completed" : {
+            "type" : "boolean"
+          },
+          "coverage" : {
+            "type" : "number",
+            "format" : "double",
+            "description" : "들은 비율 0~1"
+          }
+        },
+        "required" : [ "completed", "coverage" ]
       },
       "TeacherListResponse" : {
         "type" : "object",
