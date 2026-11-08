@@ -988,6 +988,98 @@
         "summary" : "회차 상세",
         "tags" : [ "student-lesson-controller" ]
       }
+    },
+    "/api/v1/student/lessons/{lessonCode}/word-study" : {
+      "put" : {
+        "description" : "보낼 칸만, 하나도 없으면 400. 저장된 값보다 작은 값은 무시(단조 증가). 화면을 떠날 때·모드 한 바퀴 끝에 1회. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "saveStudy",
+        "parameters" : [ {
+          "description" : "회차 코드",
+          "example" : "L2-B1-05",
+          "in" : "path",
+          "name" : "lessonCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[A-Za-z0-9-]{1,10}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/WordStudyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WordStudyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "카드·학습 결과 저장",
+        "tags" : [ "student-word-controller" ]
+      }
+    },
+    "/api/v1/student/lessons/{lessonCode}/words" : {
+      "get" : {
+        "description" : "지문 순서 → 단어 순서. 열리지 않은 회차는 2.3과 같은 규칙(404·423) — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "words",
+        "parameters" : [ {
+          "description" : "회차 코드",
+          "example" : "L2-B1-05",
+          "in" : "path",
+          "name" : "lessonCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[A-Za-z0-9-]{1,10}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonWordsResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "회차 단어",
+        "tags" : [ "student-word-controller" ]
+      }
     }
   },
   "components" : {
@@ -1752,7 +1844,8 @@
           },
           "variant" : {
             "type" : "string",
-            "description" : "속도(0.8·1.0·1.2)",
+            "description" : "속도",
+            "enum" : [ "0.8", "1.0", "1.2" ],
             "example" : "1.0"
           }
         },
@@ -1793,6 +1886,22 @@
           }
         },
         "required" : [ "passagesDone", "passagesTotal", "status" ]
+      },
+      "LessonWordsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/WordItem"
+            }
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "items", "total" ]
       },
       "LevelInfo" : {
         "type" : "object",
@@ -2619,6 +2728,140 @@
           }
         },
         "required" : [ "id", "name", "role" ]
+      },
+      "WordAudio" : {
+        "type" : "object",
+        "properties" : {
+          "audioUrl" : {
+            "type" : "string",
+            "description" : "같은 도메인 상대 경로"
+          },
+          "durationMs" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "길이 ms"
+          },
+          "trackId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "audioUrl", "durationMs", "trackId" ]
+      },
+      "WordItem" : {
+        "type" : "object",
+        "properties" : {
+          "audio" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/WordAudio"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "단어 발음. 음원이 아직 없으면 null"
+          },
+          "english" : {
+            "type" : "string",
+            "example" : "sudden"
+          },
+          "example" : {
+            "type" : "string",
+            "description" : "지문 문장이 아닌 새 예문(ADR-25)"
+          },
+          "exampleAudio" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/WordAudio"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "예문 음원. 없으면 null"
+          },
+          "exampleKo" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "korean" : {
+            "type" : "string",
+            "example" : "갑작스러운"
+          },
+          "order" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "회차 안 순서(1부터)"
+          },
+          "passageNo" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "지문 번호 1~6"
+          },
+          "pos" : {
+            "type" : "string",
+            "description" : "품사. 화면 표기(명사·동사…)는 프론트",
+            "enum" : [ "n", "v", "adj", "adv", "prep", "conj", "phr" ]
+          }
+        },
+        "required" : [ "audio", "english", "example", "exampleAudio", "exampleKo", "id", "korean", "order", "passageNo", "pos" ]
+      },
+      "WordStudyRequest" : {
+        "type" : "object",
+        "properties" : {
+          "cardsViewed" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "본 카드 수",
+            "maximum" : 127,
+            "minimum" : 0
+          },
+          "memKnown" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "암기 모드 '알아요' 수",
+            "maximum" : 127,
+            "minimum" : 0
+          },
+          "recallCorrect" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "리콜 모드 맞힌 수(최고 기록으로 저장)",
+            "maximum" : 127,
+            "minimum" : 0
+          },
+          "spellCorrect" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "스펠 모드 맞힌 수(최고 기록으로 저장)",
+            "maximum" : 127,
+            "minimum" : 0
+          }
+        }
+      },
+      "WordStudyResponse" : {
+        "type" : "object",
+        "properties" : {
+          "allViewed" : {
+            "type" : "boolean",
+            "description" : "회차 단어를 모두 봤는가"
+          },
+          "cardsViewed" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "memKnown" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "recallBest" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "spellBest" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "allViewed", "cardsViewed", "memKnown", "recallBest", "spellBest" ]
       }
     }
   }
