@@ -158,6 +158,13 @@ class ErrorProbeController {
         throw new IllegalStateException("secret-detail-xyz");
     }
 
+    /** 우리 코드가 아니라 프레임워크가 낸 501(진짜 서버 쪽 미지원) */
+    @GetMapping("/framework-501")
+    Map<String, Boolean> framework501() {
+        throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_IMPLEMENTED);
+    }
+
     @GetMapping("/not-implemented")
     Map<String, Boolean> notImplemented() {
         throw NotImplemented.yet();

@@ -157,6 +157,14 @@ class ProblemResponseTest {
     }
 
     @Test
+    void 프레임워크가_낸_501은_구현_전_경로와_구분해_INTERNAL이다() {
+        MvcTestResult result = mvc.get().uri(BASE + "/framework-501").exchange();
+
+        assertThat(result).hasStatus(501).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("INTERNAL");
+    }
+
+    @Test
     void 서버_오류는_내부_메시지를_숨기고_로그에_남긴다(CapturedOutput output) throws Exception {
         MvcTestResult result = mvc.get().uri(BASE + "/boom").exchange();
 

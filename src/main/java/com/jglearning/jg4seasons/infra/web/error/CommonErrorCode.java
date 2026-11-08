@@ -35,7 +35,8 @@ public enum CommonErrorCode implements ErrorCode {
     /** 프레임워크 예외(검증·없는 경로·메서드·형식 등)의 HTTP 상태에 맞는 code. 목록에 없는 4xx는 VALIDATION, 5xx는 INTERNAL */
     static CommonErrorCode forStatus(int status) {
         for (CommonErrorCode code : values()) {
-            if (code.status.value() == status) {
+            // NOT_IMPLEMENTED는 우리가 일부러 낸 "구현 전" 응답만 — 프레임워크가 낸 501은 진짜 서버 쪽 문제라 INTERNAL
+            if (code != NOT_IMPLEMENTED && code.status.value() == status) {
                 return code;
             }
         }
