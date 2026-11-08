@@ -1080,6 +1080,98 @@
         "summary" : "회차 단어",
         "tags" : [ "student-word-controller" ]
       }
+    },
+    "/api/v1/teacher/classes" : {
+      "get" : {
+        "description" : "진행 중인 반. 오늘 회차·완료 현황·밀린 학생 수·로그인 경고 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "classes",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherClassListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "담당 반 목록",
+        "tags" : [ "teacher-class-controller" ]
+      }
+    },
+    "/api/v1/teacher/classes/{classId}/matrix" : {
+      "get" : {
+        "description" : "학생 × 회차. fromSeq·toSeq는 둘 다 보내거나 둘 다 뺀다(빼면 오늘 회차가 든 8개 묶음). 휴강 행은 열로 오지 않는다 — 구현 전: 501 NOT_IMPLEMENTED",
+        "operationId" : "matrix",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        }, {
+          "description" : "시작 seq(포함) 1~99",
+          "in" : "query",
+          "name" : "fromSeq",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 99,
+            "minimum" : 1
+          }
+        }, {
+          "description" : "끝 seq(포함) 1~99",
+          "in" : "query",
+          "name" : "toSeq",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 99,
+            "minimum" : 1
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MatrixResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "청취 현황 매트릭스",
+        "tags" : [ "teacher-class-controller" ]
+      }
     }
   },
   "components" : {
@@ -1922,6 +2014,169 @@
         },
         "required" : [ "code", "colorHex", "nameKo" ]
       },
+      "LoginAlert" : {
+        "type" : "object",
+        "properties" : {
+          "failures" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "최근 1시간 실패 수"
+          },
+          "since" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "세기 시작한 시각(UTC)"
+          }
+        },
+        "required" : [ "failures", "since" ]
+      },
+      "MatrixCell" : {
+        "type" : "object",
+        "properties" : {
+          "completedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "완료 시각(UTC), 미완료면 null"
+          },
+          "overdue" : {
+            "type" : "boolean",
+            "description" : "밀린 수업인가(ADR-24, 빨간 테두리)"
+          },
+          "requiredDone" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "완료한 필수 트랙 수"
+          },
+          "requiredTotal" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "필수 트랙 수"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "not_started", "in_progress", "completed" ]
+          }
+        },
+        "required" : [ "completedAt", "overdue", "requiredDone", "requiredTotal", "status" ]
+      },
+      "MatrixClass" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "level" : {
+            "$ref" : "#/components/schemas/TeacherClassLevel"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "level", "name" ]
+      },
+      "MatrixLesson" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "number" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "회차 번호 1~24"
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Reading Day 5"
+          }
+        },
+        "required" : [ "code", "number", "title" ]
+      },
+      "MatrixResponse" : {
+        "type" : "object",
+        "properties" : {
+          "cells" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "object",
+              "additionalProperties" : {
+                "$ref" : "#/components/schemas/MatrixCell"
+              }
+            },
+            "description" : "학생 id(문자열) → 회차 코드 → 칸. 없는 조합은 not_started"
+          },
+          "class" : {
+            "$ref" : "#/components/schemas/MatrixClass"
+          },
+          "sessions" : {
+            "type" : "array",
+            "description" : "요청 범위의 실제 수업(휴강 제외), seq 순",
+            "items" : {
+              "$ref" : "#/components/schemas/MatrixSession"
+            }
+          },
+          "students" : {
+            "type" : "array",
+            "description" : "현재 소속 학생(이름 순)",
+            "items" : {
+              "$ref" : "#/components/schemas/MatrixStudent"
+            }
+          }
+        },
+        "required" : [ "cells", "class", "sessions", "students" ]
+      },
+      "MatrixSession" : {
+        "type" : "object",
+        "properties" : {
+          "isCurrent" : {
+            "type" : "boolean",
+            "description" : "오늘 회차인가"
+          },
+          "lesson" : {
+            "$ref" : "#/components/schemas/MatrixLesson",
+            "description" : "열 머리글은 lesson.number"
+          },
+          "opened" : {
+            "type" : "boolean",
+            "description" : "회차가 열렸는가(학원 날짜·allowFutureLessons 포함 — 학생 화면과 같은 규칙). false면 '수업 전'"
+          },
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seq" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "진도표 행 번호(휴강 행도 번호를 차지한다)"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "scheduled", "done" ]
+          }
+        },
+        "required" : [ "isCurrent", "lesson", "opened", "scheduledDate", "seq", "status" ]
+      },
+      "MatrixStudent" : {
+        "type" : "object",
+        "properties" : {
+          "grade" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "school" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "grade", "id", "name", "school" ]
+      },
       "MeResponse" : {
         "type" : "object",
         "properties" : {
@@ -2591,6 +2846,154 @@
           }
         }
       },
+      "TeacherClassBook" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1"
+          },
+          "label" : {
+            "type" : "string",
+            "example" : "Book 1"
+          },
+          "season" : {
+            "type" : "string",
+            "enum" : [ "겨울", "봄", "여름", "가을" ]
+          }
+        },
+        "required" : [ "code", "label", "season" ]
+      },
+      "TeacherClassCurrent" : {
+        "type" : "object",
+        "properties" : {
+          "completed" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "오늘 회차 완료 학생 수"
+          },
+          "inProgress" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "진행 중 학생 수"
+          },
+          "lesson" : {
+            "$ref" : "#/components/schemas/TeacherLessonRef"
+          },
+          "notStarted" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "시작 안 한 학생 수"
+          },
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seq" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "진도표 행 번호"
+          }
+        },
+        "required" : [ "completed", "inProgress", "lesson", "notStarted", "scheduledDate", "seq" ]
+      },
+      "TeacherClassItem" : {
+        "type" : "object",
+        "properties" : {
+          "book" : {
+            "$ref" : "#/components/schemas/TeacherClassBook"
+          },
+          "current" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/TeacherClassCurrent"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "오늘 회차. 개강 전이면 null"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "level" : {
+            "$ref" : "#/components/schemas/TeacherClassLevel"
+          },
+          "loginAlert" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/LoginAlert"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "반 전체 개인 코드 실패가 1시간 20회를 넘으면, 아니면 null"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "next" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/TeacherClassNext"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "다음 수업. 진도표가 끝났으면 null"
+          },
+          "overdueStudents" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "밀린 수업이 하나라도 있는 학생 수(ADR-24)"
+          },
+          "studentCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "현재 소속 학생 수"
+          }
+        },
+        "required" : [ "book", "current", "id", "level", "loginAlert", "name", "next", "overdueStudents", "studentCount" ]
+      },
+      "TeacherClassLevel" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "colorHex" : {
+            "type" : "string",
+            "example" : "#1F7A4F"
+          },
+          "nameKo" : {
+            "type" : "string",
+            "example" : "그린"
+          }
+        },
+        "required" : [ "code", "colorHex", "nameKo" ]
+      },
+      "TeacherClassListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherClassItem"
+            }
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "TeacherClassNext" : {
+        "type" : "object",
+        "properties" : {
+          "scheduledDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seq" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "scheduledDate", "seq" ]
+      },
       "TeacherCreateRequest" : {
         "type" : "object",
         "properties" : {
@@ -2626,6 +3029,20 @@
           }
         },
         "required" : [ "classIds", "loginId", "name", "password", "role" ]
+      },
+      "TeacherLessonRef" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Reading Day 5"
+          }
+        },
+        "required" : [ "code", "title" ]
       },
       "TeacherListResponse" : {
         "type" : "object",
