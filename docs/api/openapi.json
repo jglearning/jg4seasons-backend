@@ -1749,7 +1749,8 @@
           },
           "levelCode" : {
             "type" : "string",
-            "description" : "level.code와 같다",
+            "deprecated" : true,
+            "description" : "level.code와 같다. 새 코드는 level.code를 쓴다(2차에 지움)",
             "example" : "L2"
           },
           "name" : {
@@ -1860,7 +1861,9 @@
           "completedRate" : {
             "type" : "number",
             "format" : "double",
-            "description" : "오늘 회차를 완료한 학생 비율 0~1"
+            "description" : "오늘 회차를 완료한 학생 비율 0~1. current가 null이거나 학생이 0명이면 0",
+            "maximum" : 1,
+            "minimum" : 0
           },
           "current" : {
             "anyOf" : [ {
@@ -2813,7 +2816,7 @@
             "type" : "string",
             "description" : "1~30자",
             "maxLength" : 30,
-            "minLength" : 0
+            "minLength" : 1
           },
           "school" : {
             "type" : "string",
@@ -3289,7 +3292,7 @@
             "type" : "string",
             "description" : "이름 일부, 1~30자",
             "maxLength" : 30,
-            "minLength" : 0
+            "minLength" : 1
           }
         },
         "required" : [ "name" ]
@@ -3370,7 +3373,7 @@
             "description" : "1~30자",
             "maxLength" : 30,
             "minLength" : 1,
-            "pattern" : "(?s).*\\S.*"
+            "pattern" : "[\\s\\S]*\\S[\\s\\S]*"
           },
           "school" : {
             "type" : "string",

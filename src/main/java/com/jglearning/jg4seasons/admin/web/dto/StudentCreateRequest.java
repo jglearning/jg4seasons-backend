@@ -15,7 +15,9 @@ public record StudentCreateRequest(
         List<@NotNull @Valid StudentCreateItem> students) {
 
     public record StudentCreateItem(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "1~30자") @NotBlank @Size(max = 30)
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "1~30자")
+            @NotBlank
+            @Size(min = 1, max = 30)
             String name,
 
             @Schema(description = "50자 이하") @Size(max = 50) String school,

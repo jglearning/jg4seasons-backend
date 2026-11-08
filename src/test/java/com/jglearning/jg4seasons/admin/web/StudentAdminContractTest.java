@@ -183,6 +183,20 @@ class StudentAdminContractTest {
     }
 
     @Test
+    void 학생_변경의_칸_검사() {
+        String url = "/api/v1/admin/students/1";
+        assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"name\":\"  \"}"), "name");
+        assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"name\":\" \\n \"}"), "name");
+        assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"name\":\"\"}"), "name");
+        assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"school\":\"" + "가".repeat(51) + "\"}"), "school");
+        assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"grade\":\"" + "가".repeat(11) + "\"}"), "grade");
+        // 앞뒤·사이 공백·줄바꿈이 있어도 글자가 있으면 이름이다. 학교·학년 빈 문자열은 지우기
+        assertThat(asAdmin(HttpMethod.PATCH, url, "{\"name\":\" 김 민준\\n\"}")).hasStatus(501);
+        assertThat(asAdmin(HttpMethod.PATCH, url, "{\"school\":\"\",\"grade\":\"\"}"))
+                .hasStatus(501);
+    }
+
+    @Test
     void 학생_변경에_바꿀_값이_없으면_400() {
         // 단어 학습 저장·진도표 수정과 같은 규칙: 아무것도 바꾸지 않는 요청은 성공으로 보이지 않게 막는다
         assertValidation(asAdmin(HttpMethod.PATCH, "/api/v1/admin/students/1", "{}"), "body");

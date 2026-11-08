@@ -22,7 +22,11 @@ public record DashboardResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "오늘 회차. 개강 전이면 null")
             DashboardCurrent current,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "오늘 회차를 완료한 학생 비율 0~1")
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    minimum = "0",
+                    maximum = "1",
+                    description = "오늘 회차를 완료한 학생 비율 0~1. current가 null이거나 학생이 0명이면 0")
             double completedRate) {}
 
     public record DashboardCurrent(

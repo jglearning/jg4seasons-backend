@@ -13,7 +13,11 @@ public record ClassResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "L2-B1")
         String bookCode,
 
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "L2", description = "level.code와 같다")
+        @Schema(
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                example = "L2",
+                deprecated = true,
+                description = "level.code와 같다. 새 코드는 level.code를 쓴다(2차에 지움)")
         String levelCode,
 
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "레벨 표시 정보(인쇄 카드 레벨 칩 등)")
