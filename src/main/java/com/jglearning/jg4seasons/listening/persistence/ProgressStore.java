@@ -1,8 +1,11 @@
 package com.jglearning.jg4seasons.listening.persistence;
 
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
+import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -94,5 +97,30 @@ public class ProgressStore {
                                 rs.getInt("passages_total")))
                 .stream()
                 .findFirst();
+    }
+
+    /** 여러 학생 × 여러 회차(교사 화면). 학생 id → 회차 id → 진도, 진도 행이 있는 것만. completed_at은 UTC로 읽는다 */
+    public Map<Long, Map<Long, LessonProgressSummary>> lessonProgressOf(
+            Collection<Long> studentIds, Collection<Long> lessonIds) {
+        if (studentIds.isEmpty() || lessonIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Map<Long, LessonProgressSummary>> rows = new HashMap<>();
+        jdbc.query(
+                "select student_id, lesson_id, status, required_done, required_total, completed_at"
+                        + " from lesson_progress where student_id in (:studentIds) and lesson_id in (:lessonIds)",
+                new MapSqlParameterSource("studentIds", studentIds).addValue("lessonIds", lessonIds),
+                rs -> {
+                    LocalDateTime completedAt = rs.getObject("completed_at", LocalDateTime.class);
+                    rows.computeIfAbsent(rs.getLong("student_id"), id -> new HashMap<>())
+                            .put(
+                                    rs.getLong("lesson_id"),
+                                    new LessonProgressSummary(
+                                            LessonProgressStatus.fromValue(rs.getString("status")),
+                                            rs.getInt("required_done"),
+                                            rs.getInt("required_total"),
+                                            completedAt == null ? null : completedAt.toInstant(ZoneOffset.UTC)));
+                });
+        return Collections.unmodifiableMap(rows);
     }
 }
