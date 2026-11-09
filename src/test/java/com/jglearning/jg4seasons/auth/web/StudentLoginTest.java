@@ -170,13 +170,15 @@ class StudentLoginTest {
             ip = "203.0.113." + (200 + n);
             for (int i = 0; i < 5; i++) {
                 if (n == 4 && i == 4) {
-                    assertThat(alerts.isAlerting(classId)).as("19회").isFalse();
+                    assertThat(alerts.alertOf(classId)).as("19회").isEmpty();
                 }
                 login(accessCode, WRONG_CODE);
             }
         }
 
-        assertThat(alerts.isAlerting(classId)).as("20회(각 IP의 5번째 423도 실패로 셈)").isTrue();
+        assertThat(alerts.alertOf(classId))
+                .as("20회(각 IP의 5번째 423도 실패로 셈)")
+                .hasValueSatisfying(alert -> assertThat(alert.failures()).isEqualTo(20));
     }
 
     @Test

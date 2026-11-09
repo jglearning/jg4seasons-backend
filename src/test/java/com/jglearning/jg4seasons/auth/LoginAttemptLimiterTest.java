@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.MutableClock;
+import com.jglearning.jg4seasons.auth.api.LoginAlert;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -174,12 +175,12 @@ class LoginAttemptLimiterTest {
         for (int i = 0; i < 19; i++) {
             fail(1, 1, "ip-" + i);
         }
-        assertThat(limiter.isAlerting(1)).as("19회").isFalse();
+        assertThat(limiter.alertOf(1)).as("19회").isEmpty();
 
         fail(1, 1, "ip-19");
 
-        assertThat(limiter.isAlerting(1)).as("20회").isTrue();
-        assertThat(limiter.isAlerting(2)).as("다른 반").isFalse();
+        assertThat(limiter.alertOf(1)).as("20회").contains(new LoginAlert(20, START));
+        assertThat(limiter.alertOf(2)).as("다른 반").isEmpty();
         assertThat(output.getOut()).containsOnlyOnce("login failures over threshold classId=1");
 
         fail(1, 1, "ip-20");
@@ -256,7 +257,7 @@ class LoginAttemptLimiterTest {
         }
         clock.advance(Duration.ofHours(1));
 
-        assertThat(limiter.isAlerting(1)).isFalse();
+        assertThat(limiter.alertOf(1)).isEmpty();
     }
 
     @Test
@@ -268,9 +269,37 @@ class LoginAttemptLimiterTest {
         for (int i = 10; i < 20; i++) {
             fail(1, 1, "ip-" + i);
         }
-        assertThat(limiter.isAlerting(1)).as("59분 안에 20회").isTrue();
+        assertThat(limiter.alertOf(1)).as("59분 안에 20회").contains(new LoginAlert(20, START));
 
         clock.advance(Duration.ofMinutes(1));
-        assertThat(limiter.isAlerting(1)).as("처음 10회가 1시간 밖으로").isFalse();
+        assertThat(limiter.alertOf(1)).as("처음 10회가 1시간 밖으로").isEmpty();
+    }
+
+    @Test
+    void 반_실패는_최근_KEEP개까지만_기억한다() {
+        fail(1, 1, "ip-first");
+        clock.advance(Duration.ofMinutes(1));
+        for (int i = 0; i < LoginAttemptLimiter.CLASS_FAILURE_KEEP; i++) {
+            fail(1, 1, "ip-" + i);
+        }
+
+        assertThat(limiter.alertOf(1))
+                .contains(new LoginAlert(LoginAttemptLimiter.CLASS_FAILURE_KEEP, START.plus(Duration.ofMinutes(1))));
+    }
+
+    @Test
+    void 경고_시작_시각은_창_안_가장_오래된_실패() {
+        fail(5, 1, "ip-old");
+        clock.advance(Duration.ofMinutes(30));
+        for (int i = 0; i < 20; i++) {
+            fail(1, 1, "ip-" + i);
+        }
+        assertThat(limiter.alertOf(1)).as("1시간 안 25회").contains(new LoginAlert(25, START));
+
+        clock.advance(Duration.ofMinutes(30));
+
+        assertThat(limiter.alertOf(1))
+                .as("처음 5회가 창 밖으로 — 남은 실패 중 가장 오래된 시각")
+                .contains(new LoginAlert(20, START.plus(Duration.ofMinutes(30))));
     }
 }

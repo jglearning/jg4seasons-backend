@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.auth;
 
+import com.jglearning.jg4seasons.auth.api.LoginAlert;
 import com.jglearning.jg4seasons.auth.api.LoginAlerts;
 import java.time.Clock;
 import java.time.Duration;
@@ -19,7 +20,7 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>(반, IP): 첫 실패부터 10분 안에 5회 실패 → 그 시각부터 10분 잠금. 잠긴 동안은 맞는 코드도 거부. 성공해도 그동안의 실패는 남는다
  *       (시도는 확인 전에 먼저 센다 — beginAttempt)
- *   <li>반 전체: 최근 1시간 실패 20회 이상이면 경고(교사 반 목록). 20회에 닿는 순간 WARN 로그 1회(반 id만)
+ *   <li>반 전체: 최근 1시간 실패 20회 이상이면 경고(교사 반 목록 — 실패 수와 가장 오래된 실패 시각). 20회에 닿는 순간 WARN 로그 1회(반 id만)
  * </ul>
  *
  * <p>메모리: 키가 SWEEP_THRESHOLD를 넘으면 10분마다 최대 한 번 끝난 항목을 지운다. 정리 뒤에도 HARD_CAP에 차 있으면 새 IP는 반별 공용 칸에서 함께
@@ -33,6 +34,8 @@ public class LoginAttemptLimiter implements LoginAlerts {
     static final Duration LOCK = Duration.ofMinutes(10);
     static final int CLASS_ALERT_FAILURES = 20;
     static final Duration CLASS_ALERT_WINDOW = Duration.ofHours(1);
+    /** 반마다 기억하는 실패 시각 수 상한. 넘으면 경고의 실패 수는 이 값, 시작 시각은 남은 것 중 가장 오래된 것 */
+    static final int CLASS_FAILURE_KEEP = 1_000;
 
     static final int SWEEP_THRESHOLD = 10_000;
     static final int HARD_CAP = 100_000;
@@ -132,14 +135,16 @@ public class LoginAttemptLimiter implements LoginAlerts {
     }
 
     @Override
-    public boolean isAlerting(long classId) {
+    public Optional<LoginAlert> alertOf(long classId) {
         Deque<Instant> failures = classFailures.get(classId);
         if (failures == null) {
-            return false;
+            return Optional.empty();
         }
         synchronized (failures) {
             prune(failures, clock.instant());
-            return failures.size() >= CLASS_ALERT_FAILURES;
+            return failures.size() >= CLASS_ALERT_FAILURES
+                    ? Optional.of(new LoginAlert(failures.size(), failures.peekFirst()))
+                    : Optional.empty();
         }
     }
 
@@ -149,8 +154,8 @@ public class LoginAttemptLimiter implements LoginAlerts {
             prune(failures, now);
             boolean wasAlerting = failures.size() >= CLASS_ALERT_FAILURES;
             failures.addLast(now);
-            while (failures.size() > CLASS_ALERT_FAILURES) {
-                failures.removeFirst(); // 최근 20개만 있으면 판정할 수 있다
+            while (failures.size() > CLASS_FAILURE_KEEP) {
+                failures.removeFirst(); // 경고에 실패 수·시작 시각을 싣는다 — 반마다 최근 KEEP개까지만(메모리 상한)
             }
             if (!wasAlerting && failures.size() >= CLASS_ALERT_FAILURES) {
                 log.warn("login failures over threshold classId={}", classId);

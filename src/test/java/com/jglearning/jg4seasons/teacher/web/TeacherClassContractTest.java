@@ -15,7 +15,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 4.1 담당 반 목록·4.2 청취 현황 매트릭스 계약(구현 전 501). 검증(400)과 접근 규칙(401·403)은 지금도 동작한다. */
+/** 4.1 담당 반 목록·4.2 청취 현황 매트릭스 계약: 검증(400)과 접근 규칙(401·403). 실제 동작은 TeacherClassListTest·TeacherMatrixTest(이슈 #31). */
 @IntegrationTest
 @Transactional
 class TeacherClassContractTest {
@@ -65,18 +65,6 @@ class TeacherClassContractTest {
     }
 
     @Test
-    void 교사와_관리자의_올바른_요청은_501_NOT_IMPLEMENTED() {
-        for (String uri : new String[] {CLASSES, MATRIX, MATRIX + "?fromSeq=1&toSeq=8"}) {
-            for (Cookie[] who : new Cookie[][] {as(teacherId, UserRole.TEACHER), as(adminId, UserRole.ADMIN)}) {
-                MvcTestResult result = get(uri, who);
-
-                assertThat(result).as(uri).hasStatus(501);
-                assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_IMPLEMENTED");
-            }
-        }
-    }
-
-    @Test
     void 학생은_403_쿠키가_없으면_401() {
         assertThat(get(CLASSES, as(studentId, UserRole.STUDENT))).hasStatus(403);
         assertThat(get(MATRIX, as(studentId, UserRole.STUDENT))).hasStatus(403);
@@ -99,8 +87,9 @@ class TeacherClassContractTest {
     }
 
     @Test
-    void 매트릭스_범위의_경계값은_통과한다() {
-        assertThat(asTeacher(MATRIX + "?fromSeq=5&toSeq=5")).hasStatus(501);
-        assertThat(asTeacher(MATRIX + "?fromSeq=1&toSeq=99")).hasStatus(501);
+    void 매트릭스_범위의_경계값은_검증을_통과한다() {
+        // 검증을 지나 반 확인까지 간다(이 학원에 없는 반이라 404)
+        assertThat(asTeacher(MATRIX + "?fromSeq=5&toSeq=5")).hasStatus(404);
+        assertThat(asTeacher(MATRIX + "?fromSeq=1&toSeq=99")).hasStatus(404);
     }
 }

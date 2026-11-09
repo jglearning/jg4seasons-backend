@@ -1,14 +1,13 @@
-package com.jglearning.jg4seasons.listening;
+package com.jglearning.jg4seasons.listening.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
-import com.jglearning.jg4seasons.listening.LessonBoard.Board;
-import com.jglearning.jg4seasons.listening.LessonBoard.Entry;
-import com.jglearning.jg4seasons.listening.LessonBoard.LessonState;
-import com.jglearning.jg4seasons.listening.LessonBoard.OverdueKind;
-import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
+import com.jglearning.jg4seasons.listening.api.LessonBoard.Board;
+import com.jglearning.jg4seasons.listening.api.LessonBoard.Entry;
+import com.jglearning.jg4seasons.listening.api.LessonBoard.LessonState;
+import com.jglearning.jg4seasons.listening.api.LessonBoard.OverdueKind;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
