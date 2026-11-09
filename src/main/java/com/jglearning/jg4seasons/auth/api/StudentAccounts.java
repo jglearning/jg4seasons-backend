@@ -19,7 +19,7 @@ public interface StudentAccounts {
     List<IssuedCode> create(long academyId, List<NewStudent> students);
 
     /**
-     * 새 개인 코드(studentIds 순서대로, 중복 제거는 호출자). 옛 코드는 바로 무효, 그 학생들의 refresh는 모두 끊긴다. 코드가 없던 학생은 새로 만든다. 하나라도
+     * 새 개인 코드(studentIds 순서대로, 같은 id는 첫 순서로 한 번). 옛 코드는 바로 무효, 그 학생들의 refresh는 모두 끊긴다. 코드가 없던 학생은 새로 만든다. 하나라도
      * 그 학원 학생이 아니면 404
      */
     List<IssuedCode> regenerate(long academyId, List<Long> studentIds);

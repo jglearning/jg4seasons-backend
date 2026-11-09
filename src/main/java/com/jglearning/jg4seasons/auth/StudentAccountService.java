@@ -84,9 +84,11 @@ class StudentAccountService implements StudentAccounts {
     }
 
     @Override
-    public List<IssuedCode> regenerate(long academyId, List<Long> studentIds) {
+    public List<IssuedCode> regenerate(long academyId, List<Long> requested) {
+        // 같은 id를 두 번 발급하면 첫 평문은 이미 무효다 — 첫 순서만 남긴다
+        List<Long> studentIds = List.copyOf(new LinkedHashSet<>(requested));
         Map<Long, User> found = studentsById(academyId, studentIds);
-        if (found.size() != new HashSet<>(studentIds).size()) {
+        if (found.size() != studentIds.size()) {
             throw notFound();
         }
         Map<Long, AuthIdentity> codes =

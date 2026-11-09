@@ -269,6 +269,20 @@ class StudentAccountsTest {
     }
 
     @Test
+    void 같은_id를_두_번_넘겨도_한_번만_재발급한다() {
+        // 두 번 발급하면 첫 평문은 이미 무효인데 응답에 실리고, 코드가 없던 학생은 수단이 두 번 저장된다
+        long seeded = data.student(academyId, "코드 없는 학생");
+        IssuedCode other = createOne("이서연");
+
+        List<IssuedCode> issued = accounts.regenerate(academyId, List.of(seeded, other.studentId(), seeded));
+
+        assertThat(issued).extracting(IssuedCode::studentId).containsExactly(seeded, other.studentId());
+        em.flush();
+        assertThat(identifierOf(seeded))
+                .isEqualTo(hasher.hash(academyId, issued.get(0).personalCode()));
+    }
+
+    @Test
     void 다른_학원_학생이나_교사가_섞이면_404이고_아무것도_바뀌지_않는다() {
         IssuedCode mine = createOne("김민준");
         String before = identifierOf(mine.studentId());
