@@ -1,8 +1,7 @@
-package com.jglearning.jg4seasons.listening;
+package com.jglearning.jg4seasons.listening.api;
 
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.TodayLesson;
-import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
