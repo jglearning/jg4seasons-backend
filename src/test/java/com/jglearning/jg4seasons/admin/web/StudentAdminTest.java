@@ -273,10 +273,14 @@ class StudentAdminTest {
         long otherClass = data.clazz(academyId, "L2-B1", "다른 반", TestData.uniqueAccessCode(), "active");
         long elsewhere = data.student(academyId, "다른 반 학생");
         data.enroll(otherClass, elsewhere);
+        Cookie refresh = refreshCookie(login(accessCode, code));
 
         assertCode(regenerate(classId, "[" + mine + "," + elsewhere + "]"), 404, "NOT_FOUND");
 
         assertThat(login(accessCode, code)).hasStatusOk();
+        assertThat(mvc.post().uri("/api/v1/auth/refresh").cookie(refresh).exchange())
+                .as("404면 정상 학생의 로그인 유지도 그대로")
+                .hasStatusOk();
         em.flush();
         assertThat(jdbc.queryForObject("select count(*) from audit_log where academy_id = ?", Integer.class, academyId))
                 .isZero();
@@ -294,11 +298,45 @@ class StudentAdminTest {
 
     @Test
     void 비활성_관리자는_401() {
+        long student = data.student(academyId, "김민준");
+        data.enroll(classId, student);
+        long otherClass = data.clazz(academyId, "L2-B1", "다른 반", TestData.uniqueAccessCode(), "active");
         jdbc.update("update `user` set status = 'inactive' where id = ?", adminId);
 
         assertThat(list(classId)).hasStatus(401);
         assertThat(register(classId, "[{\"name\":\"김민준\"}]")).hasStatus(401);
         assertThat(regenerate(classId, "[1]")).hasStatus(401);
+        assertThat(patch(student, "{\"status\":\"inactive\"}")).hasStatus(401);
+        assertThat(move(student, otherClass)).hasStatus(401);
+        assertThat(search("김")).hasStatus(401);
+        assertThat(jdbc.queryForObject("select status from `user` where id = ?", String.class, student))
+                .isEqualTo("active");
+    }
+
+    @Test
+    void 교사로_바뀐_관리자의_남은_access는_401() {
+        long student = data.student(academyId, "김민준");
+        data.enroll(classId, student);
+        jdbc.update("update `user` set role = 'teacher' where id = ?", adminId);
+
+        assertThat(patch(student, "{\"status\":\"inactive\"}")).hasStatus(401);
+        assertThat(search("김")).hasStatus(401);
+    }
+
+    @Test
+    void 여러_명_재발급하면_모두의_refresh가_끊긴다() throws Exception {
+        MvcTestResult created = register(classId, "[{\"name\":\"가\"},{\"name\":\"나\"}]");
+        int a = read(created, "$.created[0].id");
+        int b = read(created, "$.created[1].id");
+        Cookie refreshA = refreshCookie(login(accessCode, read(created, "$.created[0].personalCode")));
+        Cookie refreshB = refreshCookie(login(accessCode, read(created, "$.created[1].personalCode")));
+
+        assertThat(regenerate(classId, "[" + a + "," + b + "]")).hasStatusOk();
+
+        assertThat(mvc.post().uri("/api/v1/auth/refresh").cookie(refreshA).exchange())
+                .hasStatus(401);
+        assertThat(mvc.post().uri("/api/v1/auth/refresh").cookie(refreshB).exchange())
+                .hasStatus(401);
     }
 
     // ── 변경·퇴원·이동·검색 ──
@@ -336,6 +374,14 @@ class StudentAdminTest {
         em.flush();
         return jdbc.queryForObject(
                 "select count(*) from audit_log where academy_id = ? and action = ?", Long.class, academyId, action);
+    }
+
+    @Test
+    void 퇴원생은_반_재발급에서_404() throws Exception {
+        long id = registerOne(classId, "김민준").id();
+        assertThat(patch(id, "{\"status\":\"inactive\"}")).hasStatusOk();
+
+        assertCode(regenerate(classId, "[" + id + "]"), 404, "NOT_FOUND");
     }
 
     @Test

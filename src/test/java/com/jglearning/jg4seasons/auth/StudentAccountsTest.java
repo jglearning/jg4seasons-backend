@@ -283,6 +283,32 @@ class StudentAccountsTest {
     }
 
     @Test
+    void 재발급_묶음에서_다른_학생의_옛_코드는_받지_않는다() {
+        // A의 옛 코드가 같은 묶음의 B에게 가면, 새어 나간 A의 옛 카드로 B 계정에 들어갈 수 있다
+        StudentAccountService first = new StudentAccountService(
+                users,
+                identities,
+                hasher,
+                refreshTokens,
+                new PersonalCodeGenerator(PersonalCodeGeneratorTest.fixed(1111, 2222)),
+                clock);
+        List<IssuedCode> before =
+                first.create(academyId, List.of(new NewStudent("가", null, null), new NewStudent("나", null, null)));
+        StudentAccountService again = new StudentAccountService(
+                users,
+                identities,
+                hasher,
+                refreshTokens,
+                new PersonalCodeGenerator(PersonalCodeGeneratorTest.fixed(2222, 3333, 1111, 4444)),
+                clock);
+
+        List<IssuedCode> after = again.regenerate(
+                academyId, before.stream().map(IssuedCode::studentId).toList());
+
+        assertThat(after).extracting(IssuedCode::personalCode).containsExactly("3333", "4444");
+    }
+
+    @Test
     void 다른_학원_학생이나_교사가_섞이면_404이고_아무것도_바뀌지_않는다() {
         IssuedCode mine = createOne("김민준");
         String before = identifierOf(mine.studentId());

@@ -176,6 +176,16 @@ class TeacherPersonalCodeTest {
     }
 
     @Test
+    void 교사로_바뀐_관리자의_남은_ADMIN_access는_담당_반만() {
+        // 범위는 쿠키의 역할이 아니라 DB의 지금 역할로 나눈다
+        long demoted = data.staff(academyId, "강등된 관리자", "teacher");
+        IssuedCode other = student(academyId, otherClass, "이서연");
+
+        assertNotFound(regenerate(demoted, UserRole.ADMIN, other.studentId()));
+        assertThat(login(otherCode, other.personalCode())).hasStatusOk();
+    }
+
+    @Test
     void 관리자도_반에_없는_학생은_404() {
         long adminId = data.staff(academyId, "관리자", "admin");
         long noClass = students.create(academyId, List.of(new NewStudent("반 없음", null, null)))

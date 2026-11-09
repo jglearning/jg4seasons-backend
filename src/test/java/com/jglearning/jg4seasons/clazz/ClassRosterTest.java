@@ -249,6 +249,20 @@ class ClassRosterTest {
     }
 
     @Test
+    void 다른_학원_반_소속은_isTaughtBy와_isCurrentMemberOfAny가_거짓() {
+        // 데이터가 어긋나 교사가 다른 학원 반에 배정돼 있어도 우리 학원 범위로는 소속이 아니다
+        long otherAcademy = data.academy("다른 학원");
+        long theirClass = activeClass(otherAcademy, "남의 반");
+        long teacher = data.staff(academyId, "김교사", "teacher");
+        data.assignTeacher(theirClass, teacher);
+        long s = data.student(otherAcademy, "남");
+        data.enroll(theirClass, s);
+
+        assertThat(roster.isTaughtBy(academyId, s, teacher)).isFalse();
+        assertThat(roster.isCurrentMemberOfAny(academyId, s)).isFalse();
+    }
+
+    @Test
     void activeClassesToday는_active_반만_오늘_회차와_현재_학생을_준다() {
         long finished = data.clazz(academyId, "L2-B1", "끝난 반", TestData.uniqueAccessCode(), "finished");
         data.session(classA, 1, "L2-B1-01", TODAY.minusDays(2), "scheduled");
