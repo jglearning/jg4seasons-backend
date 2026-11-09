@@ -13,6 +13,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -297,5 +299,215 @@ class StudentAdminTest {
         assertThat(list(classId)).hasStatus(401);
         assertThat(register(classId, "[{\"name\":\"김민준\"}]")).hasStatus(401);
         assertThat(regenerate(classId, "[1]")).hasStatus(401);
+    }
+
+    // ── 변경·퇴원·이동·검색 ──
+
+    private MvcTestResult patch(long studentId, String body) {
+        return mvc.patch()
+                .uri("/api/v1/admin/students/" + studentId)
+                .cookie(admin())
+                .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .exchange();
+    }
+
+    private MvcTestResult move(long studentId, long toClassId) {
+        return post("/api/v1/admin/students/" + studentId + "/move", "{\"toClassId\":" + toClassId + "}");
+    }
+
+    private MvcTestResult search(String name) {
+        return post("/api/v1/admin/students/search", "{\"name\":\"" + name + "\"}");
+    }
+
+    /** 반에 학생 한 명 등록 */
+    private Registered registerOne(long inClass, String name) throws Exception {
+        MvcTestResult created = register(inClass, "[{\"name\":\"" + name + "\"}]");
+        assertThat(created).hasStatus(201);
+        int id = read(created, "$.created[0].id");
+        String code = read(created, "$.created[0].personalCode");
+        return new Registered(id, code);
+    }
+
+    record Registered(long id, String code) {}
+
+    private long auditCount(String action) {
+        em.flush();
+        return jdbc.queryForObject(
+                "select count(*) from audit_log where academy_id = ? and action = ?", Long.class, academyId, action);
+    }
+
+    @Test
+    void 퇴원하면_상태와_소속이_함께_저장된다() throws Exception {
+        long id = registerOne(classId, "김민준").id();
+
+        MvcTestResult result = patch(id, "{\"status\":\"inactive\"}");
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("inactive");
+        em.flush();
+        assertThat(jdbc.queryForObject("select status from `user` where id = ?", String.class, id))
+                .isEqualTo("inactive");
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from enrollment where student_id = ? and left_at is not null",
+                        Integer.class,
+                        id))
+                .isEqualTo(1);
+        assertThat((List<Object>) read(list(classId), "$.items")).isEmpty();
+    }
+
+    @Test
+    void 퇴원하면_로그인이_401이고_refresh도_401() throws Exception {
+        Registered student = registerOne(classId, "김민준");
+        Cookie refresh = refreshCookie(login(accessCode, student.code()));
+
+        assertThat(patch(student.id(), "{\"status\":\"inactive\"}")).hasStatusOk();
+
+        assertCode(login(accessCode, student.code()), 401, "INVALID_CREDENTIALS");
+        assertThat(mvc.post().uri("/api/v1/auth/refresh").cookie(refresh).exchange())
+                .hasStatus(401);
+    }
+
+    @Test
+    void 퇴원은_감사_로그_한_줄_다시_보내도_늘지_않는다() throws Exception {
+        long id = registerOne(classId, "김민준").id();
+
+        assertThat(patch(id, "{\"status\":\"inactive\"}")).hasStatusOk();
+        assertThat(patch(id, "{\"status\":\"inactive\"}")).hasStatusOk();
+
+        assertThat(auditCount("STUDENT_DEACTIVATE")).isEqualTo(1);
+        String detail = jdbc.queryForObject(
+                "select detail from audit_log where academy_id = ? and action = 'STUDENT_DEACTIVATE'",
+                String.class,
+                academyId);
+        assertThat((List<Integer>) JsonPath.read(detail, "$.leftClassIds")).containsExactly((int) classId);
+    }
+
+    @Test
+    void 되살리면_active지만_반은_없다() throws Exception {
+        long id = registerOne(classId, "김민준").id();
+        patch(id, "{\"status\":\"inactive\"}");
+
+        MvcTestResult result = patch(id, "{\"status\":\"active\"}");
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("active");
+        MvcTestResult found = search("김민준");
+        assertThat((Object) read(found, "$.items[0].class")).isNull();
+        assertThat((String) read(found, "$.items[0].status")).isEqualTo("active");
+    }
+
+    @Test
+    void 되살린_학생은_예전_코드로_이동_후_입장된다() throws Exception {
+        Registered student = registerOne(classId, "김민준");
+        patch(student.id(), "{\"status\":\"inactive\"}");
+        patch(student.id(), "{\"status\":\"active\"}");
+
+        assertThat(move(student.id(), classId)).hasStatusOk();
+
+        assertThat(login(accessCode, student.code())).hasStatusOk();
+    }
+
+    @Test
+    void 학교를_빈_문자열로_보내면_null_이름_앞뒤_공백은_지운다() throws Exception {
+        MvcTestResult created = register(classId, "[{\"name\":\"김민준\",\"school\":\"A중\",\"grade\":\"중1\"}]");
+        int id = read(created, "$.created[0].id");
+
+        MvcTestResult result = patch(id, "{\"name\":\" 김민수 \",\"school\":\"\"}");
+
+        assertThat(result).hasStatusOk();
+        Map<String, Object> body = read(result, "$");
+        assertThat(body)
+                .containsOnlyKeys("id", "name", "school", "grade", "status", "codeIssuedAt", "lastLoginAt")
+                .containsEntry("name", "김민수")
+                .containsEntry("school", null)
+                .containsEntry("grade", "중1");
+    }
+
+    @Test
+    void 이동하면_새_반_목록에_나오고_옛_반에서_빠지며_감사_로그() throws Exception {
+        long id = registerOne(classId, "김민준").id();
+        long toClass = data.clazz(academyId, "L2-B1", "B반", TestData.uniqueAccessCode(), "active");
+
+        MvcTestResult result = move(id, toClass);
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.id").asNumber().isEqualTo((int) id);
+        assertThat((List<Object>) read(list(classId), "$.items")).isEmpty();
+        assertThat((List<Integer>) read(list(toClass), "$.items[*].id")).containsExactly((int) id);
+        assertThat(auditCount("STUDENT_MOVE")).isEqualTo(1);
+        String detail = jdbc.queryForObject(
+                "select detail from audit_log where academy_id = ? and action = 'STUDENT_MOVE'",
+                String.class,
+                academyId);
+        assertThat((List<Integer>) JsonPath.read(detail, "$.fromClassIds")).containsExactly((int) classId);
+        assertThat((Integer) JsonPath.read(detail, "$.toClassId")).isEqualTo((int) toClass);
+    }
+
+    @Test
+    void 이동_거절은_이유별_409() throws Exception {
+        long id = registerOne(classId, "김민준").id();
+        long finished = data.clazz(academyId, "L2-B1", "끝난 반", TestData.uniqueAccessCode(), "finished");
+        long toClass = data.clazz(academyId, "L2-B1", "B반", TestData.uniqueAccessCode(), "active");
+
+        assertCode(move(id, classId), 409, "ALREADY_IN_CLASS");
+        assertCode(move(id, finished), 409, "CLASS_NOT_ACTIVE");
+        patch(id, "{\"status\":\"inactive\"}");
+        assertCode(move(id, toClass), 409, "STUDENT_INACTIVE");
+        assertThat(auditCount("STUDENT_MOVE")).isZero();
+    }
+
+    @Test
+    void 다른_학원_학생과_반은_404() throws Exception {
+        long otherAcademy = data.academy("다른 학원");
+        long otherStudent = data.student(otherAcademy, "남의 학생");
+        long otherClass = data.clazz(otherAcademy, "L2-B1", "남의 반", TestData.uniqueAccessCode(), "active");
+        long mine = registerOne(classId, "김민준").id();
+
+        assertCode(patch(otherStudent, "{\"name\":\"바꿈\"}"), 404, "NOT_FOUND");
+        assertCode(move(otherStudent, classId), 404, "NOT_FOUND");
+        assertCode(move(mine, otherClass), 404, "NOT_FOUND");
+        // 교사·관리자 id도 학생 경로로는 404
+        assertCode(patch(adminId, "{\"name\":\"바꿈\"}"), 404, "NOT_FOUND");
+    }
+
+    @Test
+    void 검색은_학원_전체_퇴원_포함_이름_순이고_JSON_키는_class() throws Exception {
+        long b = registerOne(classId, "김민준").id();
+        long a = registerOne(classId, "김가람").id();
+        patch(b, "{\"status\":\"inactive\"}");
+        data.student(data.academy("다른 학원"), "김다른");
+
+        MvcTestResult found = search(" 김 ");
+
+        assertThat(found).hasStatusOk();
+        List<Map<String, Object>> items = read(found, "$.items");
+        assertThat(items).extracting(m -> ((Number) m.get("id")).longValue()).containsExactly(a, b);
+        assertThat(items.get(0)).containsOnlyKeys("id", "name", "school", "grade", "status", "class");
+        assertThat((Map<String, Object>) items.get(0).get("class"))
+                .containsOnlyKeys("id", "name")
+                .containsEntry("name", "겨울 그린 A반");
+        assertThat(items.get(1)).containsEntry("status", "inactive").containsEntry("class", null);
+    }
+
+    @Test
+    void 검색어의_퍼센트와_밑줄은_글자_그대로() throws Exception {
+        long percent = registerOne(classId, "김%").id();
+        registerOne(classId, "김민");
+
+        assertThat((List<Integer>) read(search("%"), "$.items[*].id")).containsExactly((int) percent);
+        assertThat((List<Object>) read(search("김_"), "$.items")).isEmpty();
+    }
+
+    @Test
+    void 검색은_최대_50명() throws Exception {
+        String fifty = IntStream.range(0, 50)
+                .mapToObj(i -> "{\"name\":\"박" + i + "\"}")
+                .collect(Collectors.joining(",", "[", "]"));
+        register(classId, fifty);
+        register(classId, "[{\"name\":\"박50\"}]");
+
+        assertThat((List<Object>) read(search("박"), "$.items")).hasSize(50);
     }
 }

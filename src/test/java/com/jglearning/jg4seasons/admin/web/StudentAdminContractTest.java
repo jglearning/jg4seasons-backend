@@ -21,8 +21,8 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 5.2 학생 관리·5.4 현황 계약. 검증(400)과 접근 규칙(401·403)은 모든 경로에서 동작한다. 구현된 경로(등록·목록·재발급 — 이슈 #29)의 실제 동작은
- * StudentAdminTest, 나머지는 통과한 요청이 501을 받는다. 구현 이슈에서 501 단언을 실제
+ * 5.2 학생 관리·5.4 현황 계약. 검증(400)과 접근 규칙(401·403)은 모든 경로에서 동작한다. 구현된 5.2 경로(이슈 #29)의 실제 동작은
+ * StudentAdminTest, 나머지(5.4)는 통과한 요청이 501을 받는다. 구현 이슈에서 501 단언을 실제
  * 동작 단언으로 바꾼다.
  */
 @IntegrationTest
@@ -32,8 +32,8 @@ class StudentAdminContractTest {
     /** 구현 전 경로: 메서드 · 경로 · 유효한 본문(null = 본문 없음) */
     record Call(HttpMethod method, String path, String body) {}
 
-    /** CALLS 앞 3개(목록·등록·재발급)는 구현됨(이슈 #29) */
-    static final int IMPLEMENTED = 3;
+    /** CALLS 앞 6개(5.2 전부)는 구현됨(이슈 #29) */
+    static final int IMPLEMENTED = 6;
 
     static final List<Call> CALLS = List.of(
             new Call(HttpMethod.GET, "/api/v1/admin/classes/1/students", null),
@@ -194,10 +194,13 @@ class StudentAdminContractTest {
         assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"name\":\"\"}"), "name");
         assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"school\":\"" + "가".repeat(51) + "\"}"), "school");
         assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"grade\":\"" + "가".repeat(11) + "\"}"), "grade");
-        // 앞뒤·사이 공백·줄바꿈이 있어도 글자가 있으면 이름이다. 학교·학년 빈 문자열은 지우기
-        assertThat(asAdmin(HttpMethod.PATCH, url, "{\"name\":\" 김 민준\\n\"}")).hasStatus(501);
-        assertThat(asAdmin(HttpMethod.PATCH, url, "{\"school\":\"\",\"grade\":\"\"}"))
-                .hasStatus(501);
+        // 앞뒤·사이 공백·줄바꿈이 있어도 글자가 있으면 이름이다(앞뒤는 지움). 학교·학년 빈 문자열은 지우기
+        String real = "/api/v1/admin/students/" + new TestData(jdbc).student(academyId, "김민준");
+        MvcTestResult renamed = asAdmin(HttpMethod.PATCH, real, "{\"name\":\" 김 민준\\n\"}");
+        assertThat(renamed).hasStatusOk();
+        assertThat(renamed).bodyJson().extractingPath("$.name").isEqualTo("김 민준");
+        assertThat(asAdmin(HttpMethod.PATCH, real, "{\"school\":\"\",\"grade\":\"\"}"))
+                .hasStatusOk();
     }
 
     @Test

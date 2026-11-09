@@ -13,7 +13,6 @@ import com.jglearning.jg4seasons.admin.web.dto.StudentSearchResponse;
 import com.jglearning.jg4seasons.admin.web.dto.StudentUpdateRequest;
 import com.jglearning.jg4seasons.infra.security.Principals;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
-import com.jglearning.jg4seasons.infra.web.error.NotImplemented;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
@@ -31,14 +30,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 5.2 학생 관리(A-02). 관리자만, 학원은 access 쿠키에서만 — 다른 학원 반·학생은 404. 요청한 관리자가 비활성화됐거나 역할이 바뀌었으면(남은 access)
- * 401. 변경·이동·검색은 아직 계약만(이슈 #26 — 501).
+ * 401.
  */
 @RestController
 @RequestMapping("/api/v1/admin")
 @RolesAllowed("ADMIN")
 public class StudentAdminController {
-
-    private static final String NOT_YET = " — 구현 전: 501 NOT_IMPLEMENTED";
 
     private final StudentAdminService service;
 
@@ -78,25 +75,36 @@ public class StudentAdminController {
 
     @Operation(
             summary = "학생 변경",
-            description = "빠진 칸은 그대로, 학교·학년은 빈 문자열이면 지움. 바꿀 값이 없으면 400. status inactive = 퇴원(기록 보존, 감사 로그)."
-                    + " X-CSRF 필요" + NOT_YET)
+            description = "빠진 칸은 그대로, 이름은 앞뒤 공백을 지움, 학교·학년은 빈 문자열이면 지움. 바꿀 값이 없으면 400."
+                    + " status inactive = 퇴원: 로그인 불가·로그인 유지(refresh) 끊김·반 소속 모두 끝남(기록 보존, 코드는 그대로), 감사 로그."
+                    + " 이미 퇴원이면 아무것도 늘지 않음. active = 되살리기(상태만 — 반은 이동으로). 다른 학원 학생은 404. X-CSRF 필요")
     @PatchMapping("/students/{id}")
-    public StudentResponse update(@PathVariable long id, @Valid @RequestBody StudentUpdateRequest request) {
+    public StudentResponse update(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable long id, @Valid @RequestBody StudentUpdateRequest request) {
         if (!request.hasChange()) {
             throw ApiException.validation("body", "바꿀 값이 없어요");
         }
-        throw NotImplemented.yet();
+        return service.update(Principals.academyId(jwt), Principals.userId(jwt), id, request);
     }
 
-    @Operation(summary = "학생 반 이동", description = "지금 반에서 나가고 새 반에 들어간다. 기록은 남는다. 감사 로그. X-CSRF 필요" + NOT_YET)
+    @Operation(
+            summary = "학생 반 이동",
+            description = "지금 반(여럿이면 모두)에서 나가고 새 반 하나에 들어간다. 기록은 남는다. 감사 로그. 다른 학원 학생·반은 404."
+                    + " 퇴원생 409 STUDENT_INACTIVE, 진행 중이 아닌 반 409 CLASS_NOT_ACTIVE, 이미 그 반에만 있으면 409 ALREADY_IN_CLASS."
+                    + " X-CSRF 필요")
     @PostMapping("/students/{id}/move")
-    public StudentResponse move(@PathVariable long id, @Valid @RequestBody StudentMoveRequest request) {
-        throw NotImplemented.yet();
+    public StudentResponse move(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable long id, @Valid @RequestBody StudentMoveRequest request) {
+        return service.move(Principals.academyId(jwt), Principals.userId(jwt), id, request);
     }
 
-    @Operation(summary = "학생 이름으로 찾기", description = "학원 전체(퇴원 포함). 이름은 본문으로만. X-CSRF 필요" + NOT_YET)
+    @Operation(
+            summary = "학생 이름으로 찾기",
+            description = "학원 전체(퇴원 포함), 이름 부분 일치(앞뒤 공백 무시, %·_는 글자 그대로), 이름 순, 최대 50명. class는 지금 반(여럿이면 id가"
+                    + " 가장 작은 반), 없으면 null. 이름은 본문으로만. X-CSRF 필요")
     @PostMapping("/students/search")
-    public StudentSearchResponse search(@Valid @RequestBody StudentSearchRequest request) {
-        throw NotImplemented.yet();
+    public StudentSearchResponse search(
+            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody StudentSearchRequest request) {
+        return service.search(Principals.academyId(jwt), Principals.userId(jwt), request);
     }
 }

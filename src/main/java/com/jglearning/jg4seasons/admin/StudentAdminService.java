@@ -7,13 +7,24 @@ import com.jglearning.jg4seasons.admin.web.dto.PersonalCodesResponse;
 import com.jglearning.jg4seasons.admin.web.dto.StudentCreateRequest;
 import com.jglearning.jg4seasons.admin.web.dto.StudentCreatedResponse;
 import com.jglearning.jg4seasons.admin.web.dto.StudentListResponse;
+import com.jglearning.jg4seasons.admin.web.dto.StudentMoveRequest;
 import com.jglearning.jg4seasons.admin.web.dto.StudentResponse;
+import com.jglearning.jg4seasons.admin.web.dto.StudentSearchRequest;
+import com.jglearning.jg4seasons.admin.web.dto.StudentSearchResponse;
+import com.jglearning.jg4seasons.admin.web.dto.StudentSearchResponse.StudentSearchClass;
+import com.jglearning.jg4seasons.admin.web.dto.StudentSearchResponse.StudentSearchItem;
+import com.jglearning.jg4seasons.admin.web.dto.StudentUpdateRequest;
+import com.jglearning.jg4seasons.auth.api.AccountStatus;
 import com.jglearning.jg4seasons.auth.api.IssuedCode;
 import com.jglearning.jg4seasons.auth.api.NewStudent;
 import com.jglearning.jg4seasons.auth.api.StaffAccounts;
 import com.jglearning.jg4seasons.auth.api.StudentAccount;
 import com.jglearning.jg4seasons.auth.api.StudentAccounts;
+import com.jglearning.jg4seasons.auth.api.StudentChange;
+import com.jglearning.jg4seasons.auth.api.StudentChangeResult;
+import com.jglearning.jg4seasons.clazz.api.ClassRef;
 import com.jglearning.jg4seasons.clazz.api.ClassRoster;
+import com.jglearning.jg4seasons.clazz.api.MoveResult;
 import com.jglearning.jg4seasons.infra.audit.AuditAction;
 import com.jglearning.jg4seasons.infra.audit.AuditLogger;
 import com.jglearning.jg4seasons.infra.audit.AuditTarget;
@@ -25,6 +36,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -106,6 +118,77 @@ public class StudentAdminService {
         }
         return new PersonalCodesResponse(
                 issued.stream().map(StudentAdminService::toItem).toList());
+    }
+
+    /**
+     * 빠진 칸은 그대로, 학교·학년 ""은 지움. 이번에 퇴원(active → inactive)이면 그 학원 반 소속을 모두 끝내고(결정 G) 감사 로그 — 다시 inactive를
+     * 보내면 아무것도 늘지 않는다. 되살리기(active)는 상태만(반은 이동으로 — 결정 L). 다른 학원 학생·교사 id는 404
+     */
+    public StudentResponse update(long academyId, long actorId, long studentId, StudentUpdateRequest request) {
+        academies.lockForAdminWrite(academyId);
+        staff.requireActiveAdmin(academyId, actorId);
+        StudentChangeResult result = students.change(
+                academyId,
+                studentId,
+                new StudentChange(
+                        Optional.ofNullable(request.name()),
+                        Optional.ofNullable(request.school()),
+                        Optional.ofNullable(request.grade()),
+                        Optional.ofNullable(request.status()).map(AccountStatus::fromValue)));
+        if (result.deactivated()) {
+            List<Long> left = roster.leaveAll(academyId, studentId, today(academyId));
+            auditLogger.record(
+                    academyId,
+                    actorId,
+                    AuditAction.STUDENT_DEACTIVATE,
+                    AuditTarget.STUDENT,
+                    studentId,
+                    Map.of("leftClassIds", left));
+        }
+        return toResponse(result.account());
+    }
+
+    /**
+     * 지금 소속을 모두 끝내고 새 반 하나로(결정 H). 퇴원생은 409 STUDENT_INACTIVE, 대상 반이 active가 아니면 409 CLASS_NOT_ACTIVE, 이미 그 반에만
+     * 있으면 409 ALREADY_IN_CLASS. 다른 학원 학생·반은 404
+     */
+    public StudentResponse move(long academyId, long actorId, long studentId, StudentMoveRequest request) {
+        academies.lockForAdminWrite(academyId);
+        staff.requireActiveAdmin(academyId, actorId);
+        StudentAccount account = students.find(academyId, studentId);
+        if (account.status() != AccountStatus.ACTIVE) {
+            throw new ApiException(AdminErrorCode.STUDENT_INACTIVE, "퇴원한 학생은 먼저 되살려 주세요");
+        }
+        MoveResult moved = roster.move(academyId, studentId, request.toClassId(), today(academyId));
+        auditLogger.record(
+                academyId,
+                actorId,
+                AuditAction.STUDENT_MOVE,
+                AuditTarget.STUDENT,
+                studentId,
+                Map.of("fromClassIds", moved.fromClassIds(), "toClassId", moved.toClassId()));
+        return toResponse(account);
+    }
+
+    /** 학원 전체(퇴원 포함) 이름 부분 일치, 이름 순, 최대 50명(결정 E). class = 지금 반(여럿이면 id가 가장 작은 반), 없으면 null */
+    @Transactional(readOnly = true)
+    public StudentSearchResponse search(long academyId, long actorId, StudentSearchRequest request) {
+        staff.requireActiveAdmin(academyId, actorId);
+        List<StudentAccount> found = students.searchByName(academyId, request.name());
+        Map<Long, ClassRef> classes = roster.currentClassOf(
+                academyId, found.stream().map(StudentAccount::id).toList());
+        return new StudentSearchResponse(found.stream()
+                .map(account -> {
+                    ClassRef clazz = classes.get(account.id());
+                    return new StudentSearchItem(
+                            account.id(),
+                            account.name(),
+                            account.school(),
+                            account.grade(),
+                            account.status().value(),
+                            clazz == null ? null : new StudentSearchClass(clazz.id(), clazz.name()));
+                })
+                .toList());
     }
 
     private LocalDate today(long academyId) {
