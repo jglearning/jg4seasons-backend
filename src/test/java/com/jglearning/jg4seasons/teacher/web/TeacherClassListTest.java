@@ -258,15 +258,59 @@ class TeacherClassListTest {
     }
 
     @Test
-    void 교사로_바뀐_관리자의_남은_ADMIN_access는_담당_반만() {
+    void 교사로_바뀐_관리자의_남은_ADMIN_access는_담당_반만() throws Exception {
         long demoted = data.staff(academyId, "강등된 관리자", "teacher");
+        data.assignTeacher(classId, demoted);
         activeClass("남의 반");
 
-        assertThat(classes(demoted, UserRole.ADMIN))
+        assertThat((List<Integer>) read(classes(demoted, UserRole.ADMIN), "$.items[*].id"))
+                .containsExactly((int) classId);
+    }
+
+    @Test
+    void 로그인_경고는_그_반_항목에만() throws Exception {
+        long second = activeClass("담당 반 2");
+        data.assignTeacher(second, teacherId);
+        long theirs = data.clazz(data.academy("다른 학원"), "L2-B1", "남의 학원 반", TestData.uniqueAccessCode(), "active");
+        for (long target : new long[] {second, theirs}) {
+            for (int i = 0; i < 20; i++) {
+                limiter.beginAttempt(target, "198.51.100." + i);
+                limiter.recordFailure(target, "198.51.100." + i);
+            }
+        }
+
+        MvcTestResult result = classes();
+
+        assertThat((List<Integer>) read(result, "$.items[*].id")).containsExactly((int) classId, (int) second);
+        assertThat(result).bodyJson().extractingPath("$.items[0].loginAlert").isNull();
+        assertThat(result)
                 .bodyJson()
-                .extractingPath("$.items")
-                .asArray()
-                .isEmpty();
+                .extractingPath("$.items[1].loginAlert.failures")
+                .isEqualTo(20);
+    }
+
+    @Test
+    void 다른_반과_다른_학원_학생의_진도는_세지_않는다() {
+        threeSessions(classId);
+        enrolled(classId, "우리 학생");
+        long otherClass = activeClass("같은 학원 다른 반");
+        threeSessions(otherClass);
+        long neighbor = enrolled(otherClass, "옆 반 학생");
+        long stranger = data.student(data.academy("다른 학원"), "남의 학원 학생");
+        progress(neighbor, "L2-B1-05", "completed");
+        progress(stranger, "L2-B1-05", "completed");
+
+        MvcTestResult result = classes();
+
+        assertThat(result).bodyJson().extractingPath("$.items[0].studentCount").isEqualTo(1);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.items[0].current.completed")
+                .isEqualTo(0);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.items[0].current.notStarted")
+                .isEqualTo(1);
     }
 
     @Test

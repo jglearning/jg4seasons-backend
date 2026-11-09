@@ -340,15 +340,20 @@ class TeacherMatrixTest {
     @Test
     void 교사로_바뀐_관리자의_남은_ADMIN_access는_담당_반만() {
         long demoted = data.staff(academyId, "강등된 관리자", "teacher");
+        long demotedClass = data.clazz(academyId, "L2-B1", "강등된 사람 반", TestData.uniqueAccessCode(), "active");
+        data.assignTeacher(demotedClass, demoted);
 
         assertThat(matrix(demoted, UserRole.ADMIN, classId, "")).hasStatus(404);
+        assertThat(matrix(demoted, UserRole.ADMIN, demotedClass, "")).hasStatusOk();
     }
 
     @Test
-    void 관리자는_담당이_아니어도_학원_반이면_본다() {
+    void 관리자는_담당이_아니어도_학원_반이면_보고_다른_학원_반은_404() {
         long adminId = data.staff(academyId, "관리자", "admin");
+        long theirs = data.clazz(data.academy("다른 학원"), "L2-B1", "남의 학원 반", TestData.uniqueAccessCode(), "active");
 
         assertThat(matrix(adminId, UserRole.ADMIN, classId, "")).hasStatusOk();
+        assertThat(matrix(adminId, UserRole.ADMIN, theirs, "")).hasStatus(404);
     }
 
     @Test
