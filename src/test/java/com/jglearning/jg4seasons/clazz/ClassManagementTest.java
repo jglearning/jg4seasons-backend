@@ -79,6 +79,23 @@ class ClassManagementTest {
     }
 
     @Test
+    void 블랙_반은_보충_회차를_포함한_진도표_28행() {
+        var lessons = books.findLessons("K-B1").orElseThrow();
+
+        ClassDetail created = classes.create(academyId, new NewClass("블랙 A반", lessons, MONDAY, List.of(1, 3)));
+
+        List<SessionRow> rows = sessions.findByClass(created.id());
+        assertThat(rows).hasSize(28);
+        assertThat(rows.get(6).lessonId()).isEqualTo(lessons.lessonIdsByNumber().get(6));
+        assertThat(rows.get(6).lessonId())
+                .isEqualTo(jdbc.queryForObject("select id from lesson where code = 'K-B1-S1'", Long.class));
+        assertThat(rows.get(27).seq()).isEqualTo(28);
+        assertThat(rows.get(27).scheduledDate())
+                .isEqualTo(ClassSchedule.dates(MONDAY, Weekdays.fromNumbers(List.of(1, 3)), 28)
+                        .get(27));
+    }
+
+    @Test
     void 반을_만들면_진도표_24행과_가입_코드가_생긴다() {
         clock.set(Instant.parse("2026-11-05T01:02:03.999Z"));
         var lessons = books.findLessons("L2-B1").orElseThrow();
@@ -98,8 +115,7 @@ class ClassManagementTest {
                 .isEqualTo("1010000");
 
         List<SessionRow> rows = sessions.findByClass(created.id());
-        List<LocalDate> expectedDates =
-                ClassSchedule.dates(MONDAY, Weekdays.fromNumbers(List.of(1, 3)), ClassSchedule.SESSION_COUNT);
+        List<LocalDate> expectedDates = ClassSchedule.dates(MONDAY, Weekdays.fromNumbers(List.of(1, 3)), 24);
         assertThat(rows).hasSize(24);
         for (int i = 0; i < 24; i++) {
             SessionRow row = rows.get(i);

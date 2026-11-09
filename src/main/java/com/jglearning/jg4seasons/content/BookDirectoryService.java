@@ -30,9 +30,9 @@ class BookDirectoryService implements BookDirectory {
             List<Lesson> found = lessons.findByBookIdOrderByNumber(book.getId());
             List<Integer> numbers = found.stream().map(Lesson::getNumber).toList();
             List<Integer> expected =
-                    IntStream.rangeClosed(1, LESSONS_PER_BOOK).boxed().toList();
+                    IntStream.rangeClosed(1, book.getLessonCount()).boxed().toList();
             if (!numbers.equals(expected)) {
-                throw new IllegalStateException("권의 회차가 1~" + LESSONS_PER_BOOK + "가 아니다: " + book.getCode());
+                throw new IllegalStateException("권의 회차가 1~" + book.getLessonCount() + "가 아니다: " + book.getCode());
             }
             return new BookLessons(
                     book.getId(), found.stream().map(Lesson::getId).toList());

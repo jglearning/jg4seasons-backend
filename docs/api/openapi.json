@@ -1637,7 +1637,7 @@
           },
           "type" : {
             "type" : "string",
-            "enum" : [ "regular", "module_review", "integrated" ]
+            "enum" : [ "regular", "module_review", "integrated", "supplement" ]
           }
         },
         "required" : [ "code", "number", "progress", "scheduledDate", "state", "title", "type" ]
@@ -2090,7 +2090,7 @@
           },
           "type" : {
             "type" : "string",
-            "enum" : [ "regular", "module_review", "integrated" ]
+            "enum" : [ "regular", "module_review", "integrated", "supplement" ]
           }
         },
         "required" : [ "code", "number", "title", "type" ]
@@ -3201,7 +3201,7 @@
           },
           "type" : {
             "type" : "string",
-            "enum" : [ "regular", "module_review", "integrated" ]
+            "enum" : [ "regular", "module_review", "integrated", "supplement" ]
           }
         },
         "required" : [ "code", "number", "passages", "title", "type" ]

@@ -18,7 +18,7 @@ public class Lesson {
     @Column(nullable = false)
     private String code;
 
-    /** 1~24 */
+    /** 권 안 진도표 순서(블랙 1~28, 그 밖 1~24). 교재 번호는 code 끝(07, 보충 S1) */
     @Column(nullable = false, columnDefinition = "tinyint")
     private Integer number;
 

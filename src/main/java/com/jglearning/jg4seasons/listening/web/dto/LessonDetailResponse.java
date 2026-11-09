@@ -26,7 +26,7 @@ public record LessonDetailResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"regular", "module_review", "integrated"})
+                    allowableValues = {"regular", "module_review", "integrated", "supplement"})
             String type) {}
 
     /** 반 레벨(진행 바·완료 표시 색) */

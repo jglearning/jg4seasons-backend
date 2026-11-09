@@ -50,9 +50,10 @@ class ClassManagementService implements ClassManagement {
     public ClassDetail create(long academyId, NewClass newClass) {
         String name = cleanName(newClass.name());
         Weekdays weekdays = Weekdays.fromNumbers(newClass.weekdays());
+        // 진도표 행 수 = 권의 회차 수(블랙 28, 그 밖 24 — ADR-27). BookDirectory가 1~회차 수를 검사해 넘긴다
         List<Long> lessonIds = newClass.lessons().lessonIdsByNumber();
-        if (lessonIds.size() != ClassSchedule.SESSION_COUNT) {
-            throw new IllegalArgumentException("회차 id는 " + ClassSchedule.SESSION_COUNT + "개여야 한다: " + lessonIds.size());
+        if (lessonIds.isEmpty()) {
+            throw new IllegalArgumentException("회차 id가 없다");
         }
 
         Clazz clazz = classes.save(Clazz.create(
@@ -64,9 +65,9 @@ class ClassManagementService implements ClassManagement {
                 codeGenerator.next(accessCodes::exists),
                 issuedAt()));
 
-        List<LocalDate> dates = ClassSchedule.dates(newClass.startDate(), weekdays, ClassSchedule.SESSION_COUNT);
-        List<NewSessionRow> rows = new ArrayList<>(ClassSchedule.SESSION_COUNT);
-        for (int i = 0; i < ClassSchedule.SESSION_COUNT; i++) {
+        List<LocalDate> dates = ClassSchedule.dates(newClass.startDate(), weekdays, lessonIds.size());
+        List<NewSessionRow> rows = new ArrayList<>(lessonIds.size());
+        for (int i = 0; i < lessonIds.size(); i++) {
             rows.add(new NewSessionRow(i + 1, lessonIds.get(i), dates.get(i)));
         }
         sessions.insertScheduled(clazz.getId(), rows);
