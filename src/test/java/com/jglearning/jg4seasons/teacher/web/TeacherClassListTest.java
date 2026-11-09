@@ -270,6 +270,33 @@ class TeacherClassListTest {
     }
 
     @Test
+    void 반_소속이_어긋난_다른_학원_학생은_세지_않는다() {
+        // enrollment에는 학원 칸이 없다 — 잘못 들어간 다른 학원 학생의 진도가 우리 학원 숫자에 섞이면 안 된다
+        threeSessions(classId);
+        enrolled(classId, "우리 학생");
+        long stranger = data.student(data.academy("다른 학원"), "남의 학원 학생");
+        data.enroll(classId, stranger);
+        progress(stranger, "L2-B1-04", "in_progress");
+        progress(stranger, "L2-B1-05", "completed");
+
+        MvcTestResult result = classes();
+
+        assertThat(result).bodyJson().extractingPath("$.items[0].studentCount").isEqualTo(1);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.items[0].current.completed")
+                .isEqualTo(0);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.items[0].current.notStarted")
+                .isEqualTo(1);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.items[0].overdueStudents")
+                .isEqualTo(1);
+    }
+
+    @Test
     void 다른_학원_반은_보이지_않는다() throws Exception {
         long otherAcademy = data.academy("다른 학원");
         long theirs = data.clazz(otherAcademy, "L2-B1", "남의 학원 반", TestData.uniqueAccessCode(), "active");

@@ -352,6 +352,19 @@ class TeacherMatrixTest {
     }
 
     @Test
+    void 반_소속이_어긋난_다른_학원_학생은_행도_칸도_없다() throws Exception {
+        sessions(2, 2);
+        long mine = enrolled("우리 학생");
+        long stranger = data.student(data.academy("다른 학원"), "남의 학원 학생");
+        data.enroll(classId, stranger);
+
+        MvcTestResult result = matrix();
+
+        assertThat((List<Integer>) read(result, "$.students[*].id")).containsExactly((int) mine);
+        assertThat((Map<String, Object>) read(result, "$.cells")).containsOnlyKeys(String.valueOf(mine));
+    }
+
+    @Test
     void 비활성_교사는_401() {
         jdbc.update("update `user` set status = 'inactive' where id = ?", teacherId);
 

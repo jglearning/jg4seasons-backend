@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,10 +54,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TeacherClassService {
 
-    private final AcademyDirectory academies;
     /** 범위를 빼면 오늘 회차가 든 8개 묶음(결정 C) */
     static final int SEQ_BLOCK = 8;
 
+    private static final Logger log = LoggerFactory.getLogger(TeacherClassService.class);
+
+    private final AcademyDirectory academies;
     private final StaffAccounts staff;
     private final StudentAccounts students;
     private final TeacherClasses teacherClasses;
@@ -90,7 +94,7 @@ public class TeacherClassService {
         boolean wholeAcademy = staff.requireActiveStaff(academyId, actorId) == StaffRole.ADMIN;
         LocalDate today = today(academyId);
         List<TeacherClassItem> items = teacherClasses.activeClasses(academyId, actorId, wholeAcademy, today).stream()
-                .map(clazz -> toItem(clazz, today))
+                .map(clazz -> toItem(academyId, clazz, today))
                 .toList();
         return new TeacherClassListResponse(items);
     }
@@ -119,8 +123,9 @@ public class TeacherClassService {
                 .filter(lesson -> lesson.seq() >= from && lesson.seq() <= to)
                 .toList();
         Map<Long, LessonSummary> lessons = lessonsOf(clazz);
+        List<StudentAccount> rows = academyStudents(academyId, clazz);
         Map<Long, Map<Long, LessonProgressSummary>> progressById = progress.progressOf(
-                clazz.studentIds(),
+                rows.stream().map(StudentAccount::id).toList(),
                 clazz.lessons().stream().map(ClassLesson::lessonId).toList());
         long todayLessonId = classBoard.today().map(ClassLesson::lessonId).orElse(-1L);
 
@@ -136,7 +141,6 @@ public class TeacherClassService {
                             lesson.open());
                 })
                 .toList();
-        List<StudentAccount> rows = students.findAll(academyId, clazz.studentIds());
         Map<String, Map<String, MatrixCell>> cells = new LinkedHashMap<>();
         for (StudentAccount student : rows) {
             Map<Long, LessonProgressSummary> mine = progressById.getOrDefault(student.id(), Map.of());
@@ -193,10 +197,29 @@ public class TeacherClassService {
         return summary;
     }
 
-    private TeacherClassItem toItem(TeacherClass clazz, LocalDate today) {
-        Map<Long, Map<Long, LessonProgressStatus>> statuses = statusesOf(clazz);
+    /**
+     * 반의 현재 소속 중 그 학원 학생만(이름 순). enrollment에는 학원 칸이 없어 소속이 어긋나면 다른 학원 학생·교사 id가 섞일 수 있다 — 4.1 숫자·4.2 행·진도
+     * 조회 모두 이 목록만 쓰고, 빠진 id는 WARN으로 남긴다(화면은 일관되게, 원인은 로그로)
+     */
+    private List<StudentAccount> academyStudents(long academyId, TeacherClass clazz) {
+        List<StudentAccount> found = students.findAll(academyId, clazz.studentIds());
+        if (found.size() != clazz.studentIds().size()) {
+            Set<Long> kept = found.stream().map(StudentAccount::id).collect(Collectors.toSet());
+            log.warn(
+                    "반 소속에 그 학원 학생이 아닌 id가 있다: class {} ids {}",
+                    clazz.classId(),
+                    clazz.studentIds().stream().filter(id -> !kept.contains(id)).toList());
+        }
+        return found;
+    }
+
+    private TeacherClassItem toItem(long academyId, TeacherClass clazz, LocalDate today) {
+        List<Long> studentIds = academyStudents(academyId, clazz).stream()
+                .map(StudentAccount::id)
+                .toList();
+        Map<Long, Map<Long, LessonProgressStatus>> statuses = statusesOf(clazz, studentIds);
         Board classBoard = LessonBoard.evaluate(clazz.lessons(), Map.of(), today); // 오늘 회차·다음 수업은 학생과 무관
-        int overdueStudents = (int) clazz.studentIds().stream()
+        int overdueStudents = (int) studentIds.stream()
                 .filter(id -> !LessonBoard.evaluate(clazz.lessons(), statuses.getOrDefault(id, Map.of()), today)
                         .overdue()
                         .isEmpty())
@@ -204,7 +227,7 @@ public class TeacherClassService {
         BookSummary book = books.summaryOf(clazz.bookId());
         TeacherClassCurrent current = classBoard
                 .today()
-                .map(lesson -> current(clazz, lesson, statuses))
+                .map(lesson -> current(clazz, lesson, statuses, studentIds))
                 .orElse(null);
         TeacherClassNext next = classBoard
                 .next()
@@ -219,7 +242,7 @@ public class TeacherClassService {
                 clazz.name(),
                 new TeacherClassLevel(book.levelCode(), book.levelNameKo(), book.levelColorHex()),
                 new TeacherClassBook(book.bookCode(), book.label(), book.season()),
-                clazz.studentIds().size(),
+                studentIds.size(),
                 current,
                 overdueStudents,
                 loginAlert,
@@ -227,10 +250,13 @@ public class TeacherClassService {
     }
 
     private TeacherClassCurrent current(
-            TeacherClass clazz, ClassLesson lesson, Map<Long, Map<Long, LessonProgressStatus>> statuses) {
+            TeacherClass clazz,
+            ClassLesson lesson,
+            Map<Long, Map<Long, LessonProgressStatus>> statuses,
+            List<Long> studentIds) {
         int completed = 0;
         int inProgress = 0;
-        for (long studentId : clazz.studentIds()) {
+        for (long studentId : studentIds) {
             LessonProgressStatus status =
                     statuses.getOrDefault(studentId, Map.of()).get(lesson.lessonId());
             if (status == LessonProgressStatus.COMPLETED) {
@@ -246,14 +272,14 @@ public class TeacherClassService {
                 lesson.scheduledDate(),
                 completed,
                 inProgress,
-                clazz.studentIds().size() - completed - inProgress);
+                studentIds.size() - completed - inProgress);
     }
 
     /** 학생 id → 회차 id → 상태(진도 행이 있는 것만) */
-    private Map<Long, Map<Long, LessonProgressStatus>> statusesOf(TeacherClass clazz) {
+    private Map<Long, Map<Long, LessonProgressStatus>> statusesOf(TeacherClass clazz, List<Long> studentIds) {
         List<Long> lessonIds =
                 clazz.lessons().stream().map(ClassLesson::lessonId).toList();
-        return progress.progressOf(clazz.studentIds(), lessonIds).entrySet().stream()
+        return progress.progressOf(studentIds, lessonIds).entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
                         e -> e.getValue().entrySet().stream()
