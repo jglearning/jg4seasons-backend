@@ -13,13 +13,13 @@ public final class CompletionRuleEvaluator {
         return coverage.compareTo(rule.threshold()) >= 0;
     }
 
-    /** 완료한 속도 중 규칙의 필수 속도가 하나라도 있으면 그 지문 완료 */
-    public static boolean isPassageComplete(CompletionRule rule, Set<String> completedSpeeds) {
-        return completedSpeeds.stream().anyMatch(rule.requiredSpeeds()::contains);
+    /** 완료한 목소리 트랙 중 규칙의 필수 목소리가 하나라도 있으면 그 지문 완료 */
+    public static boolean isPassageComplete(CompletionRule rule, Set<String> completedVoices) {
+        return completedVoices.stream().anyMatch(rule.requiredVoices()::contains);
     }
 
-    /** 이 속도가 지문 완료에 필요한 속도인가(회차 상세의 required) */
-    public static boolean isRequired(CompletionRule rule, String speed) {
-        return rule.requiredSpeeds().contains(speed);
+    /** 이 목소리가 지문 완료에 들어가는 목소리인가(회차 상세의 required) */
+    public static boolean isRequired(CompletionRule rule, String voice) {
+        return rule.requiredVoices().contains(voice);
     }
 }

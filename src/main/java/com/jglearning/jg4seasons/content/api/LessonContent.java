@@ -25,13 +25,13 @@ public record LessonContent(
     /** completion_rule 원문. 해석은 listening.completion이 한다(ADR-07) */
     public record Rule(BigDecimal coverageThreshold, String requiredTracksJson) {}
 
-    public record Passage(int no, String title, int wordCount, List<Sentence> sentences, List<Speed> speeds) {
-        /** 속도마다 시각은 비어 있거나(아직 없음) 문장 수와 같다 */
+    public record Passage(int no, String title, int wordCount, List<Sentence> sentences, List<Voice> voices) {
+        /** 목소리마다 시각은 비어 있거나(아직 없음) 문장 수와 같다 */
         public Passage {
             sentences = List.copyOf(sentences);
-            speeds = List.copyOf(speeds);
-            for (Speed speed : speeds) {
-                if (!speed.timings().isEmpty() && speed.timings().size() != sentences.size()) {
+            voices = List.copyOf(voices);
+            for (Voice voice : voices) {
+                if (!voice.timings().isEmpty() && voice.timings().size() != sentences.size()) {
                     throw new IllegalArgumentException("문장 시각 수가 문장 수와 다르다: 지문 " + no);
                 }
             }
@@ -42,17 +42,17 @@ public record LessonContent(
     public record Sentence(int no, String text, String speaker) {}
 
     /**
-     * 지문 트랙 하나(속도별). speed는 "1.0"처럼 variant(p1:1.0)의 속도 부분. timings[i]는 sentences[i]의 구간이고, 아직 만들지 않았으면 빈 목록.
-     * timingsApproximate는 근사 시각이 하나라도 있으면 true
+     * 지문 트랙 하나(목소리별, ADR-27). voice는 "us_w"처럼 variant(p1:us_w)의 목소리 부분. timings[i]는 sentences[i]의 구간이고, 아직 만들지 않았으면
+     * 빈 목록. timingsApproximate는 근사 시각이 하나라도 있으면 true(ADR-27부터 import는 근사를 만들지 않는다)
      */
-    public record Speed(
+    public record Voice(
             long trackId,
-            String speed,
+            String voice,
             String fileKey,
             int durationMs,
             List<TimeRange> timings,
             boolean timingsApproximate) {
-        public Speed {
+        public Voice {
             timings = List.copyOf(timings);
         }
     }

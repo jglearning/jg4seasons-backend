@@ -63,8 +63,8 @@ class StudentLessonTest {
         data.enroll(classId, studentId);
         data.session(classId, 5, TODAY_CODE, LocalDate.of(2026, 11, 10), "scheduled");
         data.session(classId, 6, TOMORROW_CODE, LocalDate.of(2026, 11, 11), "scheduled");
-        tracks = data.lessonContent(TODAY_CODE, 2, 3, List.of("0.8", "1.0"));
-        data.lessonContent(TOMORROW_CODE, 1, 1, List.of("1.0"));
+        tracks = data.lessonContent(TODAY_CODE, 2, 3, List.of("us_m", "us_w"));
+        data.lessonContent(TOMORROW_CODE, 1, 1, List.of("us_w"));
     }
 
     @AfterEach
@@ -81,7 +81,7 @@ class StudentLessonTest {
     }
 
     @Test
-    void 열린_회차의_지문_문장_속도_시각을_받는다() {
+    void 열린_회차의_지문_문장_목소리_시각을_받는다() {
         MvcTestResult result = getAsStudent(TODAY_CODE);
 
         assertThat(result).hasStatusOk();
@@ -101,18 +101,20 @@ class StudentLessonTest {
         json.extractingPath("$.passages[0].sentences[0].text").isEqualTo("Passage 1 sentence 1 is a made-up line.");
         json.extractingPath("$.passages[0].sentences[0].speaker").isNull();
         json.extractingPath("$.passages[0].sentences[1].speaker").isEqualTo("A");
-        json.extractingPath("$.passages[0].speeds[0].variant").isEqualTo("0.8");
-        json.extractingPath("$.passages[0].speeds[0].required").isEqualTo(false);
-        json.extractingPath("$.passages[0].speeds[0].timingsApproximate").isEqualTo(true);
-        json.extractingPath("$.passages[0].speeds[1].trackId")
-                .isEqualTo(tracks.get("p1:1.0").intValue());
-        json.extractingPath("$.passages[0].speeds[1].variant").isEqualTo("1.0");
-        json.extractingPath("$.passages[0].speeds[1].required").isEqualTo(true);
-        json.extractingPath("$.passages[0].speeds[1].audioUrl").isEqualTo("/audio/L2-B1-05/L2-B1-05_p1_1.0.mp3");
-        json.extractingPath("$.passages[0].speeds[1].durationMs").isEqualTo(10000);
-        json.extractingPath("$.passages[0].speeds[1].timings[0]").isEqualTo(List.of(0, 3000));
-        json.extractingPath("$.passages[0].speeds[1].timings[2]").isEqualTo(List.of(7000, 10000));
-        json.extractingPath("$.passages[0].speeds[1].timingsApproximate").isEqualTo(false);
+        json.extractingPath("$.passages[0].voices.length()").isEqualTo(2);
+        json.doesNotHavePath("$.passages[0].speeds");
+        json.extractingPath("$.passages[0].voices[0].variant").isEqualTo("us_m");
+        json.extractingPath("$.passages[0].voices[0].required").isEqualTo(true);
+        json.extractingPath("$.passages[0].voices[0].timingsApproximate").isEqualTo(false);
+        json.extractingPath("$.passages[0].voices[1].trackId")
+                .isEqualTo(tracks.get("p1:us_w").intValue());
+        json.extractingPath("$.passages[0].voices[1].variant").isEqualTo("us_w");
+        json.extractingPath("$.passages[0].voices[1].required").isEqualTo(true);
+        json.extractingPath("$.passages[0].voices[1].audioUrl").isEqualTo("/audio/L2-B1-05/L2-B1-05_p1_us_w.mp3");
+        json.extractingPath("$.passages[0].voices[1].durationMs").isEqualTo(10000);
+        json.extractingPath("$.passages[0].voices[1].timings[0]").isEqualTo(List.of(0, 3000));
+        json.extractingPath("$.passages[0].voices[1].timings[2]").isEqualTo(List.of(7000, 10000));
+        json.extractingPath("$.passages[0].voices[1].timingsApproximate").isEqualTo(false);
         json.extractingPath("$.completion.threshold").isEqualTo(0.9);
     }
 
@@ -121,9 +123,9 @@ class StudentLessonTest {
         MvcTestResult result = getAsStudent(TODAY_CODE);
 
         var json = assertThat(result).bodyJson();
-        json.extractingPath("$.passages[0].speeds[1].coverage").isEqualTo(0);
-        json.extractingPath("$.passages[0].speeds[1].completed").isEqualTo(false);
-        json.extractingPath("$.passages[0].speeds[1].heardRanges").isEqualTo(List.of());
+        json.extractingPath("$.passages[0].voices[1].coverage").isEqualTo(0);
+        json.extractingPath("$.passages[0].voices[1].completed").isEqualTo(false);
+        json.extractingPath("$.passages[0].voices[1].heardRanges").isEqualTo(List.of());
         json.extractingPath("$.completion.status").isEqualTo("not_started");
         json.extractingPath("$.completion.passagesDone").isEqualTo(0);
         json.extractingPath("$.completion.passagesTotal").isEqualTo(2);
@@ -139,7 +141,7 @@ class StudentLessonTest {
                         + " last_played_at) values (?, ?, '[[0,5200],[5600,9600]]', 9200, 0.9200,"
                         + " '2026-11-10 02:00:00', '2026-11-10 02:00:00')",
                 studentId,
-                tracks.get("p1:1.0"));
+                tracks.get("p1:us_w"));
         jdbc.update(
                 "insert into lesson_progress (student_id, lesson_id, status, passages_total, passages_done)"
                         + " values (?, ?, 'in_progress', 2, 1)",
@@ -154,11 +156,11 @@ class StudentLessonTest {
 
         var json = assertThat(getAsStudent(TODAY_CODE)).bodyJson();
 
-        json.extractingPath("$.passages[0].speeds[1].coverage").isEqualTo(0.92);
-        json.extractingPath("$.passages[0].speeds[1].completed").isEqualTo(true);
-        json.extractingPath("$.passages[0].speeds[1].heardRanges")
+        json.extractingPath("$.passages[0].voices[1].coverage").isEqualTo(0.92);
+        json.extractingPath("$.passages[0].voices[1].completed").isEqualTo(true);
+        json.extractingPath("$.passages[0].voices[1].heardRanges")
                 .isEqualTo(List.of(List.of(0, 5200), List.of(5600, 9600)));
-        json.extractingPath("$.passages[1].speeds[1].completed").isEqualTo(false);
+        json.extractingPath("$.passages[1].voices[1].completed").isEqualTo(false);
         json.extractingPath("$.completion.status").isEqualTo("in_progress");
         json.extractingPath("$.completion.passagesDone").isEqualTo(1);
         json.extractingPath("$.completion.passagesTotal").isEqualTo(2);
@@ -213,7 +215,7 @@ class StudentLessonTest {
         long second = data.clazz(academyId, "L2-B2", "봄 그린 반", TestData.uniqueAccessCode(), "active");
         data.enroll(second, studentId);
         data.session(second, 1, "L2-B2-01", LocalDate.of(2026, 11, 10), "scheduled");
-        data.lessonContent("L2-B2-01", 1, 1, List.of("1.0"));
+        data.lessonContent("L2-B2-01", 1, 1, List.of("us_w"));
 
         MvcTestResult result = getAsStudent("L2-B2-01");
 
@@ -236,7 +238,7 @@ class StudentLessonTest {
         long other = data.clazz(otherAcademy, "L2-B2", "다른 학원 반", TestData.uniqueAccessCode(), "active");
         data.enroll(other, studentId);
         data.session(other, 1, "L2-B2-01", LocalDate.of(2026, 11, 10), "scheduled");
-        data.lessonContent("L2-B2-01", 1, 1, List.of("1.0"));
+        data.lessonContent("L2-B2-01", 1, 1, List.of("us_w"));
 
         assertThat(getAsStudent("L2-B2-01")).hasStatus(404);
     }
@@ -317,7 +319,7 @@ class StudentLessonTest {
 
     @Test
     void 휴강만_있는_회차는_423() {
-        data.lessonContent("L2-B1-03", 1, 1, List.of("1.0"));
+        data.lessonContent("L2-B1-03", 1, 1, List.of("us_w"));
         data.session(classId, 3, "L2-B1-03", LocalDate.of(2026, 11, 5), "cancelled");
 
         MvcTestResult result = getAsStudent("L2-B1-03");

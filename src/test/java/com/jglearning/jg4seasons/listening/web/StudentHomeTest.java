@@ -64,7 +64,7 @@ class StudentHomeTest {
         for (int n = 1; n <= 24; n++) {
             data.session(classId, n, code(n), DAY5.plusDays((n - 5) * 2L), "scheduled");
         }
-        data.lessonContent(code(5), 2, 1, List.of("1.0"));
+        data.lessonContent(code(5), 2, 1, List.of("us_w"));
         data.words(code(5), 3);
         progress(1, "completed", 0, 0);
         progress(2, "completed", 0, 0);

@@ -45,17 +45,17 @@ class ReferenceDataTest {
     }
 
     @Test
-    void 레벨별_지문_속도() {
-        assertThat(speedsEqual("L1", "[\"0.8\",\"1.0\"]")).isTrue();
-        assertThat(speedsEqual("L2", "[\"0.8\",\"1.0\",\"1.2\"]")).isTrue();
-        assertThat(speedsEqual("L3", "[\"0.8\",\"1.0\",\"1.2\"]")).isTrue();
-        assertThat(speedsEqual("L4", "[\"1.0\",\"1.2\"]")).isTrue();
-        assertThat(speedsEqual("K", "[\"1.0\",\"1.2\"]")).isTrue();
+    void 레벨마다_지문_목소리는_넷() {
+        for (String level : new String[] {"L1", "L2", "L3", "L4", "K"}) {
+            assertThat(voicesEqual(level, "[\"us_w\",\"us_m\",\"uk_w\",\"uk_m\"]"))
+                    .as(level)
+                    .isTrue();
+        }
     }
 
-    private boolean speedsEqual(String level, String json) {
+    private boolean voicesEqual(String level, String json) {
         return Boolean.TRUE.equals(jdbc.queryForObject(
-                "select passage_speeds = cast(? as json) from level where code = ?", Boolean.class, json, level));
+                "select passage_voices = cast(? as json) from level where code = ?", Boolean.class, json, level));
     }
 
     @Test
@@ -111,9 +111,10 @@ class ReferenceDataTest {
                 .isEqualTo(5);
         assertThat(jdbc.queryForList("select distinct coverage_threshold from completion_rule", BigDecimal.class))
                 .containsExactly(new BigDecimal("0.900"));
-        assertThat(requiredSpeedsEqual("L1", "[\"0.8\",\"1.0\"]")).isTrue();
-        for (String level : new String[] {"L2", "L3", "L4", "K"}) {
-            assertThat(requiredSpeedsEqual(level, "[\"1.0\"]")).as(level).isTrue();
+        for (String level : new String[] {"L1", "L2", "L3", "L4", "K"}) {
+            assertThat(requiredVoicesEqual(level, "[\"us_w\",\"us_m\",\"uk_w\",\"uk_m\"]"))
+                    .as(level)
+                    .isTrue();
         }
         assertThat(jdbc.queryForObject(
                         "select count(*) from completion_rule where"
@@ -123,7 +124,7 @@ class ReferenceDataTest {
                 .isEqualTo(5);
     }
 
-    private boolean requiredSpeedsEqual(String level, String json) {
+    private boolean requiredVoicesEqual(String level, String json) {
         return Boolean.TRUE.equals(jdbc.queryForObject(
                 "select json_extract(r.required_tracks, '$[0].anyOf') = cast(? as json)"
                         + " from completion_rule r join level l on l.id = r.level_id where l.code = ?",

@@ -62,7 +62,7 @@ class FlushCommitTest {
         academyId = data.academy("flush 커밋 학원");
         classId = data.clazz(academyId, "L2-B1", "커밋 반", TestData.uniqueAccessCode(), "active");
         data.session(classId, 20, CODE, LocalDate.of(2026, 11, 10), "scheduled");
-        tracks = data.lessonContent(CODE, 2, 2, List.of("1.0"));
+        tracks = data.lessonContent(CODE, 2, 2, List.of("us_w"));
     }
 
     @AfterEach
@@ -140,7 +140,7 @@ class FlushCommitTest {
 
     @Test
     void 같은_트랙_동시_flush는_두_구간을_모두_합친다() throws Exception {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         for (int round = 0; round < 20; round++) {
             long studentId = newStudent(round);
 
@@ -166,8 +166,8 @@ class FlushCommitTest {
             long studentId = newStudent(round);
 
             List<Integer> statuses = together(
-                    flush(studentId, UUID.randomUUID().toString(), tracks.get("p1:1.0"), 0, 6500),
-                    flush(studentId, UUID.randomUUID().toString(), tracks.get("p2:1.0"), 0, 6500));
+                    flush(studentId, UUID.randomUUID().toString(), tracks.get("p1:us_w"), 0, 6500),
+                    flush(studentId, UUID.randomUUID().toString(), tracks.get("p2:us_w"), 0, 6500));
 
             assertThat(statuses).as("round %d", round).containsOnly(200);
             assertThat(jdbc.queryForMap(
@@ -185,8 +185,8 @@ class FlushCommitTest {
     /** 집계 행이 이미 있으면 INSERT IGNORE가 줄을 세우지 않는다 — 회차 행 FOR UPDATE만이 막는다 */
     @Test
     void 진행_중인_회차에서_두_지문을_동시에_완료해도_완료_지문이_2() throws Exception {
-        long p1 = tracks.get("p1:1.0");
-        long p2 = tracks.get("p2:1.0");
+        long p1 = tracks.get("p1:us_w");
+        long p2 = tracks.get("p2:us_w");
         for (int round = 0; round < 30; round++) {
             long studentId = newStudent(round);
             assertThat(flush(studentId, UUID.randomUUID().toString(), p1, 0, 100)
@@ -218,7 +218,7 @@ class FlushCommitTest {
 
     @Test
     void 같은_세션의_첫_flush_동시_2건은_세션_하나() throws Exception {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         for (int round = 0; round < 20; round++) {
             long studentId = newStudent(round);
             String session = UUID.randomUUID().toString();
@@ -241,7 +241,7 @@ class FlushCommitTest {
 
     @Test
     void 진행_중인_트랙에_같은_트랙_동시_flush도_두_구간을_합친다() throws Exception {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         for (int round = 0; round < 20; round++) {
             long studentId = newStudent(round);
             assertThat(flush(studentId, UUID.randomUUID().toString(), one, 0, 100)
@@ -264,7 +264,7 @@ class FlushCommitTest {
 
     @Test
     void 이미_있는_세션의_동시_flush는_세션_하나() throws Exception {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         for (int round = 0; round < 20; round++) {
             long studentId = newStudent(round);
             String session = UUID.randomUUID().toString();
@@ -296,7 +296,7 @@ class FlushCommitTest {
     /** fetch 직후 beacon처럼 같은 세션이 같은 구간을 거의 동시에 다시 보낸다 — 세션 행 잠금이 줄을 세워 한 번만 센다 */
     @Test
     void 같은_세션_같은_구간_동시_재전송은_한_번만_센다() throws Exception {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         for (int round = 0; round < 20; round++) {
             long studentId = newStudent(round);
             String session = UUID.randomUUID().toString();
@@ -315,7 +315,7 @@ class FlushCommitTest {
 
     @Test
     void 이미_있는_세션에_같은_구간_동시_재전송도_한_번만_센다() throws Exception {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         for (int round = 0; round < 20; round++) {
             long studentId = newStudent(round);
             String session = UUID.randomUUID().toString();

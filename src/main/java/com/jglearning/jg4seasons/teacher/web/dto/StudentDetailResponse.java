@@ -48,7 +48,7 @@ public record StudentDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             int requiredTotal,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 트랙(선택 속도 포함)")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 트랙(목소리별)")
             List<StudentDetailTrack> tracks,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)

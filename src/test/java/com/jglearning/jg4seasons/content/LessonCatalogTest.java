@@ -8,8 +8,8 @@ import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonContent;
 import com.jglearning.jg4seasons.content.api.LessonContent.Passage;
-import com.jglearning.jg4seasons.content.api.LessonContent.Speed;
 import com.jglearning.jg4seasons.content.api.LessonContent.TimeRange;
+import com.jglearning.jg4seasons.content.api.LessonContent.Voice;
 import com.jglearning.jg4seasons.content.api.LessonSummary;
 import com.jglearning.jg4seasons.content.api.PassageTrack;
 import java.util.List;
@@ -41,8 +41,8 @@ class LessonCatalogTest {
     }
 
     @Test
-    void 회차_내용을_지문_문장_속도_순서대로() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 2, 3, List.of("0.8", "1.0"));
+    void 회차_내용을_지문_문장_목소리_순서대로() {
+        Map<String, Long> tracks = data.lessonContent(CODE, 2, 3, List.of("us_m", "us_w"));
 
         LessonContent lesson = catalog.findByCode(CODE).orElseThrow();
 
@@ -59,22 +59,22 @@ class LessonCatalogTest {
         assertThat(first.sentences().get(0).text()).isEqualTo("Passage 1 sentence 1 is a made-up line.");
         assertThat(first.sentences().get(0).speaker()).isNull();
         assertThat(first.sentences().get(1).speaker()).isEqualTo("A");
-        assertThat(first.speeds()).extracting(Speed::speed).containsExactly("0.8", "1.0");
-        Speed one = first.speeds().get(1);
-        assertThat(one.trackId()).isEqualTo(tracks.get("p1:1.0"));
-        assertThat(one.fileKey()).isEqualTo("audio/L2-B1-05/L2-B1-05_p1_1.0.mp3");
+        assertThat(first.voices()).extracting(Voice::voice).containsExactly("us_m", "us_w");
+        Voice one = first.voices().get(1);
+        assertThat(one.trackId()).isEqualTo(tracks.get("p1:us_w"));
+        assertThat(one.fileKey()).isEqualTo("audio/L2-B1-05/L2-B1-05_p1_us_w.mp3");
         assertThat(one.durationMs()).isEqualTo(3 * TestData.SENTENCE_MS + 2 * TestData.GAP_MS);
     }
 
     @Test
     void 시각은_문장_순서와_같다() {
-        data.lessonContent(CODE, 1, 3, List.of("1.0"));
+        data.lessonContent(CODE, 1, 3, List.of("us_w"));
 
-        Speed one = catalog.findByCode(CODE)
+        Voice one = catalog.findByCode(CODE)
                 .orElseThrow()
                 .passages()
                 .get(0)
-                .speeds()
+                .voices()
                 .get(0);
 
         assertThat(one.timings())
@@ -83,30 +83,31 @@ class LessonCatalogTest {
     }
 
     @Test
-    void 근사_시각이면_timingsApproximate() {
-        data.lessonContent(CODE, 1, 2, List.of("0.8", "1.0"));
+    void 근사_시각이_남아_있으면_timingsApproximate() {
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 2, List.of("us_m", "us_w"));
+        jdbc.update("update sentence_timing set approximate = true where track_id = ?", tracks.get("p1:us_m"));
 
-        Speed slow = catalog.findByCode(CODE)
+        Voice voice = catalog.findByCode(CODE)
                 .orElseThrow()
                 .passages()
                 .get(0)
-                .speeds()
+                .voices()
                 .get(0);
 
-        assertThat(slow.speed()).isEqualTo("0.8");
-        assertThat(slow.timingsApproximate()).isTrue();
-        assertThat(slow.timings().get(0)).isEqualTo(new TimeRange(0, 3750));
+        assertThat(voice.voice()).isEqualTo("us_m");
+        assertThat(voice.timingsApproximate()).isTrue();
+        assertThat(voice.timings().get(0)).isEqualTo(new TimeRange(0, 3000));
     }
 
     @Test
     void 레벨과_완료_규칙() {
-        data.lessonContent(CODE, 1, 1, List.of("1.0"));
+        data.lessonContent(CODE, 1, 1, List.of("us_w"));
 
         LessonContent lesson = catalog.findByCode(CODE).orElseThrow();
 
         assertThat(lesson.level()).isEqualTo(new LessonContent.Level("L2", "그린", "#1F7A4F"));
         assertThat(lesson.rule().coverageThreshold()).isEqualByComparingTo("0.900");
-        assertThat(lesson.rule().requiredTracksJson()).contains("\"anyOf\"").contains("1.0");
+        assertThat(lesson.rule().requiredTracksJson()).contains("\"anyOf\"").contains("us_w");
     }
 
     @Test
@@ -124,14 +125,14 @@ class LessonCatalogTest {
 
     @Test
     void 시각이_없는_트랙은_빈_목록() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 1, 2, List.of("1.0"));
-        jdbc.update("delete from sentence_timing where track_id = ?", tracks.get("p1:1.0"));
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 2, List.of("us_w"));
+        jdbc.update("delete from sentence_timing where track_id = ?", tracks.get("p1:us_w"));
 
-        Speed one = catalog.findByCode(CODE)
+        Voice one = catalog.findByCode(CODE)
                 .orElseThrow()
                 .passages()
                 .get(0)
-                .speeds()
+                .voices()
                 .get(0);
 
         assertThat(one.timings()).isEmpty();
@@ -140,18 +141,18 @@ class LessonCatalogTest {
 
     @Test
     void 시각_개수가_문장_수와_다르면_IllegalState() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 1, 3, List.of("1.0"));
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 3, List.of("us_w"));
         jdbc.update(
                 "delete st from sentence_timing st join sentence s on s.id = st.sentence_id"
                         + " where st.track_id = ? and s.no = 2",
-                tracks.get("p1:1.0"));
+                tracks.get("p1:us_w"));
 
         assertThatThrownBy(() -> catalog.findByCode(CODE)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void 단어_수() {
-        data.lessonContent(CODE, 1, 1, List.of("1.0"));
+        data.lessonContent(CODE, 1, 1, List.of("us_w"));
         data.words(CODE, 4);
 
         assertThat(catalog.findByCode(CODE).orElseThrow().wordTotal()).isEqualTo(4);
@@ -159,7 +160,7 @@ class LessonCatalogTest {
 
     @Test
     void 완료_규칙이_없는_레벨_회차는_IllegalState() {
-        data.lessonContent(CODE, 1, 1, List.of("1.0"));
+        data.lessonContent(CODE, 1, 1, List.of("us_w"));
         jdbc.update("delete from completion_rule where level_id = (select id from level where code = 'L2')");
 
         assertThatThrownBy(() -> catalog.findByCode(CODE)).isInstanceOf(IllegalStateException.class);
@@ -167,35 +168,35 @@ class LessonCatalogTest {
 
     @Test
     void 다른_회차_지문을_가리키는_트랙은_IllegalState() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("1.0"));
-        data.lessonContent("L2-B1-04", 1, 1, List.of("1.0"));
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("us_w"));
+        data.lessonContent("L2-B1-04", 1, 1, List.of("us_w"));
         jdbc.update(
                 "update track set passage_id = (select p.id from passage p join lesson l on l.id = p.lesson_id"
                         + " where l.code = 'L2-B1-04' and p.no = 1) where id = ?",
-                tracks.get("p1:1.0"));
+                tracks.get("p1:us_w"));
 
         assertThatThrownBy(() -> catalog.findByCode(CODE)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void 지문_id가_없는_지문_트랙은_IllegalState() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("1.0"));
-        jdbc.update("update track set passage_id = null where id = ?", tracks.get("p1:1.0"));
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("us_w"));
+        jdbc.update("update track set passage_id = null where id = ?", tracks.get("p1:us_w"));
 
         assertThatThrownBy(() -> catalog.findByCode(CODE)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void 지문_번호가_다른_트랙은_IllegalState() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("1.0"));
-        jdbc.update("update track set variant = 'p2:1.0' where id = ?", tracks.get("p1:1.0"));
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("us_w"));
+        jdbc.update("update track set variant = 'p2:us_w' where id = ?", tracks.get("p1:us_w"));
 
         assertThatThrownBy(() -> catalog.findByCode(CODE)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void 시각이_다른_지문_문장을_가리키면_IllegalState() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 2, 2, List.of("1.0"));
+        Map<String, Long> tracks = data.lessonContent(CODE, 2, 2, List.of("us_w"));
         jdbc.update(
                 "update sentence_timing set sentence_id = (select s.id from sentence s join passage p on p.id = s.passage_id"
                         + " join lesson l on l.id = p.lesson_id where l.code = ? and p.no = 2 and s.no = 2)"
@@ -203,30 +204,35 @@ class LessonCatalogTest {
                         + " on p.id = s.passage_id join lesson l on l.id = p.lesson_id"
                         + " where l.code = ? and p.no = 1 and s.no = 2)",
                 CODE,
-                tracks.get("p1:1.0"),
+                tracks.get("p1:us_w"),
                 CODE);
 
         assertThatThrownBy(() -> catalog.findByCode(CODE)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void 속도는_sort_order_순서() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("0.8", "1.0"));
-        jdbc.update("update track set sort_order = 0 where id = ?", tracks.get("p1:1.0"));
+    void 목소리는_sort_order_순서() {
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("us_m", "us_w"));
+        jdbc.update("update track set sort_order = 0 where id = ?", tracks.get("p1:us_w"));
 
-        assertThat(catalog.findByCode(CODE).orElseThrow().passages().get(0).speeds())
-                .extracting(Speed::speed)
-                .containsExactly("1.0", "0.8");
+        assertThat(catalog.findByCode(CODE).orElseThrow().passages().get(0).voices())
+                .extracting(Voice::voice)
+                .containsExactly("us_w", "us_m");
     }
 
     @Test
-    void 지문_트랙으로_회차와_속도를_찾는다() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 2, 3, List.of("0.8", "1.0"));
+    void 지문_트랙으로_회차와_목소리를_찾는다() {
+        Map<String, Long> tracks = data.lessonContent(CODE, 2, 3, List.of("us_m", "us_w"));
 
-        assertThat(catalog.findPassageTrack(tracks.get("p2:0.8")))
+        assertThat(catalog.findPassageTrack(tracks.get("p2:us_m")))
                 .contains(new PassageTrack(
-                        tracks.get("p2:0.8"), data.lessonId(CODE), CODE, data.bookId("L2-B1"), 2, "0.8", (int)
-                                Math.round((3 * TestData.SENTENCE_MS + 2 * TestData.GAP_MS) / 0.8)));
+                        tracks.get("p2:us_m"),
+                        data.lessonId(CODE),
+                        CODE,
+                        data.bookId("L2-B1"),
+                        2,
+                        "us_m",
+                        3 * TestData.SENTENCE_MS + 2 * TestData.GAP_MS));
     }
 
     @Test
@@ -249,9 +255,9 @@ class LessonCatalogTest {
 
     @Test
     void 트랙_지문이_어긋나면_IllegalState() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("1.0"));
-        data.lessonContent("L2-B1-04", 1, 1, List.of("1.0"));
-        long track = tracks.get("p1:1.0");
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("us_w"));
+        data.lessonContent("L2-B1-04", 1, 1, List.of("us_w"));
+        long track = tracks.get("p1:us_w");
         jdbc.update(
                 "update track set passage_id = (select p.id from passage p join lesson l on l.id = p.lesson_id"
                         + " where l.code = 'L2-B1-04' and p.no = 1) where id = ?",
@@ -267,8 +273,8 @@ class LessonCatalogTest {
 
     @Test
     void 트랙_길이가_0_이하면_IllegalState() {
-        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("1.0"));
-        long track = tracks.get("p1:1.0");
+        Map<String, Long> tracks = data.lessonContent(CODE, 1, 1, List.of("us_w"));
+        long track = tracks.get("p1:us_w");
         jdbc.update("update track set duration_ms = 0 where id = ?", track);
 
         assertThatThrownBy(() -> catalog.findPassageTrack(track)).isInstanceOf(IllegalStateException.class);
@@ -276,7 +282,7 @@ class LessonCatalogTest {
 
     @Test
     void 권의_회차를_번호_순으로_지문_수와() {
-        data.lessonContent(CODE, 2, 1, List.of("1.0"));
+        data.lessonContent(CODE, 2, 1, List.of("us_w"));
 
         List<LessonSummary> lessons = catalog.lessonsOfBook(data.bookId("L2-B1"));
 

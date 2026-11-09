@@ -48,7 +48,7 @@ public class TeacherDetailController {
         throw NotImplemented.yet();
     }
 
-    @Operation(summary = "회차 상세", description = "학생 × 트랙 표(선택 속도 포함)" + NOT_YET)
+    @Operation(summary = "회차 상세", description = "학생 × 트랙 표(목소리별)" + NOT_YET)
     @GetMapping("/api/v1/teacher/classes/{classId}/lessons/{lessonCode}")
     public TeacherLessonDetailResponse lesson(
             @PathVariable @Positive long classId,
