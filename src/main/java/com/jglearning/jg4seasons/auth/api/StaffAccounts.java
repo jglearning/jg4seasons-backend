@@ -22,6 +22,12 @@ public interface StaffAccounts {
      */
     void requireActiveAdmin(long academyId, long actorId);
 
+    /**
+     * 요청한 사람이 지금도 이 학원의 활성 교사 또는 관리자인지 확인하고 지금 역할을 돌려준다(교사 API — 관리자는 학원 전체, 교사는 담당 반만 보게 호출자가
+     * 나눈다). 아니면 401 UNAUTHORIZED. requireActiveAdmin과 같은 이유(남은 access)로 쓰기 전에 부른다
+     */
+    StaffRole requireActiveStaff(long academyId, long actorId);
+
     List<StaffAccount> list(long academyId);
 
     StaffAccount find(long academyId, long staffId);

@@ -10,7 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** 사용자(학생·교사·관리자). 개인정보는 이름·학교·학년만(학교·학년은 명단 이슈에서 매핑). */
+/** 사용자(학생·교사·관리자). 개인정보는 이름·학교·학년만(학교·학년은 학생만 쓴다). */
 @Entity
 @Table(name = "`user`")
 public class User implements AcademyScoped {
@@ -29,6 +29,12 @@ public class User implements AcademyScoped {
 
     @Column(nullable = false)
     private String name;
+
+    /** 학생만. 없으면 null */
+    private String school;
+
+    /** 학생만(예: 중1). 없으면 null */
+    private String grade;
 
     @Convert(converter = UserStatus.DbConverter.class)
     @Column(nullable = false, columnDefinition = "enum('active','inactive')")
@@ -50,6 +56,26 @@ public class User implements AcademyScoped {
         user.name = name;
         user.status = UserStatus.ACTIVE;
         return user;
+    }
+
+    /** 학생(관리자 명단 등록). 값은 StudentAccountService가 정리해 넘긴다 */
+    static User student(long academyId, String name, String school, String grade) {
+        User user = new User();
+        user.academyId = academyId;
+        user.role = UserRole.STUDENT;
+        user.name = name;
+        user.school = school;
+        user.grade = grade;
+        user.status = UserStatus.ACTIVE;
+        return user;
+    }
+
+    void changeSchool(String school) {
+        this.school = school;
+    }
+
+    void changeGrade(String grade) {
+        this.grade = grade;
     }
 
     void rename(String name) {
@@ -83,6 +109,14 @@ public class User implements AcademyScoped {
 
     public String getName() {
         return name;
+    }
+
+    public String getSchool() {
+        return school;
+    }
+
+    public String getGrade() {
+        return grade;
     }
 
     public UserStatus getStatus() {

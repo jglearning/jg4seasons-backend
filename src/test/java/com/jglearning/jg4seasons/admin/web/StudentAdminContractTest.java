@@ -21,14 +21,13 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 5.2 학생 관리·5.4 현황 계약(구현 전 501). 검증(400)과 접근 규칙(401·403)은 지금도 진짜로 동작하고, 통과한 요청만 501을 받는다. 구현 이슈에서 501 단언을 실제
- * 동작 단언으로 바꾼다.
+ * 5.2 학생 관리·5.4 현황 계약: 검증(400)과 접근 규칙(401·403). 모든 경로가 구현됐다(이슈 #29) — 실제 동작은 StudentAdminTest·DashboardTest.
  */
 @IntegrationTest
 @Transactional
 class StudentAdminContractTest {
 
-    /** 구현 전 경로: 메서드 · 경로 · 유효한 본문(null = 본문 없음) */
+    /** 메서드 · 경로 · 유효한 본문(null = 본문 없음) */
     record Call(HttpMethod method, String path, String body) {}
 
     static final List<Call> CALLS = List.of(
@@ -93,16 +92,6 @@ class StudentAdminContractTest {
         assertThat(result).hasStatus(400);
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
         assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo(field);
-    }
-
-    @Test
-    void 관리자의_올바른_요청은_501_NOT_IMPLEMENTED() {
-        for (Call c : CALLS) {
-            MvcTestResult result = call(c, as(adminId, UserRole.ADMIN), true);
-
-            assertThat(result).as(c.method() + " " + c.path()).hasStatus(501);
-            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_IMPLEMENTED");
-        }
     }
 
     @Test
@@ -190,10 +179,13 @@ class StudentAdminContractTest {
         assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"name\":\"\"}"), "name");
         assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"school\":\"" + "가".repeat(51) + "\"}"), "school");
         assertValidation(asAdmin(HttpMethod.PATCH, url, "{\"grade\":\"" + "가".repeat(11) + "\"}"), "grade");
-        // 앞뒤·사이 공백·줄바꿈이 있어도 글자가 있으면 이름이다. 학교·학년 빈 문자열은 지우기
-        assertThat(asAdmin(HttpMethod.PATCH, url, "{\"name\":\" 김 민준\\n\"}")).hasStatus(501);
-        assertThat(asAdmin(HttpMethod.PATCH, url, "{\"school\":\"\",\"grade\":\"\"}"))
-                .hasStatus(501);
+        // 앞뒤·사이 공백·줄바꿈이 있어도 글자가 있으면 이름이다(앞뒤는 지움). 학교·학년 빈 문자열은 지우기
+        String real = "/api/v1/admin/students/" + new TestData(jdbc).student(academyId, "김민준");
+        MvcTestResult renamed = asAdmin(HttpMethod.PATCH, real, "{\"name\":\" 김 민준\\n\"}");
+        assertThat(renamed).hasStatusOk();
+        assertThat(renamed).bodyJson().extractingPath("$.name").isEqualTo("김 민준");
+        assertThat(asAdmin(HttpMethod.PATCH, real, "{\"school\":\"\",\"grade\":\"\"}"))
+                .hasStatusOk();
     }
 
     @Test
@@ -212,13 +204,16 @@ class StudentAdminContractTest {
         String fiftyIds =
                 IntStream.rangeClosed(1, 50).mapToObj(Integer::toString).collect(Collectors.joining(",", "[", "]"));
 
-        assertThat(asAdmin(HttpMethod.POST, "/api/v1/admin/classes/1/students", fifty))
-                .hasStatus(501);
+        long classId = new TestData(jdbc).clazz(academyId, "L2-B1", "상한 반", TestData.uniqueAccessCode(), "active");
+
+        assertThat(asAdmin(HttpMethod.POST, "/api/v1/admin/classes/" + classId + "/students", fifty))
+                .hasStatus(201);
+        // 검증은 통과하고 반 확인에서 404(그 반 학생이 아님)
         assertThat(asAdmin(
                         HttpMethod.POST,
-                        "/api/v1/admin/classes/1/students/personal-codes/regenerate",
+                        "/api/v1/admin/classes/" + classId + "/students/personal-codes/regenerate",
                         "{\"studentIds\":" + fiftyIds + "}"))
-                .hasStatus(501);
+                .hasStatus(404);
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.listening;
 
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
+import com.jglearning.jg4seasons.clazz.api.TodayLesson;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -11,8 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * 반 진도표와 학생 진도로 회차 상태를 정한다(STU-01·02, ADR-24). 오늘 회차 = 수업일이 지난(reached) 회차 중 가장 늦은 것(같은 날이면 seq가 큰 것) — open으로
- * 고르면 미래 회차 허용 반에서 24회차가 "오늘"이 된다. 밀림 = 그보다 앞선 reached 회차 중 미완료. 상태 우선순위 completed → today → overdue → open →
+ * 반 진도표와 학생 진도로 회차 상태를 정한다(STU-01·02, ADR-24). 오늘 회차는 clazz.api.TodayLesson(수업일이 지난 회차 중 가장 늦은 것). 밀림 = 그보다 앞선 reached 회차 중 미완료. 상태 우선순위 completed → today → overdue → open →
  * locked. 휴강 행만 있는 회차는 reached·open이 아니라 locked(2.3·flush의 423과 같음).
  */
 public final class LessonBoard {
@@ -63,15 +63,13 @@ public final class LessonBoard {
         }
     }
 
-    private static final Comparator<ClassLesson> BY_DATE_THEN_SEQ =
-            Comparator.comparing(ClassLesson::scheduledDate).thenComparingInt(ClassLesson::seq);
+    private static final Comparator<ClassLesson> BY_DATE_THEN_SEQ = TodayLesson.BY_DATE_THEN_SEQ;
 
     private LessonBoard() {}
 
     /** progress에 없는 회차는 시작 전. today는 학원 타임존 날짜 */
     public static Board evaluate(List<ClassLesson> lessons, Map<Long, LessonProgressStatus> progress, LocalDate today) {
-        Optional<ClassLesson> todayLesson =
-                lessons.stream().filter(ClassLesson::reached).max(BY_DATE_THEN_SEQ);
+        Optional<ClassLesson> todayLesson = TodayLesson.of(lessons);
         Optional<ClassLesson> next = lessons.stream()
                 .filter(ClassLesson::held)
                 .filter(lesson -> lesson.scheduledDate().isAfter(today))

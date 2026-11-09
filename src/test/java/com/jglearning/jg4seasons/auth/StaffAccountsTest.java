@@ -195,4 +195,29 @@ class StaffAccountsTest {
                         .name())
                 .isEqualTo("김교사");
     }
+
+    @Test
+    void 활성_교사와_관리자는_역할을_돌려준다() {
+        long teacherId = data.staff(academyId, "교사", "teacher");
+
+        assertThat(accounts.requireActiveStaff(academyId, teacherId)).isEqualTo(StaffRole.TEACHER);
+        assertThat(accounts.requireActiveStaff(academyId, adminId)).isEqualTo(StaffRole.ADMIN);
+    }
+
+    @Test
+    void 비활성_교사_학생_다른_학원_교사_정지된_학원은_401() {
+        long inactive = data.staff(academyId, "비활성 교사", "teacher");
+        jdbc.update("update `user` set status = 'inactive' where id = ?", inactive);
+        long student = data.student(academyId, "학생");
+        long otherAcademy = data.academy("다른 학원");
+        long otherTeacher = data.staff(otherAcademy, "남의 교사", "teacher");
+        long suspendedAcademy = data.academy("정지 학원");
+        long suspendedTeacher = data.staff(suspendedAcademy, "정지 학원 교사", "teacher");
+        jdbc.update("update academy set status = 'suspended' where id = ?", suspendedAcademy);
+
+        assertCode(() -> accounts.requireActiveStaff(academyId, inactive), CommonErrorCode.UNAUTHORIZED);
+        assertCode(() -> accounts.requireActiveStaff(academyId, student), CommonErrorCode.UNAUTHORIZED);
+        assertCode(() -> accounts.requireActiveStaff(academyId, otherTeacher), CommonErrorCode.UNAUTHORIZED);
+        assertCode(() -> accounts.requireActiveStaff(suspendedAcademy, suspendedTeacher), CommonErrorCode.UNAUTHORIZED);
+    }
 }

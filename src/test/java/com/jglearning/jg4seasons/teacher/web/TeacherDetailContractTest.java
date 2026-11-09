@@ -18,7 +18,10 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 4.3~4.8 교사 학생·회차 상세, 진도표 조회·수정·휴강, 개인 코드 재발급 계약(구현 전 501). */
+/**
+ * 4.3~4.8 교사 학생·회차 상세, 진도표 조회·수정·휴강, 개인 코드 재발급 계약. 4.3~4.7은 구현 전(501), 4.8 재발급은 구현됨(이슈 #29) — 실제 동작은
+ * TeacherPersonalCodeTest.
+ */
 @IntegrationTest
 @Transactional
 class TeacherDetailContractTest {
@@ -37,6 +40,9 @@ class TeacherDetailContractTest {
                     "{\"scheduledDate\":\"2026-12-26\",\"note\":\"보강\",\"shiftFollowing\":true}"),
             new Call(HttpMethod.POST, SESSION + "/cancel", "{\"note\":\"내신 휴강\",\"shiftFollowing\":true}"),
             new Call(HttpMethod.POST, "/api/v1/teacher/students/2/personal-code/regenerate", null));
+
+    /** CALLS 앞 5개(4.3~4.7)는 구현 전. 마지막(4.8)은 구현됨 */
+    static final int NOT_YET = 5;
 
     @Autowired
     MockMvcTester mvc;
@@ -86,7 +92,7 @@ class TeacherDetailContractTest {
 
     @Test
     void 교사의_올바른_요청은_501_NOT_IMPLEMENTED() {
-        for (Call c : CALLS) {
+        for (Call c : CALLS.subList(0, NOT_YET)) {
             MvcTestResult result = call(c, as(teacherId, UserRole.TEACHER), true);
 
             assertThat(result).as(c.method() + " " + c.path()).hasStatus(501);
@@ -155,11 +161,13 @@ class TeacherDetailContractTest {
         // 역할 계층(admin ⊃ teacher) — 학원관리자가 T-04~T-06을 쓴다
         long adminId = new TestData(jdbc).staff(academyId, "관리자", "admin");
 
-        for (Call c : CALLS) {
+        for (Call c : CALLS.subList(0, NOT_YET)) {
             assertThat(call(c, as(adminId, UserRole.ADMIN), true))
                     .as(c.method() + " " + c.path())
                     .hasStatus(501);
         }
+        // 4.8은 역할을 통과해 학생 확인까지 간다(반에 없는 id라 404)
+        assertThat(call(CALLS.get(NOT_YET), as(adminId, UserRole.ADMIN), true)).hasStatus(404);
     }
 
     @Test

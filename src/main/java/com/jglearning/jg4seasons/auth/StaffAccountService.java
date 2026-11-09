@@ -70,6 +70,20 @@ class StaffAccountService implements StaffAccounts {
 
     @Override
     @Transactional(readOnly = true)
+    public StaffRole requireActiveStaff(long academyId, long actorId) {
+        UserRole role = users.findByAcademyIdAndId(academyId, actorId)
+                .filter(User::isActive)
+                .map(User::getRole)
+                .filter(STAFF::contains)
+                .orElse(null);
+        if (role == null || !academies.isActive(academyId)) {
+            throw new ApiException(CommonErrorCode.UNAUTHORIZED, "다시 로그인해 주세요");
+        }
+        return role == UserRole.ADMIN ? StaffRole.ADMIN : StaffRole.TEACHER;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<StaffAccount> list(long academyId) {
         return users.findByAcademyIdAndRoleInOrderByIdAsc(academyId, STAFF).stream()
                 .map(this::toAccount)

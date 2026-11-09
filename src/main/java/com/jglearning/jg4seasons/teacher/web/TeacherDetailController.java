@@ -1,7 +1,9 @@
 package com.jglearning.jg4seasons.teacher.web;
 
+import com.jglearning.jg4seasons.infra.security.Principals;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.NotImplemented;
+import com.jglearning.jg4seasons.teacher.TeacherStudentService;
 import com.jglearning.jg4seasons.teacher.web.dto.PersonalCodeResponse;
 import com.jglearning.jg4seasons.teacher.web.dto.SessionCancelRequest;
 import com.jglearning.jg4seasons.teacher.web.dto.SessionListResponse;
@@ -16,6 +18,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,13 +28,19 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 4.3~4.8 교사 학생·회차 상세(T-04·T-05), 진도표(T-06), 개인 코드 재발급. 교사(관리자 포함), 담당 반·그 반 학생만 — 그 밖은 404. 지금은 계약만(이슈 #26).
+ * 4.3~4.8 교사 학생·회차 상세(T-04·T-05), 진도표(T-06), 개인 코드 재발급. 교사(관리자 포함), 담당 반·그 반 학생만 — 그 밖은 404. 4.8 재발급은 구현(이슈 #29), 나머지는 계약만(이슈 #26).
  */
 @RestController
 @RolesAllowed("TEACHER")
 public class TeacherDetailController {
 
     private static final String NOT_YET = " — 구현 전: 501 NOT_IMPLEMENTED";
+
+    private final TeacherStudentService students;
+
+    TeacherDetailController(TeacherStudentService students) {
+        this.students = students;
+    }
 
     @Operation(summary = "학생 상세", description = "그 반에서 열린 회차(seq 순)별 트랙 청취·단어 학습" + NOT_YET)
     @GetMapping("/api/v1/teacher/classes/{classId}/students/{studentId}")
@@ -84,9 +94,12 @@ public class TeacherDetailController {
 
     @Operation(
             summary = "개인 코드 재발급",
-            description = "담당 반 학생만. 새 코드 평문은 이 응답에서만, 그 학생의 로그인은 모두 끊긴다. 감사 로그. X-CSRF 필요" + NOT_YET)
+            description = "교사는 담당 반에 지금 소속인 학생만, 관리자는 학원 안 어느 반이든 지금 소속인 학생 — 그 밖(다른 학원·담당 아님·퇴원·반 없음)은 404."
+                    + " 새 코드(숫자 4자리, 0으로 시작 가능) 평문은 이 응답에서만(다시 볼 수 없음). 옛 코드는 바로 무효, 그 학생의 refresh는 모두 끊긴다"
+                    + "(남은 access는 최대 30분). 감사 로그. 요청한 교사가 비활성화됐으면 401. X-CSRF 필요")
     @PostMapping("/api/v1/teacher/students/{studentId}/personal-code/regenerate")
-    public PersonalCodeResponse regeneratePersonalCode(@PathVariable @Positive long studentId) {
-        throw NotImplemented.yet();
+    public PersonalCodeResponse regeneratePersonalCode(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long studentId) {
+        return students.regeneratePersonalCode(Principals.academyId(jwt), Principals.userId(jwt), studentId);
     }
 }

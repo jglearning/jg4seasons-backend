@@ -131,6 +131,11 @@ class InitialAcademyCreationTest {
         }
 
         @Override
+        public StaffRole requireActiveStaff(long academyId, long actorId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public List<StaffAccount> list(long academyId) {
             throw new UnsupportedOperationException();
         }
