@@ -21,19 +21,14 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 5.2 학생 관리·5.4 현황 계약. 검증(400)과 접근 규칙(401·403)은 모든 경로에서 동작한다. 구현된 5.2 경로(이슈 #29)의 실제 동작은
- * StudentAdminTest, 나머지(5.4)는 통과한 요청이 501을 받는다. 구현 이슈에서 501 단언을 실제
- * 동작 단언으로 바꾼다.
+ * 5.2 학생 관리·5.4 현황 계약: 검증(400)과 접근 규칙(401·403). 모든 경로가 구현됐다(이슈 #29) — 실제 동작은 StudentAdminTest·DashboardTest.
  */
 @IntegrationTest
 @Transactional
 class StudentAdminContractTest {
 
-    /** 구현 전 경로: 메서드 · 경로 · 유효한 본문(null = 본문 없음) */
+    /** 메서드 · 경로 · 유효한 본문(null = 본문 없음) */
     record Call(HttpMethod method, String path, String body) {}
-
-    /** CALLS 앞 6개(5.2 전부)는 구현됨(이슈 #29) */
-    static final int IMPLEMENTED = 6;
 
     static final List<Call> CALLS = List.of(
             new Call(HttpMethod.GET, "/api/v1/admin/classes/1/students", null),
@@ -97,16 +92,6 @@ class StudentAdminContractTest {
         assertThat(result).hasStatus(400);
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
         assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo(field);
-    }
-
-    @Test
-    void 관리자의_올바른_요청은_501_NOT_IMPLEMENTED() {
-        for (Call c : CALLS.subList(IMPLEMENTED, CALLS.size())) {
-            MvcTestResult result = call(c, as(adminId, UserRole.ADMIN), true);
-
-            assertThat(result).as(c.method() + " " + c.path()).hasStatus(501);
-            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_IMPLEMENTED");
-        }
     }
 
     @Test
