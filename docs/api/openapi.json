@@ -1083,7 +1083,7 @@
     },
     "/api/v1/teacher/classes" : {
       "get" : {
-        "description" : "진행 중인 반. 오늘 회차·완료 현황·밀린 학생 수·로그인 경고 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "진행 중(active) 반, id 순 — 교사는 담당 반, 관리자는 학원 전체. 오늘 회차(학원 날짜, 학생 화면과 같은 규칙)와 그 회차의 완료·진행 중·시작 전 학생 수(현재 소속), 밀린 수업이 있는 학생 수, 다음 수업, 로그인 경고(최근 1시간 반 전체 개인 코드 실패 20회 이상 — since는 그중 가장 오래된 실패 시각)",
         "operationId" : "classes",
         "responses" : {
           "200" : {

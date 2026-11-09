@@ -15,7 +15,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 4.1 담당 반 목록·4.2 청취 현황 매트릭스 계약(구현 전 501). 검증(400)과 접근 규칙(401·403)은 지금도 동작한다. */
+/** 4.1 담당 반 목록·4.2 청취 현황 매트릭스 계약. 검증(400)과 접근 규칙(401·403)은 모든 경로에서 동작한다. 4.2는 구현 전(501). */
 @IntegrationTest
 @Transactional
 class TeacherClassContractTest {
@@ -65,8 +65,9 @@ class TeacherClassContractTest {
     }
 
     @Test
-    void 교사와_관리자의_올바른_요청은_501_NOT_IMPLEMENTED() {
-        for (String uri : new String[] {CLASSES, MATRIX, MATRIX + "?fromSeq=1&toSeq=8"}) {
+    void 교사와_관리자의_올바른_매트릭스_요청은_501_NOT_IMPLEMENTED() {
+        // 4.1 목록은 구현됨(이슈 #31) — 실제 동작은 TeacherClassListTest
+        for (String uri : new String[] {MATRIX, MATRIX + "?fromSeq=1&toSeq=8"}) {
             for (Cookie[] who : new Cookie[][] {as(teacherId, UserRole.TEACHER), as(adminId, UserRole.ADMIN)}) {
                 MvcTestResult result = get(uri, who);
 

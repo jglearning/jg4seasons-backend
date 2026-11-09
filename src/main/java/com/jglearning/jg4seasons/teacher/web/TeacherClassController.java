@@ -1,7 +1,9 @@
 package com.jglearning.jg4seasons.teacher.web;
 
+import com.jglearning.jg4seasons.infra.security.Principals;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.NotImplemented;
+import com.jglearning.jg4seasons.teacher.TeacherClassService;
 import com.jglearning.jg4seasons.teacher.web.dto.MatrixResponse;
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherClassListResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,13 +12,15 @@ import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 4.1 담당 반 목록·4.2 청취 현황 매트릭스(T-02·T-03). 교사(관리자 포함). 교사는 담당 반만, 관리자는 학원 전체 — 그 밖의 반은 404. 지금은 계약만(이슈 #26).
+ * 4.1 담당 반 목록·4.2 청취 현황 매트릭스(T-02·T-03). 교사(관리자 포함). 교사는 담당 반만, 관리자는 학원 전체 — 그 밖의 반은 404(범위는 DB의 지금 역할로). 요청한 교사가 비활성화됐으면 401. 4.1 구현(이슈 #31), 4.2는 계약만.
  */
 @RestController
 @RolesAllowed("TEACHER")
@@ -24,10 +28,20 @@ public class TeacherClassController {
 
     private static final String NOT_YET = " — 구현 전: 501 NOT_IMPLEMENTED";
 
-    @Operation(summary = "담당 반 목록", description = "진행 중인 반. 오늘 회차·완료 현황·밀린 학생 수·로그인 경고" + NOT_YET)
+    private final TeacherClassService service;
+
+    TeacherClassController(TeacherClassService service) {
+        this.service = service;
+    }
+
+    @Operation(
+            summary = "담당 반 목록",
+            description = "진행 중(active) 반, id 순 — 교사는 담당 반, 관리자는 학원 전체. 오늘 회차(학원 날짜, 학생 화면과 같은 규칙)와 그 회차의"
+                    + " 완료·진행 중·시작 전 학생 수(현재 소속), 밀린 수업이 있는 학생 수, 다음 수업, 로그인 경고(최근 1시간 반 전체 개인 코드"
+                    + " 실패 20회 이상 — since는 그중 가장 오래된 실패 시각)")
     @GetMapping("/api/v1/teacher/classes")
-    public TeacherClassListResponse classes() {
-        throw NotImplemented.yet();
+    public TeacherClassListResponse classes(@AuthenticationPrincipal Jwt jwt) {
+        return service.classes(Principals.academyId(jwt), Principals.userId(jwt));
     }
 
     @Operation(
