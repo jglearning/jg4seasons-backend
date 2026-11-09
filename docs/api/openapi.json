@@ -1163,7 +1163,7 @@
     },
     "/api/v1/teacher/classes/{classId}/matrix" : {
       "get" : {
-        "description" : "학생 × 회차. fromSeq·toSeq는 둘 다 보내거나 둘 다 뺀다(빼면 오늘 회차가 든 8개 묶음). 휴강 행은 열로 오지 않는다 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "학생(현재 소속, 이름 순) × 회차(seq 순). fromSeq·toSeq는 둘 다 보내거나 둘 다 뺀다(빼면 오늘 회차가 든 8개 묶음 1~8·9~16…, 개강 전이면 1~8). 휴강 행은 열로 오지 않는다. 칸은 열린 회차만 학생마다 항상(진도 없으면 not_started, requiredTotal = 지문 수). 교사는 담당 반, 관리자는 학원 반 전부(끝난 반 포함) — 그 밖은 404",
         "operationId" : "matrix",
         "parameters" : [ {
           "in" : "path",
