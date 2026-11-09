@@ -1,6 +1,8 @@
 package com.jglearning.jg4seasons.auth;
 
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -23,6 +25,8 @@ public interface AuthIdentityRepository extends Repository<AuthIdentity, Long> {
     @Query("select i from AuthIdentity i where i.provider = com.jglearning.jg4seasons.auth.AuthProvider.PASSWORD"
             + " and i.identifier = :loginId")
     Optional<AuthIdentity> findPasswordIdentityForUpdate(@Param("loginId") String loginId);
+
+    List<AuthIdentity> findByUserIdInAndProvider(Collection<Long> userIds, AuthProvider provider);
 
     AuthIdentity save(AuthIdentity identity);
 

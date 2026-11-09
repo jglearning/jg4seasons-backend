@@ -65,9 +65,7 @@ public class AuthIdentity {
 
     /** @param hashedCode PersonalCodeHasher가 만든 소문자 hex 64자. 평문 개인 코드를 넘기면 IllegalArgumentException(값은 메시지에 넣지 않음) */
     public static AuthIdentity personalCode(long userId, String hashedCode, Instant issuedAt) {
-        if (hashedCode == null || !HMAC_HEX.matcher(hashedCode).matches()) {
-            throw new IllegalArgumentException("개인 코드 저장값은 HMAC(소문자 hex 64자)이어야 한다");
-        }
+        requireHmac(hashedCode);
         AuthIdentity identity = new AuthIdentity();
         identity.userId = userId;
         identity.provider = AuthProvider.PERSONAL_CODE;
@@ -94,6 +92,20 @@ public class AuthIdentity {
         identity.secretHash = bcryptHash;
         identity.issuedAt = issuedAt;
         return identity;
+    }
+
+    /**
+     * 개인 코드 재발급: 저장값을 새 HMAC으로 바꾼다 — 옛 코드는 이 순간부터 찾을 수 없다. 개인 코드 수단이 아니면 IllegalStateException
+     *
+     * @param hashedCode PersonalCodeHasher가 만든 소문자 hex 64자(아니면 IllegalArgumentException)
+     */
+    public void reissuePersonalCode(String hashedCode, Instant issuedAt) {
+        if (provider != AuthProvider.PERSONAL_CODE) {
+            throw new IllegalStateException("개인 코드 수단이 아니다: " + provider);
+        }
+        requireHmac(hashedCode);
+        this.identifier = hashedCode;
+        this.issuedAt = issuedAt;
     }
 
     public void markUsed(Instant at) {
@@ -154,8 +166,19 @@ public class AuthIdentity {
         return secretHash;
     }
 
+    /** 저장값(개인 코드면 HMAC, 비밀번호면 로그인 아이디). 같은 묶음 재발급에서 옛 코드를 피하는 데 쓴다 */
+    String identifier() {
+        return identifier;
+    }
+
     public String loginId() {
         return provider == AuthProvider.PASSWORD ? identifier : null;
+    }
+
+    private static void requireHmac(String hashedCode) {
+        if (hashedCode == null || !HMAC_HEX.matcher(hashedCode).matches()) {
+            throw new IllegalArgumentException("개인 코드 저장값은 HMAC(소문자 hex 64자)이어야 한다");
+        }
     }
 
     private static void requireBcrypt(String hash) {
@@ -179,6 +202,10 @@ public class AuthIdentity {
 
     public AuthProvider getProvider() {
         return provider;
+    }
+
+    public Instant getIssuedAt() {
+        return issuedAt;
     }
 
     public Instant getLastUsedAt() {
