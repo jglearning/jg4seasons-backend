@@ -1,0 +1,57 @@
+{
+  "code": "L1-B1-01",
+  "title": "시험용 회차",
+  "passages": [
+    {
+      "no": 1,
+      "title": "The Red Kite",
+      "wordCount": 11,
+      "sentences": [
+        { "no": 1, "text": "Mia flies a red kite.", "speaker": null },
+        { "no": 2, "text": "“It’s so high!” she says.", "speaker": "Mia" }
+      ],
+      "tracks": [
+        { "voice": "us_w", "fileKey": "audio/L1-B1-01/L1-B1-01_p1_us_w.mp3", "durationMs": 3800, "sentenceMs": [1500, 1500] },
+        { "voice": "us_m", "fileKey": "audio/L1-B1-01/L1-B1-01_p1_us_m.mp3", "durationMs": 3900, "sentenceMs": [1550, 1550] },
+        { "voice": "uk_w", "fileKey": "audio/L1-B1-01/L1-B1-01_p1_uk_w.mp3", "durationMs": 3700, "sentenceMs": [1450, 1450] },
+        { "voice": "uk_m", "fileKey": "audio/L1-B1-01/L1-B1-01_p1_uk_m.mp3", "durationMs": 4000, "sentenceMs": [1600, 1600] }
+      ]
+    },
+    {
+      "no": 2,
+      "title": "Rainy Day",
+      "wordCount": 4,
+      "sentences": [
+        { "no": 1, "text": "It rains all day.", "speaker": null }
+      ],
+      "tracks": [
+        { "voice": "us_w", "fileKey": "audio/L1-B1-01/L1-B1-01_p2_us_w.mp3", "durationMs": 1200, "sentenceMs": [1200] },
+        { "voice": "us_m", "fileKey": "audio/L1-B1-01/L1-B1-01_p2_us_m.mp3", "durationMs": 1250, "sentenceMs": [1250] },
+        { "voice": "uk_w", "fileKey": "audio/L1-B1-01/L1-B1-01_p2_uk_w.mp3", "durationMs": 1150, "sentenceMs": [1150] },
+        { "voice": "uk_m", "fileKey": "audio/L1-B1-01/L1-B1-01_p2_uk_m.mp3", "durationMs": 1300, "sentenceMs": [1300] }
+      ]
+    }
+  ],
+  "words": [
+    {
+      "no": 1,
+      "english": "kite",
+      "pos": "n",
+      "korean": "연",
+      "exampleEn": "The kite is stuck in the tree.",
+      "exampleKo": "연이 나무에 걸렸다.",
+      "track": { "fileKey": "audio/L1-B1-01/L1-B1-01_w01_us_w.mp3", "durationMs": 700 },
+      "exampleTrack": { "fileKey": "audio/L1-B1-01/L1-B1-01_w01_ex_us_w.mp3", "durationMs": 2100 }
+    },
+    {
+      "no": 2,
+      "english": "all day",
+      "pos": "phr",
+      "korean": "하루 종일",
+      "exampleEn": "We played outside all day.",
+      "exampleKo": "우리는 하루 종일 밖에서 놀았다.",
+      "track": { "fileKey": "audio/L1-B1-01/L1-B1-01_w02_us_w.mp3", "durationMs": 800 },
+      "exampleTrack": { "fileKey": "audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3", "durationMs": 1900 }
+    }
+  ]
+}
