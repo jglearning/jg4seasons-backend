@@ -1436,7 +1436,7 @@
     },
     "/api/v1/teacher/students/{studentId}/personal-code/regenerate" : {
       "post" : {
-        "description" : "담당 반 학생만. 새 코드 평문은 이 응답에서만, 그 학생의 로그인은 모두 끊긴다. 감사 로그. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "교사는 담당 반에 지금 소속인 학생만, 관리자는 학원 안 어느 반이든 지금 소속인 학생 — 그 밖(다른 학원·담당 아님·퇴원·반 없음)은 404. 새 코드(숫자 4자리, 0으로 시작 가능) 평문은 이 응답에서만(다시 볼 수 없음). 옛 코드는 바로 무효, 그 학생의 refresh는 모두 끊긴다(남은 access는 최대 30분). 감사 로그. 요청한 교사가 비활성화됐으면 401. X-CSRF 필요",
         "operationId" : "regeneratePersonalCode",
         "parameters" : [ {
           "in" : "path",
