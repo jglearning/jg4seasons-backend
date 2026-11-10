@@ -2,9 +2,11 @@ package com.jglearning.jg4seasons.content.importer;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -13,7 +15,7 @@ import java.util.regex.Pattern;
  * <p>생성자가 DB에 넣기 전에 알 수 있는 것을 모두 검사한다: 번호가 1부터 이어지는지, 지문마다 목소리 4개인지, 트랙의 문장 길이 수가 문장 수와 같은지, 파일 키가 S3 키
  * 규칙과 같은지, 칸 길이가 DB 한도 안인지. 문장 시각(간격)은 {@link PassageTimings}가 검사한다. 위반하면 IllegalArgumentException.
  */
-public record LessonManifest(String code, String title, List<Passage> passages, List<Word> words) {
+public record LessonManifest(String code, List<Passage> passages, List<Word> words) {
 
     /** 레벨 1~4는 L1~L4, 블랙은 K. 회차는 두 자리 번호이거나 블랙 보충 S1~S4 */
     private static final Pattern CODE = Pattern.compile("^(?:L[1-4]|K)-B[1-4]-(?:\\d{2}|S[1-4])$");
@@ -22,10 +24,13 @@ public record LessonManifest(String code, String title, List<Passage> passages, 
     /** 단어·예문 음원은 미국 여자 하나(ADR 0027) */
     public static final String WORD_VOICE = "us_w";
 
-    private static final Set<String> POS = Set.of("n", "v", "adj", "adv", "prep", "conj", "phr");
+    /** 품사. 어휘책에 대명사·감탄사가 있다(ADR 0027 결정 6) */
+    private static final Set<String> POS = Set.of("n", "v", "adj", "adv", "prep", "conj", "pron", "interj", "phr");
+
+    /** 단어 음원 키의 음원 번호. 단어 순서(no)와 따로다 — 음원은 회차 어휘 번호로 만들었고 단어 순서는 어휘책(교재) 순서다 */
+    private static final Pattern WORD_AUDIO_NO = Pattern.compile("_w(\\d{2,3})_us_w\\.mp3$");
 
     // DB 칸 길이(문자 수)
-    static final int LESSON_TITLE_MAX = 100;
     static final int PASSAGE_TITLE_MAX = 120;
     static final int SENTENCE_MAX = 800;
     static final int SPEAKER_MAX = 20;
@@ -38,7 +43,6 @@ public record LessonManifest(String code, String title, List<Passage> passages, 
             throw new IllegalArgumentException("회차 코드 형식이 다르다: " + code);
         }
         String where = code;
-        text(where, "title", title, LESSON_TITLE_MAX);
         passages = list(where, "passages", passages);
         words = list(where, "words", words);
         if (passages.isEmpty()) {
@@ -55,14 +59,23 @@ public record LessonManifest(String code, String title, List<Passage> passages, 
                         where + " 지문 " + passage.no(), track.fileKey(), passageKey(code, passage.no(), track.voice()));
             }
         }
+        Set<Integer> audioNos = new HashSet<>();
         for (int i = 0; i < words.size(); i++) {
             Word word = words.get(i);
             if (word.no() != i + 1) {
                 throw new IllegalArgumentException(
                         where + ": 단어 번호가 1부터 이어지지 않는다(" + (i + 1) + "번째가 " + word.no() + ")");
             }
-            expectKey(where + " 단어 " + word.no(), word.track().fileKey(), wordKey(code, word.no(), false));
-            expectKey(where + " 단어 " + word.no(), word.exampleTrack().fileKey(), wordKey(code, word.no(), true));
+            Integer audioNo = word.audioNo();
+            if (audioNo == null) {
+                continue;
+            }
+            String at = where + " 단어 " + word.no();
+            expectKey(at, word.track().fileKey(), wordKey(code, audioNo, false));
+            expectKey(at, word.exampleTrack().fileKey(), wordKey(code, audioNo, true));
+            if (!audioNos.add(audioNo)) {
+                throw new IllegalArgumentException(at + ": 음원 번호 " + audioNo + "가 다른 단어와 겹친다");
+            }
         }
     }
 
@@ -71,9 +84,9 @@ public record LessonManifest(String code, String title, List<Passage> passages, 
         return "audio/" + code + "/" + code + "_p" + passageNo + "_" + voice + ".mp3";
     }
 
-    /** {@code audio/{code}/{code}_w{nn}_us_w.mp3}, 예문은 {@code _w{nn}_ex_us_w.mp3} */
-    public static String wordKey(String code, int wordNo, boolean example) {
-        return "audio/" + code + "/" + code + "_w" + "%02d".formatted(wordNo) + (example ? "_ex_" : "_") + WORD_VOICE
+    /** {@code audio/{code}/{code}_w{nn}_us_w.mp3}, 예문은 {@code _w{nn}_ex_us_w.mp3}. nn은 음원 번호 */
+    public static String wordKey(String code, int audioNo, boolean example) {
+        return "audio/" + code + "/" + code + "_w" + "%02d".formatted(audioNo) + (example ? "_ex_" : "_") + WORD_VOICE
                 + ".mp3";
     }
 
@@ -147,12 +160,33 @@ public record LessonManifest(String code, String title, List<Passage> passages, 
             }
             text(where, "korean", korean, KOREAN_MAX);
             text(where, "exampleEn", exampleEn, EXAMPLE_MAX);
-            text(where, "exampleKo", exampleKo, EXAMPLE_MAX);
-            if (track == null || exampleTrack == null) {
-                throw new IllegalArgumentException(where + ": 단어·예문 음원이 있어야 한다");
+            // 어휘책에만 있는 단어는 예문 해석·음원이 없다(ADR 0027 결정 6)
+            if (exampleKo != null) {
+                text(where, "exampleKo", exampleKo, EXAMPLE_MAX);
             }
-            positive(where, track.durationMs());
-            positive(where, exampleTrack.durationMs());
+            if ((track == null) != (exampleTrack == null)) {
+                throw new IllegalArgumentException(where + ": 단어 음원과 예문 음원은 함께 있거나 함께 없어야 한다");
+            }
+            if (track != null) {
+                positive(where, track.durationMs());
+                positive(where, exampleTrack.durationMs());
+                if (track.fileKey() == null
+                        || !WORD_AUDIO_NO.matcher(track.fileKey()).find()) {
+                    throw new IllegalArgumentException(where + ": 단어 음원 키 형식이 다르다: " + track.fileKey());
+                }
+            }
+        }
+
+        /** 음원 번호(키의 w{nn}). 음원이 없으면 null */
+        public Integer audioNo() {
+            if (track == null) {
+                return null;
+            }
+            Matcher m = WORD_AUDIO_NO.matcher(track.fileKey());
+            if (!m.find()) {
+                throw new IllegalStateException("단어 음원 키 형식이 다르다: " + track.fileKey());
+            }
+            return Integer.parseInt(m.group(1));
         }
     }
 

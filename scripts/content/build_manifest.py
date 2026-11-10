@@ -2,7 +2,7 @@
 """녹음된 교재 자료 폴더에서 회차별 manifest와 업로드용 음원 폴더를 만든다(ADR-27).
 
 사용법:
-    python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴더> [--only 코드,코드]
+    python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴더> --vocab <어휘책 all_vocab.tsv> [--only 코드,코드]
 
 - 자료 폴더: 레벨 폴더(1_…~5_…) 아래 회차 폴더(`NN회 · 제목`, `보충N회 · 제목`)가 있는 결과물 폴더
 - 출력 폴더: 저장소 밖에 둔다. 교재 원문(manifest)과 음원은 저장소에 넣지 않는다
@@ -12,6 +12,7 @@
 - 오류는 회차별로 모아 마지막에 보이고 종료 코드 1
 """
 import argparse
+import csv
 import json
 import os
 import re
@@ -23,8 +24,11 @@ from pathlib import Path
 VOICES = {"us_w": "미국 여자", "us_m": "미국 남자", "uk_w": "영국 여자", "uk_m": "영국 남자"}
 WORD_VOICE = "us_w"  # 단어·예문 음원은 미국 여자 하나(1차)
 POS = {"n.": "n", "v.": "v", "adj.": "adj", "adv.": "adv", "prep.": "prep", "conj.": "conj", "구": "phr"}
+# 어휘책(all_vocab.tsv) 품사 한 글자. 숙어는 품사가 비어 있고 phr
+BOOK_POS = {"명": "n", "동": "v", "형": "adj", "부": "adv", "전": "prep", "접": "conj", "대": "pron", "감": "interj"}
+BOOK_LEVEL = {"Mint": "L1", "Green": "L2", "Blue": "L3", "Navy": "L4", "Black": "K"}
 NARRATOR = "내레이터"
-LIMITS = {"lesson title": 100, "passage title": 120, "sentence": 800, "english": 50, "korean": 100,
+LIMITS = {"passage title": 120, "sentence": 800, "english": 50, "korean": 100,
           "example": 300, "example ko": 300, "speaker": 20}
 LESSON_DIR = re.compile(r"^(?:\d{2}회|보충\d회) · (.+)$")
 CORE_PASSAGE_DIR = "핵심 지문"
@@ -96,12 +100,11 @@ def read_script(lesson_dir):
     return script, db_code(script["회차ID"])
 
 
-def build_lesson(lesson_dir, script, code, out, gaps, link):
+def build_lesson(lesson_dir, script, code, book_rows, out, gaps, link):
     m = LESSON_DIR.match(lesson_dir.name)
     if not m:
         raise LessonError(f"회차 폴더 이름 규칙이 아니다: {lesson_dir.name}")
     errors = []
-    check_len(errors, "lesson title", m.group(1), code)
 
     passage_dirs = {}
     for d in lesson_dir.iterdir():
@@ -165,7 +168,7 @@ def build_lesson(lesson_dir, script, code, out, gaps, link):
     if [p["no"] for p in passages] != list(range(1, len(passages) + 1)):
         errors.append(f"{code}: 지문 번호가 1부터 이어지지 않는다")
 
-    words = build_words(lesson_dir, script, code, errors, files)
+    words = merge_book_words(build_words(lesson_dir, script, code, errors, files), book_rows, code, errors)
     if errors:
         raise LessonError("\n  ".join(errors))
 
@@ -178,7 +181,8 @@ def build_lesson(lesson_dir, script, code, out, gaps, link):
             dst.unlink()
         link(src, dst)
         size += src.stat().st_size
-    manifest = {"code": code, "title": m.group(1), "passages": passages, "words": words}
+    # 회차 제목은 넣지 않는다: 폴더 이름의 제목은 문법 주제이고, 학생 화면 제목은 기준 데이터의 Reading Day n이다
+    manifest = {"code": code, "passages": passages, "words": words}
     target = manifest_path(out, code)
     tmp = target.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -231,6 +235,55 @@ def build_words(lesson_dir, script, code, errors, files):
     return words
 
 
+def read_book(path):
+    """어휘책 all_vocab.tsv → {DB 코드: [행]}. 강 번호가 회차 번호다(블랙 보충 S1~S4)"""
+    book = {}
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        for r in csv.DictReader(f, delimiter="\t"):
+            c = r["class"]
+            code = f"{BOOK_LEVEL[r['level']]}-B1-" + (c if c.startswith("S") else f"{int(c):02d}")
+            book.setdefault(code, []).append(r)
+    return book
+
+
+def norm_term(s):
+    return " ".join(s.lower().replace("~", "").split())
+
+
+def merge_book_words(lesson_words, book_rows, code, errors):
+    """단어 = 어휘책 그 강의 단어 → 숙어(교재 순서) + 어휘책에 없는 회차 어휘(ADR-27 결정 6).
+    두 쪽에 다 있는 단어는 회차 어휘(뜻·새 예문·예문 해석·음원이 서로 맞음). 어휘책에만 있는 단어는 음원·예문 해석 없음.
+    no는 이 순서로 1부터 다시 매긴다. 음원 키의 번호(w{nn})는 회차 어휘 번호 그대로"""
+    if not book_rows:
+        errors.append(f"{code}: 어휘책에 이 회차가 없다")
+        return lesson_words
+    unused = {}
+    for w in lesson_words:
+        unused.setdefault(norm_term(w["english"]), []).append(w)
+    ordered = sorted((r for r in book_rows if r["type"] == "word"), key=lambda r: int(r["no"])) \
+        + sorted((r for r in book_rows if r["type"] == "idiom"), key=lambda r: int(r["no"]))
+    merged = []
+    for r in ordered:
+        same = unused.get(norm_term(r["term"]))
+        if same:
+            merged.append(same.pop(0))
+            continue
+        where = f"{code} 어휘책 {r['type']} {r['no']}"
+        pos = "phr" if r["type"] == "idiom" else BOOK_POS.get(r["pos"])
+        if pos is None:
+            errors.append(f"{where}: 품사 '{r['pos']}'를 모른다")
+        for what, value in (("english", r["term"]), ("korean", r["meaning"]), ("example", r["example"])):
+            if not value.strip():
+                errors.append(f"{where}: {what}이(가) 비었다")
+            check_len(errors, what, value, where)
+        merged.append({"english": r["term"].strip(), "pos": pos, "korean": r["meaning"].strip(),
+                       "exampleEn": r["example"].strip(), "exampleKo": None, "track": None, "exampleTrack": None})
+    merged += [w for w in lesson_words if any(w is x for x in unused.get(norm_term(w["english"]), []))]
+    if len(merged) > 127:
+        errors.append(f"{code}: 단어 {len(merged)}개 > 127(word.sort_order TINYINT)")
+    return [{"no": i, **{k: v for k, v in w.items() if k != "no"}} for i, w in enumerate(merged, start=1)]
+
+
 def link_or_copy(src, dst):
     try:
         os.link(src, dst)
@@ -242,6 +295,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("source", type=Path)
     parser.add_argument("out", type=Path)
+    parser.add_argument("--vocab", type=Path, required=True, help="어휘책 all_vocab.tsv(단어·숙어, ADR-27 결정 6)")
     parser.add_argument("--only", default="", help="회차 코드(DB 코드) 쉼표 목록")
     args = parser.parse_args()
     only = {c.strip() for c in args.only.split(",") if c.strip()}
@@ -250,6 +304,7 @@ def main():
     # 레벨 폴더 아래 폴더는 모두 회차 폴더여야 한다. 이름 규칙이 다르면 조용히 건너뛰지 않고 실패로 보고한다
     lessons = sorted(d for level in args.source.iterdir() if level.is_dir() and level.name[:1].isdigit()
                      for d in level.iterdir() if d.is_dir())
+    book = read_book(args.vocab)
     gaps, failed, seen = [], [], set()
     done = passages = files = size = 0
     for lesson_dir in lessons:
@@ -262,7 +317,7 @@ def main():
             if only and code not in only:
                 continue
             seen.add(code)
-            p, f, s = build_lesson(lesson_dir, script, code, args.out, gaps, link_or_copy)
+            p, f, s = build_lesson(lesson_dir, script, code, book.get(code), args.out, gaps, link_or_copy)
             done, passages, files, size = done + 1, passages + p, files + f, size + s
         except Exception as e:  # 회차 하나의 오류가 다른 회차를 막지 않는다
             if only and code is None:

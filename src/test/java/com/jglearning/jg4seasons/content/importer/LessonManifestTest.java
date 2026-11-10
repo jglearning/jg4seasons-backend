@@ -31,9 +31,37 @@ class LessonManifestTest {
                 .containsExactly("us_w", "us_m", "uk_w", "uk_m");
         assertThat(first.sentences().get(0).speaker()).isNull();
         assertThat(first.sentences().get(1).text()).isEqualTo("“It’s so high!” she says.");
-        assertThat(manifest.words()).extracting(LessonManifest.Word::pos).containsExactly("n", "phr");
+        assertThat(manifest.words()).extracting(LessonManifest.Word::pos).containsExactly("n", "phr", "pron");
         assertThat(manifest.words().get(1).exampleTrack().fileKey())
                 .isEqualTo("audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3");
+        assertThat(manifest.words().get(1).audioNo()).isEqualTo(2);
+        // 어휘책에만 있는 단어: 음원·예문 해석 없음(ADR 0027 결정 6)
+        LessonManifest.Word bookOnly = manifest.words().get(2);
+        assertThat(bookOnly.track()).isNull();
+        assertThat(bookOnly.exampleTrack()).isNull();
+        assertThat(bookOnly.exampleKo()).isNull();
+        assertThat(bookOnly.audioNo()).isNull();
+    }
+
+    @Test
+    void 음원_번호는_단어_순서와_달라도_된다() throws IOException {
+        LessonManifest manifest = readWith("_w02_", "_w07_");
+
+        assertThat(manifest.words().get(1).no()).isEqualTo(2);
+        assertThat(manifest.words().get(1).audioNo()).isEqualTo(7);
+    }
+
+    @Test
+    void 음원_번호가_단어끼리_겹치면_거부() {
+        assertRejected("_w02_", "_w01_", "단어 2");
+    }
+
+    @Test
+    void 단어_음원과_예문_음원은_함께_있거나_함께_없다() {
+        assertRejected(
+                "\"exampleTrack\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3\", \"durationMs\": 1900 }",
+                "\"exampleTrack\": null",
+                "단어 2");
     }
 
     @Test
@@ -138,7 +166,6 @@ class LessonManifestTest {
 
     @Test
     void 칸_길이가_한도를_넘으면_거부() {
-        assertRejected("\"title\": \"시험용 회차\"", "\"title\": \"" + "가".repeat(101) + "\"", "L1-B1-01");
         assertRejected("\"The Red Kite\"", "\"" + "a".repeat(121) + "\"", "지문 1");
         assertRejected("\"speaker\": \"Mia\"", "\"speaker\": \"" + "a".repeat(21) + "\"", "지문 1");
         assertRejected("\"english\": \"kite\"", "\"english\": \"" + "a".repeat(51) + "\"", "단어 1");

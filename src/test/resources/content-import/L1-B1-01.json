@@ -1,6 +1,5 @@
 {
   "code": "L1-B1-01",
-  "title": "시험용 회차",
   "passages": [
     {
       "no": 1,
@@ -52,6 +51,16 @@
       "exampleKo": "우리는 하루 종일 밖에서 놀았다.",
       "track": { "fileKey": "audio/L1-B1-01/L1-B1-01_w02_us_w.mp3", "durationMs": 800 },
       "exampleTrack": { "fileKey": "audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3", "durationMs": 1900 }
+    },
+    {
+      "no": 3,
+      "english": "everyone",
+      "pos": "pron",
+      "korean": "모든 사람",
+      "exampleEn": "Everyone looked up at the kite.",
+      "exampleKo": null,
+      "track": null,
+      "exampleTrack": null
     }
   ]
 }

@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ContentImportStore {
 
-    public record LessonRow(long id, String title, int passageCount) {}
+    public record LessonRow(long id, int passageCount) {}
 
     public record PassageRow(long id, int no, String title, int wordCount) {}
 
@@ -52,17 +52,15 @@ public class ContentImportStore {
     public Optional<LessonRow> lockLesson(String code) {
         return jdbc
                 .query(
-                        "select id, title, passage_count from lesson where code = :code for update",
+                        "select id, passage_count from lesson where code = :code for update",
                         Map.of("code", code),
-                        (rs, i) -> new LessonRow(rs.getLong("id"), rs.getString("title"), rs.getInt("passage_count")))
+                        (rs, i) -> new LessonRow(rs.getLong("id"), rs.getInt("passage_count")))
                 .stream()
                 .findFirst();
     }
 
-    public void updateLesson(long id, String title, int passageCount) {
-        jdbc.update(
-                "update lesson set title = :title, passage_count = :count where id = :id",
-                Map.of("id", id, "title", title, "count", passageCount));
+    public void updatePassageCount(long id, int passageCount) {
+        jdbc.update("update lesson set passage_count = :count where id = :id", Map.of("id", id, "count", passageCount));
     }
 
     public List<PassageRow> passages(long lessonId) {

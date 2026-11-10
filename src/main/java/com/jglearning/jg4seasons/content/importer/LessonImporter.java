@@ -79,10 +79,9 @@ public class LessonImporter {
         Changes changes = new Changes();
         deleteRemoved(manifest, lesson.id(), desiredTracks, existingTracks, changes);
 
-        if (!lesson.title().equals(manifest.title())
-                || lesson.passageCount() != manifest.passages().size()) {
-            store.updateLesson(
-                    lesson.id(), manifest.title(), manifest.passages().size());
+        // 회차 제목은 기준 데이터(Reading Day n·보충 n) 그대로 둔다 — 자료 폴더 이름은 문법 주제라 학생 화면에 쓰지 않는다
+        if (lesson.passageCount() != manifest.passages().size()) {
+            store.updatePassageCount(lesson.id(), manifest.passages().size());
             changes.add();
         }
         Map<Integer, Long> passageIds = upsertPassages(manifest, lesson.id(), changes);
@@ -124,7 +123,10 @@ public class LessonImporter {
             }
         }
         for (LessonManifest.Word word : manifest.words()) {
-            String variant = wordVariant(word.no());
+            if (word.audioNo() == null) {
+                continue; // 어휘책에만 있는 단어: 음원 없음
+            }
+            String variant = wordVariant(word.audioNo());
             tracks.put(
                     key(WORD, variant),
                     new DesiredTrack(
@@ -351,9 +353,9 @@ public class LessonImporter {
             existing.put(row.sortOrder(), row);
         }
         for (LessonManifest.Word word : manifest.words()) {
-            String variant = wordVariant(word.no());
-            Long trackId = trackIds.get(key(WORD, variant));
-            Long exampleTrackId = trackIds.get(key(WORD_EXAMPLE, variant));
+            String variant = word.audioNo() == null ? null : wordVariant(word.audioNo());
+            Long trackId = variant == null ? null : trackIds.get(key(WORD, variant));
+            Long exampleTrackId = variant == null ? null : trackIds.get(key(WORD_EXAMPLE, variant));
             WordRow row = existing.get(word.no());
             long id;
             if (row == null) {
@@ -371,7 +373,7 @@ public class LessonImporter {
                     && row.korean().equals(word.korean())
                     && row.pos().equals(word.pos())
                     && row.exampleEn().equals(word.exampleEn())
-                    && row.exampleKo().equals(word.exampleKo())
+                    && Objects.equals(row.exampleKo(), word.exampleKo())
                     && Objects.equals(row.trackId(), trackId)
                     && Objects.equals(row.exampleTrackId(), exampleTrackId)) {
                 continue;
@@ -395,8 +397,9 @@ public class LessonImporter {
         return "p" + passageNo + ":" + voice;
     }
 
-    static String wordVariant(int wordNo) {
-        return "w%02d:%s".formatted(wordNo, LessonManifest.WORD_VOICE);
+    /** 단어·예문 트랙 variant: 음원 번호(단어 순서 아님) */
+    static String wordVariant(int audioNo) {
+        return "w%02d:%s".formatted(audioNo, LessonManifest.WORD_VOICE);
     }
 
     private static String key(String kind, String variant) {

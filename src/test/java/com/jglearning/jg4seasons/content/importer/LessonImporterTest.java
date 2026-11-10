@@ -55,7 +55,8 @@ class LessonImporterTest {
 
         assertThat(result).isEqualTo(new ImportResult(CODE, Status.IMPORTED, null));
         assertThat(jdbc.queryForMap("select title, passage_count from lesson where code = ?", CODE))
-                .containsEntry("title", "시험용 회차")
+                .as("회차 제목은 기준 데이터 그대로(학생 화면에 문법 이름을 쓰지 않음)")
+                .containsEntry("title", "Reading Day 1")
                 .containsEntry("passage_count", 2);
         assertThat(jdbc.queryForList(
                         "select variant from track where lesson_id = ? and kind = 'passage' order by sort_order",
@@ -91,6 +92,50 @@ class LessonImporterTest {
                 .containsEntry("ekind", "word_example")
                 .containsEntry("evariant", "w02:us_w")
                 .containsEntry("ekey", "audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3");
+        // 어휘책에만 있는 단어: 음원·예문 해석 없이 들어간다(ADR 0027 결정 6)
+        assertThat(jdbc.queryForMap(
+                        "select english, pos, example_ko, track_id, example_track_id from word"
+                                + " where lesson_id = ? and sort_order = 3",
+                        lessonId()))
+                .containsEntry("english", "everyone")
+                .containsEntry("pos", "pron")
+                .containsEntry("example_ko", null)
+                .containsEntry("track_id", null)
+                .containsEntry("example_track_id", null);
+    }
+
+    @Test
+    void 음원_번호는_단어_순서가_아니라_파일_번호로_트랙을_만든다() throws IOException {
+        importer.importLesson(manifest("_w02_", "_w07_"));
+
+        assertThat(jdbc.queryForMap(
+                        "select t.variant, t.sort_order from word w join track t on t.id = w.track_id"
+                                + " where w.lesson_id = ? and w.sort_order = 2",
+                        lessonId()))
+                .containsEntry("variant", "w07:us_w")
+                .containsEntry("sort_order", 2);
+    }
+
+    @Test
+    void 음원이_없던_단어에_음원이_생기면_연결한다() throws IOException {
+        importer.importLesson(manifest());
+        List<Long> before = rowIds();
+
+        ImportResult result = importer.importLesson(
+                manifest(
+                        "\"exampleKo\": null,\n      \"track\": null,\n      \"exampleTrack\": null",
+                        "\"exampleKo\": \"모두가 연을 올려다보았다.\",\n"
+                                + "      \"track\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w03_us_w.mp3\", \"durationMs\": 600 },\n"
+                                + "      \"exampleTrack\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w03_ex_us_w.mp3\", \"durationMs\": 1800 }"));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(jdbc.queryForMap(
+                        "select w.example_ko, t.variant from word w join track t on t.id = w.track_id"
+                                + " where w.lesson_id = ? and w.sort_order = 3",
+                        lessonId()))
+                .containsEntry("example_ko", "모두가 연을 올려다보았다.")
+                .containsEntry("variant", "w03:us_w");
+        assertThat(rowIds()).containsAll(before);
     }
 
     @Test
@@ -192,8 +237,7 @@ class LessonImporterTest {
         importer.importLesson(manifest());
         listen("p2:uk_m");
         LessonManifest full = manifest();
-        LessonManifest shorter =
-                new LessonManifest(full.code(), full.title(), full.passages().subList(0, 1), full.words());
+        LessonManifest shorter = new LessonManifest(full.code(), full.passages().subList(0, 1), full.words());
 
         ImportResult result = importer.importLesson(shorter);
 
@@ -209,10 +253,7 @@ class LessonImporterTest {
         LessonManifest full = manifest();
 
         ImportResult result = importer.importLesson(new LessonManifest(
-                full.code(),
-                full.title(),
-                full.passages().subList(0, 1),
-                full.words().subList(0, 1)));
+                full.code(), full.passages().subList(0, 1), full.words().subList(0, 1)));
 
         assertThat(result.status()).isEqualTo(Status.IMPORTED);
         assertThat(jdbc.queryForList("select no from passage where lesson_id = ?", Integer.class, lessonId()))
@@ -246,7 +287,7 @@ class LessonImporterTest {
                         "select english from word where lesson_id = ? and passage_id is null order by sort_order",
                         String.class,
                         lessonId()))
-                .containsExactly("kite", "all day");
+                .containsExactly("kite", "all day", "everyone");
         assertThat(timings("p1:us_w")).containsExactly(new TimeRange(0, 1500), new TimeRange(2300, 3800));
     }
 
@@ -279,8 +320,8 @@ class LessonImporterTest {
 
         LessonContent lesson = catalog.findByCode(CODE).orElseThrow();
 
-        assertThat(lesson.title()).isEqualTo("시험용 회차");
-        assertThat(lesson.wordTotal()).isEqualTo(2);
+        assertThat(lesson.title()).isEqualTo("Reading Day 1");
+        assertThat(lesson.wordTotal()).isEqualTo(3);
         LessonContent.Passage first = lesson.passages().getFirst();
         assertThat(first.voices())
                 .extracting(LessonContent.Voice::voice)
@@ -362,7 +403,8 @@ class LessonImporterTest {
 
     private static String fixture() throws IOException {
         try (var in = LessonImporterTest.class.getResourceAsStream("/content-import/L1-B1-01.json")) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            // Windows 체크아웃(CRLF)에서도 줄을 걸친 치환이 맞도록
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         }
     }
 }
