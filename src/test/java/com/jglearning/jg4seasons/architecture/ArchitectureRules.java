@@ -4,6 +4,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
+import com.jglearning.jg4seasons.auth.api.AcademyStudents;
 import com.jglearning.jg4seasons.infra.persistence.AcademyScoped;
 import com.jglearning.jg4seasons.infra.persistence.AcademyScopedRepository;
 import com.tngtech.archunit.core.domain.Dependency;
@@ -320,6 +321,32 @@ final class ArchitectureRules {
                 .dependOnClassesThat()
                 .resideInAPackage(basePackage + ".listening..")
                 .because("listening이 content에 의존한다. 역방향은 순환이 된다")
+                .allowEmptyShould(true);
+    }
+
+    /**
+     * 학원 학생 묶음(AcademyStudents)은 {base}.auth 패키지에서만 만든다. 진도·단어 집계 표에는 학원 칸이 없어 이 묶음이 곧 학원 범위다 — 다른 모듈이 확인하지 않은
+     * 학생 id(경로 값 등)로 묶음을 만들어 다른 학원 진도를 읽지 못하게. 호출·메서드 참조 모두 잡는다. 받은 묶음을 좁히는 only는 허용
+     */
+    static ArchRule academyStudentsAreCreatedOnlyInAuth(String basePackage) {
+        String authPackage = basePackage + ".auth";
+        return classes()
+                .should(new ArchCondition<JavaClass>("학원 학생 묶음은 auth 패키지에서만 만든다") {
+                    @Override
+                    public void check(JavaClass javaClass, ConditionEvents events) {
+                        String packageName = javaClass.getPackageName();
+                        if (packageName.equals(authPackage) || packageName.startsWith(authPackage + ".")) {
+                            return;
+                        }
+                        Stream<JavaCodeUnitAccess<?>> accesses = Stream.concat(
+                                javaClass.getMethodCallsFromSelf().stream(),
+                                javaClass.getMethodReferencesFromSelf().stream());
+                        accesses.filter(access -> access.getTargetOwner().isEquivalentTo(AcademyStudents.class)
+                                        && access.getName().equals("of"))
+                                .forEach(access ->
+                                        events.add(SimpleConditionEvent.violated(access, access.getDescription())));
+                    }
+                })
                 .allowEmptyShould(true);
     }
 

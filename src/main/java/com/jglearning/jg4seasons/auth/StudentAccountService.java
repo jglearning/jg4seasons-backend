@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.auth;
 
+import com.jglearning.jg4seasons.auth.api.AcademyStudents;
 import com.jglearning.jg4seasons.auth.api.AccountStatus;
 import com.jglearning.jg4seasons.auth.api.IssuedCode;
 import com.jglearning.jg4seasons.auth.api.NewStudent;
@@ -7,6 +8,7 @@ import com.jglearning.jg4seasons.auth.api.StudentAccount;
 import com.jglearning.jg4seasons.auth.api.StudentAccounts;
 import com.jglearning.jg4seasons.auth.api.StudentChange;
 import com.jglearning.jg4seasons.auth.api.StudentChangeResult;
+import com.jglearning.jg4seasons.auth.api.StudentRoster;
 import com.jglearning.jg4seasons.auth.token.RefreshTokenService;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
@@ -132,6 +134,16 @@ class StudentAccountService implements StudentAccounts {
         }
         return toAccounts(
                 users.findByAcademyIdAndRoleAndIdInOrderByNameAscIdAsc(academyId, UserRole.STUDENT, studentIds));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StudentRoster roster(long academyId, Collection<Long> candidateIds) {
+        List<StudentAccount> accounts = findAll(academyId, candidateIds);
+        return new StudentRoster(
+                accounts,
+                AcademyStudents.of(
+                        academyId, accounts.stream().map(StudentAccount::id).toList()));
     }
 
     @Override

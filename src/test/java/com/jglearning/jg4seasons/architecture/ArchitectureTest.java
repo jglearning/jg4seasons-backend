@@ -39,4 +39,7 @@ class ArchitectureTest {
 
     @ArchTest
     static final ArchRule content는_listening에_의존하지_않는다 = ArchitectureRules.contentDoesNotDependOnListening(BASE);
+
+    @ArchTest
+    static final ArchRule 학원_학생_묶음은_auth만_만든다 = ArchitectureRules.academyStudentsAreCreatedOnlyInAuth(BASE);
 }

@@ -29,6 +29,11 @@ public interface StudentAccounts {
     /** 그 학원 학생만, 이름 순(같으면 id 순). 학원 밖·없는 id는 빠진다 */
     List<StudentAccount> findAll(long academyId, Collection<Long> studentIds);
 
+    /**
+     * findAll과 같은 학생(그 학원 학생만, 이름 순)을 명단으로: 계정 + 집계 조회에 넘길 범위 묶음. 진도·단어 집계를 읽는 다른 모듈은 이 묶음만 받는다(AcademyStudents)
+     */
+    StudentRoster roster(long academyId, Collection<Long> candidateIds);
+
     /** inactive로 바뀌면 그 학생의 refresh를 모두 끊는다(코드는 그대로 — 결정 B) */
     StudentChangeResult change(long academyId, long studentId, StudentChange change);
 
