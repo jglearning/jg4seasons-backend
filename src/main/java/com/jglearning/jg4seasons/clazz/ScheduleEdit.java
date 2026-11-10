@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -16,8 +17,16 @@ import java.util.stream.Collectors;
  */
 final class ScheduleEdit {
 
-    /** 진도표 행. id null = 새로 넣을 행 */
+    /** 진도표 행. id null = 새로 넣을 행. 날짜·상태 필수, 빈 메모는 null(4.6·4.7 모두 "" = 지움, "메모 없음"은 늘 null) */
     record Row(Long id, long lessonId, LocalDate date, SessionStatus status, String note) {
+        Row {
+            Objects.requireNonNull(date, "date");
+            Objects.requireNonNull(status, "status");
+            if (note != null && note.isEmpty()) {
+                note = null;
+            }
+        }
+
         boolean held() {
             return status != SessionStatus.CANCELLED;
         }
@@ -35,7 +44,8 @@ final class ScheduleEdit {
 
     /**
      * 휴강(4.7). 그 행은 날짜 그대로 휴강·메모(null이면 원래 메모). shiftFollowing이면 같은 회차의 새 수업 행 — 그 행 뒤 수업 행들의 날짜를 새 행과 뒤 회차들이 차례로
-     * 받고, 마지막 회차는 다음 수업일. 이미 휴강한 행이면 rows 그대로(재시도에 안전). 오늘 이전 행이면 409 SESSION_PAST
+     * 받고, 마지막 회차는 다음 수업일. note "" = 지움. 이미 휴강한 행이면 rows 그대로(재시도에 안전, 메모도 바꾸지 않음 — 메모는 4.6으로). 오늘 이전 행이면 409
+     * SESSION_PAST
      */
     static List<Row> cancel(
             List<Row> rows, int seq, String note, boolean shiftFollowing, Weekdays weekdays, LocalDate today) {
@@ -71,8 +81,9 @@ final class ScheduleEdit {
     }
 
     /**
-     * 날짜·메모 변경(4.6). note: null 그대로, "" 지움. newDate: null 그대로. 날짜를 바꾸면 — 휴강 행 400, 오늘 이전 행 409, 새 날짜가 오늘 이전이거나 앞 수업 행 이하면
-     * 400, 밀지 않을 때 뒤 수업 행 이상이면 400. shiftFollowing이면 뒤 수업 행들을 새 날짜의 다음 수업일부터 차례로(휴강 행은 그대로, 그 날짜는 건너뜀)
+     * 날짜·메모 변경(4.6). note: null 그대로, "" 지움. newDate: null이거나 지금 날짜와 같으면 날짜 변경 없음(밀기도 무시 — 수정 폼이 원래 날짜를 함께 보내도 지난
+     * 행·휴강 행의 메모를 바꿀 수 있게). 날짜를 바꾸면 — 휴강 행 400, 오늘 이전 행 409, 새 날짜가 오늘 이전이거나 앞 수업 행 이하면 400, 밀지 않을 때 뒤 수업 행
+     * 이상이면 400. shiftFollowing이면 뒤 수업 행들을 새 날짜의 다음 수업일부터 차례로(휴강 행은 그대로, 그 날짜는 건너뜀)
      */
     static List<Row> reschedule(
             List<Row> rows,
@@ -84,9 +95,9 @@ final class ScheduleEdit {
             LocalDate today) {
         int k = indexOf(rows, seq);
         Row target = rows.get(k);
-        Row updated = note == null ? target : target.withNote(note.isEmpty() ? null : note);
+        Row updated = note == null ? target : target.withNote(note);
         List<Row> out = new ArrayList<>(rows);
-        if (newDate == null) {
+        if (newDate == null || newDate.equals(target.date())) {
             out.set(k, updated);
             return renumber(out);
         }

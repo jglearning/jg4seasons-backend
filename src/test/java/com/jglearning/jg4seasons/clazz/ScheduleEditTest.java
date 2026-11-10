@@ -147,6 +147,25 @@ class ScheduleEditTest {
                 null);
     }
 
+    @Test
+    void 메모_없이_휴강하면_원래_메모를_유지하고_빈_메모는_지운다() {
+        List<Row> rows = List.of(held(1, 1, 10), new Row(2L, 2, d(12), SessionStatus.SCHEDULED, "숙제"));
+
+        assertThat(ScheduleEdit.cancel(rows, 2, null, false, TUE_THU, TODAY).get(1))
+                .isEqualTo(cancelled(2, 2, 12, "숙제"));
+        assertThat(ScheduleEdit.cancel(rows, 2, "", false, TUE_THU, TODAY).get(1))
+                .as("4.6과 같은 뜻 — 빈 메모 = 지움(null), 빈 문자열로 저장하지 않는다")
+                .isEqualTo(cancelled(2, 2, 12, null));
+    }
+
+    @Test
+    void 행은_빈_메모를_null로_맞추고_날짜_상태가_없으면_만들_수_없다() {
+        assertThat(new Row(1L, 1, d(10), SessionStatus.SCHEDULED, "").note()).isNull();
+        assertThatThrownBy(() -> new Row(1L, 1, null, SessionStatus.SCHEDULED, null))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new Row(1L, 1, d(10), null, null)).isInstanceOf(NullPointerException.class);
+    }
+
     // 날짜 변경
 
     @Test
@@ -166,6 +185,27 @@ class ScheduleEditTest {
                 () -> ScheduleEdit.reschedule(BASE, 2, d(9), null, false, TUE_THU, TODAY),
                 CommonErrorCode.VALIDATION,
                 "scheduledDate");
+    }
+
+    @Test
+    void 같은_날짜를_보내면_날짜_변경이_아니다() {
+        // 수정 폼이 원래 날짜와 메모를 함께 보내도 지난 행·휴강 행의 메모가 바뀐다(ADR 0030 — 메모는 언제든). 밀기도 무시
+        List<Row> rows = List.of(held(1, 1, 5), cancelled(2, 2, 10, null), held(3, 2, 12), held(4, 3, 17));
+
+        assertThat(ScheduleEdit.reschedule(rows, 1, d(5), "결석 많음", true, TUE_THU, TODAY))
+                .as("지난 행")
+                .containsExactly(
+                        new Row(1L, 1, d(5), SessionStatus.SCHEDULED, "결석 많음"),
+                        cancelled(2, 2, 10, null),
+                        held(3, 2, 12),
+                        held(4, 3, 17));
+        assertThat(ScheduleEdit.reschedule(rows, 2, d(10), "체험학습", false, TUE_THU, TODAY)
+                        .get(1))
+                .as("휴강 행")
+                .isEqualTo(cancelled(2, 2, 10, "체험학습"));
+        assertThat(ScheduleEdit.reschedule(rows, 3, d(12), null, true, TUE_THU, TODAY))
+                .as("수업 행 — 같은 날짜 + 밀기는 아무것도 안 바뀜")
+                .isEqualTo(rows);
     }
 
     @Test

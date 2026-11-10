@@ -86,7 +86,7 @@ public class TeacherDetailController {
     @Operation(
             summary = "진도표 한 행 수정",
             description =
-                    "날짜·메모. 메모는 지난 수업·휴강 행도 언제든(\"\" = 지움). 날짜는 앞 수업보다 뒤, 오늘 이후여야 하고, shiftFollowing이 아니면 뒤 수업보다 앞이어야 한다"
+                    "날짜·메모. 메모는 지난 수업·휴강 행도 언제든(\"\" = 지움). 날짜가 지금과 같으면 날짜 변경이 아니다(메모만 반영, shiftFollowing 무시). 날짜는 앞 수업보다 뒤, 오늘 이후여야 하고, shiftFollowing이 아니면 뒤 수업보다 앞이어야 한다"
                             + "(아니면 400 scheduledDate). shiftFollowing이면 뒤 수업들을 새 날짜의 다음 수업일(수업 요일, 휴강 날짜 제외)부터 차례로 다시 놓는다."
                             + " 지난 수업의 날짜 변경은 409 SESSION_PAST, 휴강 행의 날짜 변경은 400. 바꿀 값이 없으면 400. 회차 순서 바꾸기는 1차에 없다."
                             + " 바뀐 뒤 진도표 전체(seq는 날짜 순으로 다시 매김 — 이 응답으로 다시 그린다). X-CSRF 필요")
@@ -113,7 +113,7 @@ public class TeacherDetailController {
             summary = "휴강",
             description =
                     "그 행은 날짜 그대로 cancelled로 남는다(메모 저장). shiftFollowing이면 같은 회차가 새 행으로 들어가고 뒤 수업들이 한 칸씩 다음 수업일로 밀린다"
-                            + "(행 +1). false면 그 행만 휴강(그 회차는 건너뜀). 이미 휴강한 행이면 바꾸지 않고 200. 지난 수업은 409 SESSION_PAST(오늘 수업은 가능)."
+                            + "(행 +1). false면 그 행만 휴강(그 회차는 건너뜀). note \"\" = 메모 없음. 이미 휴강한 행이면 아무것도 바꾸지 않고 200(메모도 — 메모는 4.6으로). 지난 수업은 409 SESSION_PAST(오늘 수업은 가능)."
                             + " 바뀐 뒤 진도표 전체(seq 다시 매김). X-CSRF 필요")
     @PostMapping("/api/v1/teacher/classes/{classId}/sessions/{seq}/cancel")
     public SessionListResponse cancelSession(
