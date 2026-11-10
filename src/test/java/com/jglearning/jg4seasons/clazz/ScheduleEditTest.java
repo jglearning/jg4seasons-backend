@@ -159,6 +159,19 @@ class ScheduleEditTest {
     }
 
     @Test
+    void 어제_행은_휴강도_날짜_변경도_409() {
+        // 오늘 = 11-11(수). 어제(11-10) 행 — 하루 차이 경계
+        LocalDate today = d(11);
+
+        assertApiError(
+                () -> ScheduleEdit.cancel(BASE, 1, null, true, TUE_THU, today), ClassErrorCode.SESSION_PAST, null);
+        assertApiError(
+                () -> ScheduleEdit.reschedule(BASE, 1, d(11), null, false, TUE_THU, today),
+                ClassErrorCode.SESSION_PAST,
+                null);
+    }
+
+    @Test
     void 행은_빈_메모를_null로_맞추고_날짜_상태가_없으면_만들_수_없다() {
         assertThat(new Row(1L, 1, d(10), SessionStatus.SCHEDULED, "").note()).isNull();
         assertThatThrownBy(() -> new Row(1L, 1, null, SessionStatus.SCHEDULED, null))
@@ -185,6 +198,23 @@ class ScheduleEditTest {
                 () -> ScheduleEdit.reschedule(BASE, 2, d(9), null, false, TUE_THU, TODAY),
                 CommonErrorCode.VALIDATION,
                 "scheduledDate");
+    }
+
+    @Test
+    void 새_날짜가_오늘이면_된다() {
+        List<Row> rows = List.of(held(1, 1, 5), held(2, 2, 12));
+
+        assertThat(ScheduleEdit.reschedule(rows, 2, TODAY, null, false, TUE_THU, TODAY))
+                .containsExactly(held(1, 1, 5), held(2, 2, 10));
+    }
+
+    @Test
+    void 앞_수업은_휴강_행을_건너뛰고_본다() {
+        // 앞 행이 휴강(11-12)이면 그 날짜와 같아도 된다 — 앞 "수업" 행은 11-10
+        List<Row> rows = List.of(held(1, 1, 10), cancelled(2, 2, 12, null), held(3, 2, 17));
+
+        assertThat(ScheduleEdit.reschedule(rows, 3, d(12), null, false, TUE_THU, TODAY))
+                .containsExactly(held(1, 1, 10), cancelled(2, 2, 12, null), held(3, 2, 12));
     }
 
     @Test

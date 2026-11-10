@@ -107,6 +107,34 @@ class TeacherScheduleCommitTest {
     }
 
     @Test
+    void 같은_행을_두_번_눌러도_휴강은_한_번만() throws Exception {
+        // 더블 클릭: 둘째 요청은 첫 요청 결과(seq 2 = 이미 휴강)를 보고 그대로 200
+        for (int round = 1; round <= 3; round++) {
+            long classId = data.clazz(academyId, "L2-B1", "더블 반 " + round, TestData.uniqueAccessCode(), "active");
+            classIds.add(classId);
+            data.assignTeacher(classId, teacherId);
+            data.session(classId, 1, "L2-B1-01", LocalDate.of(2026, 11, 10), "scheduled");
+            data.session(classId, 2, "L2-B1-02", LocalDate.of(2026, 11, 12), "scheduled");
+            data.session(classId, 3, "L2-B1-03", LocalDate.of(2026, 11, 17), "scheduled");
+
+            List<Integer> statuses = together(cancel(classId, 2), cancel(classId, 2));
+
+            String as = "round " + round;
+            assertThat(statuses).as(as).containsExactly(200, 200);
+            assertThat(jdbc.queryForObject(
+                            "select count(*) from class_session where class_id = ?", Integer.class, classId))
+                    .as(as + " 휴강 한 번 → 행 +1")
+                    .isEqualTo(4);
+            assertThat(jdbc.queryForObject(
+                            "select count(*) from class_session where class_id = ? and status = 'cancelled'",
+                            Integer.class,
+                            classId))
+                    .as(as)
+                    .isEqualTo(1);
+        }
+    }
+
+    @Test
     void 같은_반에_휴강_두_건이_동시에_와도_둘_다_반영된다() throws Exception {
         for (int round = 1; round <= 5; round++) {
             long classId = data.clazz(academyId, "L2-B1", "커밋 반 " + round, TestData.uniqueAccessCode(), "active");

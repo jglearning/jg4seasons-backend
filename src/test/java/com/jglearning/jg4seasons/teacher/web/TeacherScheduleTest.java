@@ -209,8 +209,9 @@ class TeacherScheduleTest {
 
     @Test
     void 이미_휴강한_행은_그대로_200() {
-        cancel(2, "{\"note\":\"체험학습\",\"shiftFollowing\":true}");
+        assertThat(cancel(2, "{\"note\":\"체험학습\",\"shiftFollowing\":true}")).hasStatusOk();
         List<String> before = rows();
+        assertThat(before).as("첫 휴강 반영").hasSize(4).contains("2 L2-B1-02 2026-11-10 cancelled 체험학습");
 
         assertThat(cancel(2, "{\"note\":\"다른 메모\",\"shiftFollowing\":true}")).hasStatusOk();
 
@@ -226,6 +227,25 @@ class TeacherScheduleTest {
 
         assertThat(update(1, "{\"note\":\"복습 필요\"}")).hasStatusOk();
         assertThat(rows()).first().isEqualTo("1 L2-B1-01 2026-11-05 scheduled 복습 필요");
+    }
+
+    @Test
+    void 수정_폼이_원래_날짜와_메모를_함께_보내도_지난_행_메모가_바뀐다() {
+        assertThat(update(1, "{\"scheduledDate\":\"2026-11-05\",\"note\":\"결석 많음\"}"))
+                .hasStatusOk();
+
+        assertThat(rows()).first().isEqualTo("1 L2-B1-01 2026-11-05 scheduled 결석 많음");
+    }
+
+    @Test
+    void 지난_수업_판정은_학원_날짜_자정이_기준() {
+        // KST 11-11 00:10 = UTC 11-10 15:10. 학원 날짜로는 11-10 행이 어제 — UTC 날짜로 판정하면 오늘이라 통과해 버린다
+        clock.set(Instant.parse("2026-11-10T15:10:00Z"));
+
+        MvcTestResult result = cancel(2, "{\"shiftFollowing\":true}");
+
+        assertThat(result).hasStatus(409);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("SESSION_PAST");
     }
 
     // 4.6 날짜·메모 변경
@@ -252,7 +272,13 @@ class TeacherScheduleTest {
         assertValidation(update(3, "{\"scheduledDate\":\"2026-11-10\"}"), "scheduledDate");
         assertValidation(update(2, "{\"scheduledDate\":\"2026-11-12\"}"), "scheduledDate");
         assertValidation(update(2, "{\"scheduledDate\":\"2026-11-09\"}"), "scheduledDate");
-        assertThat(rows()).as("바뀐 것 없음").hasSize(3);
+        // @Transactional 테스트라 예외 전에 쓴 내용도 보인다 — 행 수가 아니라 내용 전체로 "바뀐 것 없음"을 본다
+        assertThat(rows())
+                .as("바뀐 것 없음")
+                .isEqualTo(List.of(
+                        "1 L2-B1-01 2026-11-05 scheduled null",
+                        "2 L2-B1-02 2026-11-10 scheduled null",
+                        "3 L2-B1-03 2026-11-12 scheduled null"));
     }
 
     @Test
@@ -269,7 +295,13 @@ class TeacherScheduleTest {
                 write(HttpMethod.POST, notMine, UserRole.TEACHER, academyId, classId, "2/cancel", body), "담당 아닌 교사");
         assertNotFound(cancel(99, body), "없는 행");
         assertNotFound(update(99, "{\"note\":\"a\"}"), "없는 행");
-        assertThat(rows()).as("바뀐 것 없음").hasSize(3);
+        // @Transactional 테스트라 예외 전에 쓴 내용도 보인다 — 행 수가 아니라 내용 전체로 "바뀐 것 없음"을 본다
+        assertThat(rows())
+                .as("바뀐 것 없음")
+                .isEqualTo(List.of(
+                        "1 L2-B1-01 2026-11-05 scheduled null",
+                        "2 L2-B1-02 2026-11-10 scheduled null",
+                        "3 L2-B1-03 2026-11-12 scheduled null"));
     }
 
     @Test
