@@ -5,6 +5,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.jglearning.jg4seasons.auth.api.AcademyStudents;
+import com.jglearning.jg4seasons.clazz.api.ClassSchedules;
 import com.jglearning.jg4seasons.infra.persistence.AcademyScoped;
 import com.jglearning.jg4seasons.infra.persistence.AcademyScopedRepository;
 import com.tngtech.archunit.core.domain.Dependency;
@@ -347,6 +348,23 @@ final class ArchitectureRules {
                                         events.add(SimpleConditionEvent.violated(access, access.getDescription())));
                     }
                 })
+                .allowEmptyShould(true);
+    }
+
+    /**
+     * 진도표 api(ClassSchedules — 학원 범위만 보고 담당 반은 모른다)는 clazz 밖에서 {base}.teacher.TeacherScope만 참조한다. TeacherScope는 범위 확인을 거친
+     * 반(ScopedClass)으로만 부르므로, 다른 곳이 학원·반 id를 직접 넘겨 담당이 아닌 반의 진도표를 바꾸지 못하게 한다(ADR 0030, 이슈 #41)
+     */
+    static ArchRule classSchedulesOnlyThroughTeacherScope(String basePackage) {
+        return noClasses()
+                .that()
+                .resideOutsideOfPackage(basePackage + ".clazz..")
+                .and()
+                .doNotHaveFullyQualifiedName(basePackage + ".teacher.TeacherScope")
+                .should()
+                .dependOnClassesThat()
+                .areAssignableTo(ClassSchedules.class)
+                .because("진도표 쓰기는 담당 반 확인을 거친 TeacherScope로만 한다")
                 .allowEmptyShould(true);
     }
 
