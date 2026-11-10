@@ -253,7 +253,8 @@ def norm_term(s):
 def merge_book_words(lesson_words, book_rows, code, errors):
     """단어 = 어휘책 그 강의 단어 → 숙어(교재 순서) + 어휘책에 없는 회차 어휘(ADR-27 결정 6).
     두 쪽에 다 있는 단어는 회차 어휘(뜻·새 예문·예문 해석·음원이 서로 맞음). 어휘책에만 있는 단어는 음원·예문 해석 없음.
-    no는 이 순서로 1부터 다시 매긴다. 음원 키의 번호(w{nn})는 회차 어휘 번호 그대로"""
+    no는 이 순서로 1부터 다시 매긴다. 음원 키의 번호(w{nn})는 회차 어휘 번호 그대로.
+    source(ADR 0029): 어휘책 단어·숙어(회차 어휘와 겹친 것 포함) book, 어휘책에 없는 회차 어휘 extra"""
     if not book_rows:
         errors.append(f"{code}: 어휘책에 이 회차가 없다")
         return lesson_words
@@ -266,7 +267,7 @@ def merge_book_words(lesson_words, book_rows, code, errors):
     for r in ordered:
         same = unused.get(norm_term(r["term"]))
         if same:
-            merged.append(same.pop(0))
+            merged.append({**same.pop(0), "source": "book"})
             continue
         where = f"{code} 어휘책 {r['type']} {r['no']}"
         pos = "phr" if r["type"] == "idiom" else BOOK_POS.get(r["pos"])
@@ -276,12 +277,16 @@ def merge_book_words(lesson_words, book_rows, code, errors):
             if not value.strip():
                 errors.append(f"{where}: {what}이(가) 비었다")
             check_len(errors, what, value, where)
-        merged.append({"english": r["term"].strip(), "pos": pos, "korean": r["meaning"].strip(),
+        merged.append({"english": r["term"].strip(), "source": "book", "pos": pos, "korean": r["meaning"].strip(),
                        "exampleEn": r["example"].strip(), "exampleKo": None, "track": None, "exampleTrack": None})
-    merged += [w for w in lesson_words if any(w is x for x in unused.get(norm_term(w["english"]), []))]
+    merged += [{**w, "source": "extra"}
+               for w in lesson_words if any(w is x for x in unused.get(norm_term(w["english"]), []))]
     if len(merged) > 127:
         errors.append(f"{code}: 단어 {len(merged)}개 > 127(word.sort_order TINYINT)")
-    return [{"no": i, **{k: v for k, v in w.items() if k != "no"}} for i, w in enumerate(merged, start=1)]
+    # 칸 순서: no, english, source, 나머지(manifest를 눈으로 볼 때 출처가 단어 옆에)
+    return [{"no": i, "english": w["english"], "source": w["source"],
+             **{k: v for k, v in w.items() if k not in ("no", "english", "source")}}
+            for i, w in enumerate(merged, start=1)]
 
 
 def link_or_copy(src, dst):

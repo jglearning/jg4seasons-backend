@@ -80,7 +80,7 @@ class LessonImporterTest {
                         + " from word w join track t on t.id = w.track_id join track e on e.id = w.example_track_id"
                         + " where w.lesson_id = ? order by w.sort_order",
                 lessonId());
-        assertThat(words).hasSize(2);
+        assertThat(words).as("음원이 있는 단어: 1·2(어휘책, 녹음 자료에도 있음)·4(추가 어휘)").hasSize(3);
         assertThat(words.get(1))
                 .containsEntry("english", "all day")
                 .containsEntry("pos", "phr")
@@ -93,6 +93,10 @@ class LessonImporterTest {
                 .containsEntry("evariant", "w02:us_w")
                 .containsEntry("ekey", "audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3");
         // 어휘책에만 있는 단어: 음원·예문 해석 없이 들어간다(ADR 0027 결정 6)
+        assertThat(jdbc.queryForList(
+                        "select source from word where lesson_id = ? order by sort_order", String.class, lessonId()))
+                .as("출처(ADR 0029)")
+                .containsExactly("book", "book", "book", "extra");
         assertThat(jdbc.queryForMap(
                         "select english, pos, example_ko, track_id, example_track_id from word"
                                 + " where lesson_id = ? and sort_order = 3",
@@ -146,6 +150,21 @@ class LessonImporterTest {
         ImportResult again = importer.importLesson(manifest());
 
         assertThat(again.status()).isEqualTo(Status.UNCHANGED);
+        assertThat(rowIds()).containsExactlyInAnyOrderElementsOf(before);
+    }
+
+    @Test
+    void 출처만_바뀌면_IMPORTED이고_단어_id는_그대로다() throws IOException {
+        importer.importLesson(manifest());
+        List<Long> before = rowIds();
+
+        // 운영 재투입(ADR 0029): V8 직후 모두 book인 행에 extra가 들어오는 경우
+        ImportResult result = importer.importLesson(manifest("\"source\": \"extra\"", "\"source\": \"book\""));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(jdbc.queryForObject(
+                        "select source from word where lesson_id = ? and sort_order = 4", String.class, lessonId()))
+                .isEqualTo("book");
         assertThat(rowIds()).containsExactlyInAnyOrderElementsOf(before);
     }
 
@@ -287,7 +306,7 @@ class LessonImporterTest {
                         "select english from word where lesson_id = ? and passage_id is null order by sort_order",
                         String.class,
                         lessonId()))
-                .containsExactly("kite", "all day", "everyone");
+                .containsExactly("kite", "all day", "everyone", "puddle");
         assertThat(timings("p1:us_w")).containsExactly(new TimeRange(0, 1500), new TimeRange(2300, 3800));
     }
 
@@ -321,7 +340,7 @@ class LessonImporterTest {
         LessonContent lesson = catalog.findByCode(CODE).orElseThrow();
 
         assertThat(lesson.title()).isEqualTo("Reading Day 1");
-        assertThat(lesson.wordTotal()).isEqualTo(3);
+        assertThat(lesson.wordTotal()).isEqualTo(4);
         LessonContent.Passage first = lesson.passages().getFirst();
         assertThat(first.voices())
                 .extracting(LessonContent.Voice::voice)

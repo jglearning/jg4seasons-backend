@@ -3,20 +3,26 @@ package com.jglearning.jg4seasons.words.web.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
-/** 2.4 회차 단어(S-06·S-06b). 지문 순서 → 단어 순서. */
+/** 2.4 회차 단어(S-06·S-06b). 교재 순서: 어휘책 그 강의 단어 → 숙어 → 어휘책에 없는 회차 어휘(ADR 0027 결정 6, 0029). */
 public record LessonWordsResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<WordItem> items,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int total) {
+
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "회차 단어 수(실제 35~106, 없으면 0)")
+        int total) {
 
     public record WordItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             long id,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "회차 안 순서(1부터)")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "회차 안 교재 순서(1부터)")
             int order,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 번호 1~6")
-            int passageNo,
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {"book", "extra"},
+                    description = "출처(ADR 0029): book 어휘책 그 강의 단어·숙어, extra 어휘책에 없는 회차 어휘. 목록 탭 필터용."
+                            + " 음원 유무와는 따로(어휘책 음원이 들어오면 book도 음원이 있다)")
+            String source,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "sudden")
             String english,
@@ -26,14 +32,17 @@ public record LessonWordsResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"n", "v", "adj", "adv", "prep", "conj", "phr"},
-                    description = "품사. 화면 표기(명사·동사…)는 프론트")
+                    allowableValues = {"n", "v", "adj", "adv", "prep", "conj", "pron", "interj", "phr"},
+                    description = "품사. 화면 표기(명사·동사·대명사·감탄사…)는 프론트")
             String pos,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 문장이 아닌 새 예문(ADR-25)")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "예문(지문 문장이 아님, ADR-25)")
             String example,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    nullable = true,
+                    description = "예문 해석. 없으면 null(지금 자료에서는 어휘책에만 있는 단어 — source와 따로 판단)")
             String exampleKo,
 
             @Schema(

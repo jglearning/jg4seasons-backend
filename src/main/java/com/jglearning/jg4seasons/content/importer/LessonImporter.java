@@ -363,6 +363,7 @@ public class LessonImporter {
                         lessonId,
                         word.no(),
                         word.english(),
+                        word.source(),
                         word.korean(),
                         word.pos(),
                         word.exampleEn(),
@@ -370,6 +371,7 @@ public class LessonImporter {
             } else if (row.passageId() == null
                     && row.moeLevel() == null
                     && row.english().equals(word.english())
+                    && row.source().equals(word.source())
                     && row.korean().equals(word.korean())
                     && row.pos().equals(word.pos())
                     && row.exampleEn().equals(word.exampleEn())
@@ -383,6 +385,7 @@ public class LessonImporter {
             store.updateWord(
                     id,
                     word.english(),
+                    word.source(),
                     word.korean(),
                     word.pos(),
                     word.exampleEn(),

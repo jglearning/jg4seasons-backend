@@ -1,9 +1,7 @@
 package com.jglearning.jg4seasons.listening;
 
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
-import com.jglearning.jg4seasons.clazz.api.LessonAccess;
-import com.jglearning.jg4seasons.clazz.api.StudentClass;
-import com.jglearning.jg4seasons.clazz.api.StudentClasses;
+import com.jglearning.jg4seasons.clazz.api.StudentLessonGate;
 import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonContent;
 import com.jglearning.jg4seasons.content.api.PassageTrack;
@@ -28,7 +26,6 @@ import com.jglearning.jg4seasons.listening.web.dto.FlushResponse;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -66,7 +63,7 @@ public class FlushService {
     private static final String NOT_FOUND = "회차를 찾을 수 없어요";
 
     private final AcademyDirectory academies;
-    private final StudentClasses studentClasses;
+    private final StudentLessonGate gate;
     private final LessonCatalog catalog;
     private final FlushStore store;
     private final ProgressStore progress;
@@ -74,13 +71,13 @@ public class FlushService {
 
     FlushService(
             AcademyDirectory academies,
-            StudentClasses studentClasses,
+            StudentLessonGate gate,
             LessonCatalog catalog,
             FlushStore store,
             ProgressStore progress,
             Clock clock) {
         this.academies = academies;
-        this.studentClasses = studentClasses;
+        this.gate = gate;
         this.catalog = catalog;
         this.store = store;
         this.progress = progress;
@@ -94,18 +91,8 @@ public class FlushService {
         }
         PassageTrack track = catalog.findPassageTrack(command.trackId())
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, NOT_FOUND));
-        // 소속 반 중 그 트랙의 권인 반 전부(2.3과 같음). 하나도 없으면 NOT_IN_CLASS → 404
-        List<StudentClass> classes = studentClasses.currentClasses(academyId, studentId).stream()
-                .filter(clazz -> clazz.bookId() == track.bookId())
-                .toList();
-        LocalDate today = LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
-        LessonAccess access = studentClasses.access(classes, track.lessonId(), today);
-        if (access == LessonAccess.NOT_IN_CLASS) {
-            throw new ApiException(CommonErrorCode.NOT_FOUND, NOT_FOUND);
-        }
-        if (access == LessonAccess.LOCKED) {
-            throw new ApiException(ListeningErrorCode.LESSON_LOCKED, "수업일이 되면 열려요");
-        }
+        // 소속 반 중 그 트랙의 권인 반 전부를 본다(2.3과 같은 게이트): 없으면 404, 모두 잠겼으면 423
+        gate.requireOpen(academyId, studentId, track.bookId(), track.lessonId());
 
         Instant now = clock.instant();
         SessionRow session = store.upsertSession(

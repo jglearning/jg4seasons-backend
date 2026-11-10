@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 2.4 단어·2.5 학습 결과 계약(구현 전 501). 검증(400)과 접근 규칙(401·403)은 지금도 동작한다. */
+/** 2.4 단어·2.5 학습 결과의 형식 검증(400)과 역할·쿠키 규칙(401·403). 동작은 StudentWordsTest·WordStudySaveTest. */
 @IntegrationTest
 @Transactional
 class StudentWordContractTest {
@@ -72,18 +72,6 @@ class StudentWordContractTest {
     }
 
     @Test
-    void 학생의_올바른_요청은_501_NOT_IMPLEMENTED() {
-        MvcTestResult words =
-                mvc.get().uri(WORDS).cookie(as(studentId, UserRole.STUDENT)).exchange();
-        MvcTestResult saved = study("{\"cardsViewed\":57,\"memKnown\":40}");
-
-        for (MvcTestResult result : new MvcTestResult[] {words, saved}) {
-            assertThat(result).hasStatus(501);
-            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_IMPLEMENTED");
-        }
-    }
-
-    @Test
     void 교사는_403_쿠키가_없으면_401() {
         assertThat(mvc.get().uri(WORDS).cookie(as(teacherId, UserRole.TEACHER)).exchange())
                 .hasStatus(403);
@@ -121,9 +109,10 @@ class StudentWordContractTest {
     }
 
     @Test
-    void 상한값은_통과한다() {
+    void 형식_상한_127은_형식_검사를_통과한다() {
+        // 형식 검사를 넘어 서비스까지 간다 — 이 학생은 반이 없어 404(회차 단어 수 검사는 WordStudySaveTest)
         assertThat(study("{\"cardsViewed\":127,\"memKnown\":0,\"recallCorrect\":127,\"spellCorrect\":127}"))
-                .hasStatus(501);
+                .hasStatus(404);
     }
 
     @Test

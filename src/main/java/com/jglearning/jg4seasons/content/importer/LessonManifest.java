@@ -27,6 +27,12 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
     /** 품사. 어휘책에 대명사·감탄사가 있다(ADR 0027 결정 6) */
     private static final Set<String> POS = Set.of("n", "v", "adj", "adv", "prep", "conj", "pron", "interj", "phr");
 
+    /** 회차 단어 수 상한: word.sort_order·word_study 칸이 TINYINT(DB 오류 대신 manifest에서 알린다) */
+    static final int WORDS_MAX = 127;
+
+    /** 단어 출처(ADR 0029): book 어휘책 단어·숙어, extra 어휘책에 없는 회차 어휘. 없으면 거부(옛 manifest가 book으로 들어가지 않게) */
+    private static final Set<String> SOURCES = Set.of("book", "extra");
+
     /** 단어 음원 키의 음원 번호. 단어 순서(no)와 따로다 — 음원은 회차 어휘 번호로 만들었고 단어 순서는 어휘책(교재) 순서다 */
     private static final Pattern WORD_AUDIO_NO = Pattern.compile("_w(\\d{2,3})_us_w\\.mp3$");
 
@@ -59,12 +65,22 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
                         where + " 지문 " + passage.no(), track.fileKey(), passageKey(code, passage.no(), track.voice()));
             }
         }
+        if (words.size() > WORDS_MAX) {
+            throw new IllegalArgumentException(where + ": 단어 " + words.size() + "개 > " + WORDS_MAX);
+        }
         Set<Integer> audioNos = new HashSet<>();
+        boolean extraSeen = false;
         for (int i = 0; i < words.size(); i++) {
             Word word = words.get(i);
             if (word.no() != i + 1) {
                 throw new IllegalArgumentException(
                         where + ": 단어 번호가 1부터 이어지지 않는다(" + (i + 1) + "번째가 " + word.no() + ")");
+            }
+            // 교재 순서: 어휘책 단어·숙어 → 어휘책에 없는 회차 어휘(ADR 0027 결정 6). 어긋나면 스크립트가 출처를 잘못 붙인 것
+            if ("extra".equals(word.source())) {
+                extraSeen = true;
+            } else if (extraSeen) {
+                throw new IllegalArgumentException(where + " 단어 " + word.no() + ": 어휘책 단어(book)가 추가 어휘(extra) 뒤에 있다");
             }
             Integer audioNo = word.audioNo();
             if (audioNo == null) {
@@ -146,6 +162,7 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
     public record Word(
             int no,
             String english,
+            String source,
             String pos,
             String korean,
             String exampleEn,
@@ -155,6 +172,9 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
         public Word {
             String where = "단어 " + no;
             text(where, "english", english, ENGLISH_MAX);
+            if (source == null || !SOURCES.contains(source)) {
+                throw new IllegalArgumentException(where + ": 모르는 source: " + source);
+            }
             if (pos == null || !POS.contains(pos)) {
                 throw new IllegalArgumentException(where + ": 모르는 품사: " + pos);
             }
@@ -163,6 +183,10 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
             // 어휘책에만 있는 단어는 예문 해석·음원이 없다(ADR 0027 결정 6)
             if (exampleKo != null) {
                 text(where, "exampleKo", exampleKo, EXAMPLE_MAX);
+            }
+            // 추가 어휘는 녹음 자료의 회차 어휘에서만 온다 — 음원·예문 해석이 늘 있다(ADR 0029)
+            if ("extra".equals(source) && (track == null || exampleKo == null)) {
+                throw new IllegalArgumentException(where + ": 추가 어휘(extra)인데 음원이나 예문 해석이 없다");
             }
             if ((track == null) != (exampleTrack == null)) {
                 throw new IllegalArgumentException(where + ": 단어 음원과 예문 음원은 함께 있거나 함께 없어야 한다");

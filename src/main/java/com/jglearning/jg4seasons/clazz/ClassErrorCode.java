@@ -8,7 +8,9 @@ public enum ClassErrorCode implements ErrorCode {
     /** 학생 등록·이동 대상 반이 진행 중(active)이 아니다(결정 I) */
     CLASS_NOT_ACTIVE(HttpStatus.CONFLICT, "진행 중인 반이 아니에요"),
     /** 이동: 학생이 이미 그 반에만 소속이다(결정 I) */
-    ALREADY_IN_CLASS(HttpStatus.CONFLICT, "이미 그 반 학생이에요");
+    ALREADY_IN_CLASS(HttpStatus.CONFLICT, "이미 그 반 학생이에요"),
+    /** 미래 회차(진도표상 수업일 전, 또는 휴강만 있음). 2.3·2.4·2.5·3.1 공통(StudentLessonGate) — 이슈 #37에서 듣기 모듈에서 옮김, code 그대로 */
+    LESSON_LOCKED(HttpStatus.LOCKED, "아직 열리지 않은 회차예요");
 
     private final HttpStatus status;
     private final String title;

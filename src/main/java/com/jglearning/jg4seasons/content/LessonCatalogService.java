@@ -7,6 +7,7 @@ import com.jglearning.jg4seasons.content.api.LessonContent.Sentence;
 import com.jglearning.jg4seasons.content.api.LessonContent.TimeRange;
 import com.jglearning.jg4seasons.content.api.LessonContent.Voice;
 import com.jglearning.jg4seasons.content.api.LessonSummary;
+import com.jglearning.jg4seasons.content.api.LessonWord;
 import com.jglearning.jg4seasons.content.api.PassageTrack;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore.LessonRow;
@@ -30,6 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 class LessonCatalogService implements LessonCatalog {
 
+    /** 단어 출처(ADR 0029). API 계약(allowableValues)과 같은 값만 내보낸다 */
+    private static final Set<String> WORD_SOURCES = Set.of("book", "extra");
+
     /** 지문 트랙 variant: p{지문 no}:{목소리}(ADR-27 — us_w·us_m·uk_w·uk_m) */
     private static final Pattern PASSAGE_VARIANT = Pattern.compile("^p(\\d+):((?:us|uk)_[wm])$");
 
@@ -42,6 +46,50 @@ class LessonCatalogService implements LessonCatalog {
     @Override
     public Optional<LessonContent> findByCode(String lessonCode) {
         return store.findLesson(lessonCode).map(this::assemble);
+    }
+
+    @Override
+    public List<LessonWord> words(long lessonId) {
+        return store.words(lessonId).stream()
+                .map(row -> new LessonWord(
+                        row.id(),
+                        row.sortOrder(),
+                        wordSource(row.source(), row.id()),
+                        row.english(),
+                        row.korean(),
+                        row.pos(),
+                        row.exampleEn(),
+                        row.exampleKo(),
+                        wordAudio(row.trackId(), row.trackKind(), "word", row.trackKey(), row.trackMs(), row.id()),
+                        wordAudio(
+                                row.exampleTrackId(),
+                                row.exampleKind(),
+                                "word_example",
+                                row.exampleKey(),
+                                row.exampleMs(),
+                                row.id())))
+                .toList();
+    }
+
+    /** book·extra가 아니면 데이터 오류(manifest를 거치지 않은 값이 계약 밖으로 나가지 않게) */
+    private static String wordSource(String source, long wordId) {
+        if (!WORD_SOURCES.contains(source)) {
+            throw new IllegalStateException("단어 출처가 book·extra가 아니다: word " + wordId);
+        }
+        return source;
+    }
+
+    /** 단어에 연결된 트랙이 없으면 null. 종류가 다르거나 길이가 0 이하면 데이터 오류 */
+    private static LessonWord.Audio wordAudio(
+            Long trackId, String kind, String expectedKind, String fileKey, Integer durationMs, long wordId) {
+        if (trackId == null) {
+            return null;
+        }
+        if (!expectedKind.equals(kind) || durationMs == null || durationMs <= 0) {
+            throw new IllegalStateException(
+                    "단어 트랙이 " + expectedKind + " 트랙이 아니거나 길이가 0 이하다: word " + wordId + " track " + trackId);
+        }
+        return new LessonWord.Audio(trackId, fileKey, durationMs);
     }
 
     @Override
