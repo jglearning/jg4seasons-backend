@@ -58,3 +58,12 @@ jg4seasons:
     jwt-secret: ${JG4SEASONS_JWT_SECRET:}
     # 운영 프록시가 클라이언트 IP를 넣는 헤더. 비우면 연결 주소만 믿는다
     client-ip-header: ${JG4SEASONS_CLIENT_IP_HEADER:}
+  # 음원 서명 쿠키(ADR 0028). 기본 꺼짐. 켜면 칸이 비었거나 개인 키를 못 읽을 때 서버가 뜨지 않는다
+  audio:
+    signing:
+      enabled: ${JG4SEASONS_AUDIO_SIGNING_ENABLED:false}
+      key-pair-id: ${JG4SEASONS_AUDIO_SIGNING_KEY_PAIR_ID:}
+      # 한 줄 base64(PKCS#8 DER). 비밀값 — 환경 변수로만
+      private-key: ${JG4SEASONS_AUDIO_SIGNING_PRIVATE_KEY:}
+      # 사이트 호스트를 정확히: https://<호스트>/audio/*
+      resource: ${JG4SEASONS_AUDIO_SIGNING_RESOURCE:}

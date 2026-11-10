@@ -2,9 +2,13 @@ package com.jglearning.jg4seasons.auth.token;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jglearning.jg4seasons.infra.audio.AudioCookies;
+import com.jglearning.jg4seasons.infra.audio.NoAudioCookies;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -68,5 +72,70 @@ class AuthCookiesTest {
             assertThat(cookie.getMaxAge()).isEqualTo(Duration.ZERO);
             assertThat(cookie.getValue()).isEmpty();
         });
+    }
+
+    /** 서명 켜짐을 흉내 낸다(값은 서명기가 정하므로 여기서는 이름·값만) */
+    static final AudioCookies SIGNED = new AudioCookies() {
+        @Override
+        public Map<String, String> issue() {
+            Map<String, String> cookies = new LinkedHashMap<>();
+            cookies.put("CloudFront-Policy", "p");
+            cookies.put("CloudFront-Signature", "s");
+            cookies.put("CloudFront-Key-Pair-Id", "k");
+            return cookies;
+        }
+
+        @Override
+        public Set<String> names() {
+            return Set.of("CloudFront-Policy", "CloudFront-Signature", "CloudFront-Key-Pair-Id");
+        }
+
+        @Override
+        public Duration ttl() {
+            return Duration.ofHours(2);
+        }
+    };
+
+    @Test
+    void 서명이_켜지면_로그인_쿠키에_음원_쿠키_셋이_붙는다() {
+        Map<String, ResponseCookie> cookies = byName(new AuthCookies(true, SIGNED).issue(TOKENS));
+
+        assertThat(cookies)
+                .containsOnlyKeys(
+                        "access",
+                        "refresh",
+                        "csrf",
+                        "CloudFront-Policy",
+                        "CloudFront-Signature",
+                        "CloudFront-Key-Pair-Id");
+        assertThat(cookies.get("CloudFront-Signature").getValue()).isEqualTo("s");
+        for (String name : SIGNED.names()) {
+            ResponseCookie audio = cookies.get(name);
+            assertThat(audio.getPath()).isEqualTo("/audio/");
+            assertThat(audio.getMaxAge()).isEqualTo(Duration.ofSeconds(7200));
+            assertThat(audio.isHttpOnly()).isTrue();
+            assertThat(audio.isSecure()).isTrue();
+            assertThat(audio.getSameSite()).isEqualTo("Lax");
+            assertThat(audio.getDomain()).isNull();
+        }
+        assertThat(cookies.get("access").getPath()).isEqualTo("/api");
+    }
+
+    @Test
+    void 꺼져_있으면_쿠키_셋만() {
+        assertThat(new AuthCookies(true, NoAudioCookies.INSTANCE).issue(TOKENS)).hasSize(3);
+        assertThat(new AuthCookies(true, NoAudioCookies.INSTANCE).expireAll()).hasSize(3);
+    }
+
+    @Test
+    void 로그아웃은_음원_쿠키도_Path_audio로_지운다() {
+        Map<String, ResponseCookie> expired = byName(new AuthCookies(true, SIGNED).expireAll());
+
+        assertThat(expired).hasSize(6);
+        for (String name : SIGNED.names()) {
+            assertThat(expired.get(name).getPath()).isEqualTo("/audio/");
+            assertThat(expired.get(name).getMaxAge()).isEqualTo(Duration.ZERO);
+            assertThat(expired.get(name).getValue()).isEmpty();
+        }
     }
 }
