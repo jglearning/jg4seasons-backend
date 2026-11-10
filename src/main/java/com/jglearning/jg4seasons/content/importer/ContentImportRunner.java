@@ -86,6 +86,10 @@ public class ContentImportRunner implements ApplicationRunner {
         LessonManifest manifest;
         try {
             manifest = reader.read(file);
+        } catch (UncheckedIOException e) {
+            // 권한·잠금 등 파일 문제: 원인을 남긴다(검사 위반은 메시지로 충분해 스택을 남기지 않는다)
+            log.error("content import: {} 읽기 실패", name, e);
+            return ImportResult.rejected(name, messageWith(name, e) + " — " + e.getCause());
         } catch (RuntimeException e) {
             return ImportResult.rejected(name, messageWith(name, e));
         }
