@@ -2,8 +2,8 @@ package com.jglearning.jg4seasons.words.web;
 
 import com.jglearning.jg4seasons.infra.security.Principals;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
-import com.jglearning.jg4seasons.infra.web.error.NotImplemented;
 import com.jglearning.jg4seasons.words.LessonWordsService;
+import com.jglearning.jg4seasons.words.WordStudyService;
 import com.jglearning.jg4seasons.words.web.dto.LessonWordsResponse;
 import com.jglearning.jg4seasons.words.web.dto.WordStudyRequest;
 import com.jglearning.jg4seasons.words.web.dto.WordStudyResponse;
@@ -21,19 +21,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 2.4 단어·2.5 학습 결과(S-06·S-06b). 학생만. 학원·학생은 access 쿠키(JWT)에서만 — 열림 규칙은 2.3과 같다(소속 반 진도표에 없으면 404, 수업일 전 423). 2.5는
- * 아직 계약만(501, 이슈 #37 Task 4).
+ * 2.4 단어·2.5 학습 결과(S-06·S-06b). 학생만. 학원·학생은 access 쿠키(JWT)에서만 — 열림 규칙은 2.3과 같다(소속 반 진도표에 없으면 404, 수업일 전 423).
  */
 @RestController
 @RolesAllowed("STUDENT")
 public class StudentWordController {
 
-    private static final String NOT_YET = " — 구현 전: 501 NOT_IMPLEMENTED";
-
     private final LessonWordsService words;
+    private final WordStudyService studies;
 
-    StudentWordController(LessonWordsService words) {
+    StudentWordController(LessonWordsService words, WordStudyService studies) {
         this.words = words;
+        this.studies = studies;
     }
 
     @Operation(
@@ -53,9 +52,12 @@ public class StudentWordController {
 
     @Operation(
             summary = "카드·학습 결과 저장",
-            description = "보낼 칸만, 하나도 없으면 400. 저장된 값보다 작은 값은 무시(단조 증가). 화면을 떠날 때·모드 한 바퀴 끝에 1회. X-CSRF 필요" + NOT_YET)
+            description = "보낼 칸만, 하나도 없으면 400. 저장된 값보다 작은 값은 무시(단조 증가). 값 범위 0 ~ 회차 단어 수(넘으면 400 VALIDATION,"
+                    + " errors[].field = 칸 이름). allViewed는 서버 판정: cardsViewed가 회차 단어 수에 처음 닿은 저장부터 true."
+                    + " 화면을 떠날 때·모드 한 바퀴 끝에 1회. 열림 규칙은 2.4와 같다(404·423). X-CSRF 필요")
     @PutMapping("/api/v1/student/lessons/{lessonCode}/word-study")
     public WordStudyResponse saveStudy(
+            @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "회차 코드", example = "L2-B1-05")
                     @PathVariable
                     @Pattern(regexp = "^[A-Za-z0-9-]{1,10}$", message = "회차 코드 형식이 아니에요")
@@ -64,6 +66,6 @@ public class StudentWordController {
         if (!request.hasAny()) {
             throw ApiException.validation("body", "저장할 값이 없어요");
         }
-        throw NotImplemented.yet();
+        return studies.save(Principals.academyId(jwt), Principals.userId(jwt), lessonCode, request);
     }
 }

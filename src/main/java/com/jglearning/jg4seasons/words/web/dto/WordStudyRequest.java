@@ -5,7 +5,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 /**
- * 2.5 카드·학습 결과. 보낼 칸만(빠진 칸은 그대로), 하나도 없으면 400. 값은 단조 증가로 저장 — 저장된 값보다 작으면 무시. 상한 127(word_study 칸 크기).
+ * 2.5 카드·학습 결과. 보낼 칸만(빠진 칸은 그대로), 하나도 없으면 400. 값은 단조 증가로 저장 — 저장된 값보다 작으면 무시. 형식 상한 127(word_study 칸 크기),
+ * 실제 상한은 회차 단어 수(서비스가 검사, 넘으면 400).
  */
 public record WordStudyRequest(
         @Schema(description = "본 카드 수") @Min(0) @Max(127) Integer cardsViewed,

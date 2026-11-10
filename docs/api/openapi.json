@@ -991,7 +991,7 @@
     },
     "/api/v1/student/lessons/{lessonCode}/word-study" : {
       "put" : {
-        "description" : "보낼 칸만, 하나도 없으면 400. 저장된 값보다 작은 값은 무시(단조 증가). 화면을 떠날 때·모드 한 바퀴 끝에 1회. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "보낼 칸만, 하나도 없으면 400. 저장된 값보다 작은 값은 무시(단조 증가). 값 범위 0 ~ 회차 단어 수(넘으면 400 VALIDATION, errors[].field = 칸 이름). allViewed는 서버 판정: cardsViewed가 회차 단어 수에 처음 닿은 저장부터 true. 화면을 떠날 때·모드 한 바퀴 끝에 1회. 열림 규칙은 2.4와 같다(404·423). X-CSRF 필요",
         "operationId" : "saveStudy",
         "parameters" : [ {
           "description" : "회차 코드",
