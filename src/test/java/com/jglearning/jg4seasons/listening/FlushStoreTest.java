@@ -50,13 +50,13 @@ class FlushStoreTest {
         long academyId = data.academy("테스트 학원");
         studentId = data.student(academyId, "김학생");
         otherStudentId = data.student(academyId, "이학생");
-        tracks = data.lessonContent("L2-B1-05", 2, 2, List.of("1.0"));
+        tracks = data.lessonContent("L2-B1-05", 2, 2, List.of("us_w"));
         lessonId = data.lessonId("L2-B1-05");
     }
 
     @Test
     void 새_세션은_시각을_UTC로_저장한다() {
-        long track = tracks.get("p1:1.0");
+        long track = tracks.get("p1:us_w");
 
         SessionRow session = store.upsertSession(SESSION, studentId, track, STARTED, "UA", NOW);
 
@@ -69,7 +69,7 @@ class FlushStoreTest {
 
     @Test
     void 같은_세션_다시는_last_seen만() {
-        long track = tracks.get("p1:1.0");
+        long track = tracks.get("p1:us_w");
         SessionRow first = store.upsertSession(SESSION, studentId, track, STARTED, "UA", NOW);
 
         SessionRow again = store.upsertSession(SESSION, studentId, track, STARTED, "다른 UA", NOW.plusSeconds(10));
@@ -82,7 +82,7 @@ class FlushStoreTest {
 
     @Test
     void 다른_학생의_세션이면_그_학생_값을_돌려주고_고치지_않는다() {
-        long track = tracks.get("p1:1.0");
+        long track = tracks.get("p1:us_w");
         store.upsertSession(SESSION, otherStudentId, track, STARTED, "UA", NOW);
 
         SessionRow mine = store.upsertSession(SESSION, studentId, track, STARTED, "UA", NOW.plusSeconds(10));
@@ -96,7 +96,7 @@ class FlushStoreTest {
     @Test
     void 사용자_에이전트는_200자로_자른다() {
         SessionRow session =
-                store.upsertSession(SESSION, studentId, tracks.get("p1:1.0"), STARTED, "a".repeat(250), NOW);
+                store.upsertSession(SESSION, studentId, tracks.get("p1:us_w"), STARTED, "a".repeat(250), NOW);
 
         assertThat(jdbc.queryForObject(
                         "select user_agent from listening_session where id = ?", String.class, session.id()))
@@ -105,7 +105,7 @@ class FlushStoreTest {
 
     @Test
     void 넣은_세그먼트를_받은_구간으로_돌려준다() {
-        SessionRow session = store.upsertSession(SESSION, studentId, tracks.get("p1:1.0"), STARTED, null, NOW);
+        SessionRow session = store.upsertSession(SESSION, studentId, tracks.get("p1:us_w"), STARTED, null, NOW);
 
         store.insertSegments(
                 session.id(), List.of(new Accepted(new Range(0, 5000), NOW), new Accepted(new Range(5000, 6000), NOW)));
@@ -122,7 +122,7 @@ class FlushStoreTest {
     @Test
     void 집계_행이_없으면_만들고_잠근다() {
         LessonProgressRow lesson = store.lockLessonProgress(studentId, lessonId, 2);
-        TrackProgressLock track = store.lockTrackProgress(studentId, tracks.get("p1:1.0"), NOW);
+        TrackProgressLock track = store.lockTrackProgress(studentId, tracks.get("p1:us_w"), NOW);
 
         assertThat(lesson).isEqualTo(new LessonProgressRow(LessonProgressStatus.NOT_STARTED, 0, 2));
         assertThat(track.merged()).isEmpty();
@@ -132,7 +132,7 @@ class FlushStoreTest {
 
     @Test
     void 갱신한_값을_다시_읽는다() {
-        long track = tracks.get("p1:1.0");
+        long track = tracks.get("p1:us_w");
         store.lockLessonProgress(studentId, lessonId, 2);
         store.lockTrackProgress(studentId, track, NOW);
 
@@ -166,8 +166,8 @@ class FlushStoreTest {
 
     @Test
     void 완료된_트랙만_골라_읽는다() {
-        long done = tracks.get("p1:1.0");
-        long notDone = tracks.get("p2:1.0");
+        long done = tracks.get("p1:us_w");
+        long notDone = tracks.get("p2:us_w");
         store.lockTrackProgress(studentId, done, NOW);
         store.lockTrackProgress(studentId, notDone, NOW);
         store.updateTrackProgress(
@@ -184,7 +184,7 @@ class FlushStoreTest {
 
     @Test
     void 완료된_트랙은_null로_갱신해도_완료_시각을_유지한다() {
-        long track = tracks.get("p1:1.0");
+        long track = tracks.get("p1:us_w");
         store.lockTrackProgress(studentId, track, NOW);
         store.updateTrackProgress(
                 studentId,

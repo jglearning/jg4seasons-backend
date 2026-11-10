@@ -45,17 +45,17 @@ class ReferenceDataTest {
     }
 
     @Test
-    void 레벨별_지문_속도() {
-        assertThat(speedsEqual("L1", "[\"0.8\",\"1.0\"]")).isTrue();
-        assertThat(speedsEqual("L2", "[\"0.8\",\"1.0\",\"1.2\"]")).isTrue();
-        assertThat(speedsEqual("L3", "[\"0.8\",\"1.0\",\"1.2\"]")).isTrue();
-        assertThat(speedsEqual("L4", "[\"1.0\",\"1.2\"]")).isTrue();
-        assertThat(speedsEqual("K", "[\"1.0\",\"1.2\"]")).isTrue();
+    void 레벨마다_지문_목소리는_넷() {
+        for (String level : new String[] {"L1", "L2", "L3", "L4", "K"}) {
+            assertThat(voicesEqual(level, "[\"us_w\",\"us_m\",\"uk_w\",\"uk_m\"]"))
+                    .as(level)
+                    .isTrue();
+        }
     }
 
-    private boolean speedsEqual(String level, String json) {
+    private boolean voicesEqual(String level, String json) {
         return Boolean.TRUE.equals(jdbc.queryForObject(
-                "select passage_speeds = cast(? as json) from level where code = ?", Boolean.class, json, level));
+                "select passage_voices = cast(? as json) from level where code = ?", Boolean.class, json, level));
     }
 
     @Test
@@ -76,14 +76,15 @@ class ReferenceDataTest {
                 .isEqualTo(3);
         assertThat(jdbc.queryForObject("select season from book where code = 'K-B1'", Integer.class))
                 .isEqualTo(1);
-        assertThat(jdbc.queryForObject("select count(*) from book where lesson_count <> 24", Integer.class))
-                .isZero();
+        // 블랙만 보충 4회를 더해 28(V5, ADR-27)
+        assertThat(jdbc.queryForList("select code from book where lesson_count <> 24", String.class))
+                .containsExactly("K-B1");
     }
 
     @Test
-    void 회차는_408개고_코드가_규칙대로다() {
+    void 회차는_412개고_코드가_규칙대로다() {
         assertThat(jdbc.queryForObject("select count(*) from lesson", Integer.class))
-                .isEqualTo(408);
+                .isEqualTo(412);
         assertThat(lesson("L2-B1-05"))
                 .containsEntry("number", 5)
                 .containsEntry("module", 1)
@@ -96,13 +97,47 @@ class ReferenceDataTest {
                 .containsEntry("module", 3)
                 .containsEntry("type", "module_review")
                 .containsEntry("title", "Reading Day 24");
-        assertThat(lesson("K-B1-24")).containsEntry("number", 24);
-        // 권마다 1~24가 빠짐없이
+        // 블랙 말고는 권마다 1~24가 빠짐없이(블랙은 아래 테스트)
         assertThat(jdbc.queryForObject(
                         "select count(*) from (select book_id from lesson group by book_id"
                                 + " having count(*) = 24 and min(number) = 1 and max(number) = 24) b",
                         Integer.class))
-                .isEqualTo(17);
+                .isEqualTo(16);
+    }
+
+    @Test
+    void 블랙은_보충을_포함해_28회차를_진도표_순서로() {
+        // ADR-27: 1~6 → 보충1 → 7~12 → 보충2 → 13~18 → 보충3 → 19~24 → 보충4. number = 권 안 진도표 순서
+        assertThat(lesson("K-B1-06")).containsEntry("number", 6);
+        assertThat(lesson("K-B1-S1"))
+                .containsEntry("number", 7)
+                .containsEntry("type", "supplement")
+                .containsEntry("module", 1)
+                .containsEntry("title", "보충 1")
+                .containsEntry("passage_count", 6);
+        assertThat(lesson("K-B1-07")).containsEntry("number", 8).containsEntry("type", "regular");
+        assertThat(lesson("K-B1-08")).containsEntry("number", 9).containsEntry("module", 2);
+        assertThat(lesson("K-B1-S2")).containsEntry("number", 14);
+        assertThat(lesson("K-B1-13")).containsEntry("number", 15);
+        assertThat(lesson("K-B1-S3")).containsEntry("number", 21);
+        assertThat(lesson("K-B1-19")).containsEntry("number", 22);
+        assertThat(lesson("K-B1-24")).containsEntry("number", 27).containsEntry("module", 4);
+        assertThat(lesson("K-B1-S4")).containsEntry("number", 28).containsEntry("type", "supplement");
+        // 블랙 본 회차는 모두 regular(V2가 8·16·24를 module_review로 넣었다)
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from lesson l join book b on b.id = l.book_id"
+                                + " where b.code = 'K-B1' and l.type = 'module_review'",
+                        Integer.class))
+                .isZero();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from lesson l join book b on b.id = l.book_id where b.code = 'K-B1'"
+                                + " having min(l.number) = 1 and max(l.number) = 28 and count(distinct l.number) = 28",
+                        Integer.class))
+                .isEqualTo(28);
+        assertThat(jdbc.queryForObject("select lesson_count from book where code = 'K-B1'", Integer.class))
+                .isEqualTo(28);
+        assertThat(jdbc.queryForObject("select lesson_count from book where code = 'L2-B1'", Integer.class))
+                .isEqualTo(24);
     }
 
     @Test
@@ -111,9 +146,10 @@ class ReferenceDataTest {
                 .isEqualTo(5);
         assertThat(jdbc.queryForList("select distinct coverage_threshold from completion_rule", BigDecimal.class))
                 .containsExactly(new BigDecimal("0.900"));
-        assertThat(requiredSpeedsEqual("L1", "[\"0.8\",\"1.0\"]")).isTrue();
-        for (String level : new String[] {"L2", "L3", "L4", "K"}) {
-            assertThat(requiredSpeedsEqual(level, "[\"1.0\"]")).as(level).isTrue();
+        for (String level : new String[] {"L1", "L2", "L3", "L4", "K"}) {
+            assertThat(requiredVoicesEqual(level, "[\"us_w\",\"us_m\",\"uk_w\",\"uk_m\"]"))
+                    .as(level)
+                    .isTrue();
         }
         assertThat(jdbc.queryForObject(
                         "select count(*) from completion_rule where"
@@ -123,7 +159,7 @@ class ReferenceDataTest {
                 .isEqualTo(5);
     }
 
-    private boolean requiredSpeedsEqual(String level, String json) {
+    private boolean requiredVoicesEqual(String level, String json) {
         return Boolean.TRUE.equals(jdbc.queryForObject(
                 "select json_extract(r.required_tracks, '$[0].anyOf') = cast(? as json)"
                         + " from completion_rule r join level l on l.id = r.level_id where l.code = ?",

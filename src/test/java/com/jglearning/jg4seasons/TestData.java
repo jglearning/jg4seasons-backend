@@ -108,17 +108,17 @@ public final class TestData {
                 status);
     }
 
-    /** 문장 길이(1.0 기준)와 문장 사이 간격. 1.0 첫 문장 시각 = [0, 3000] */
+    /** 문장 길이와 문장 사이 간격. 첫 문장 시각 = [0, 3000] */
     public static final int SENTENCE_MS = 3000;
 
     public static final int GAP_MS = 500;
 
     /**
-     * 회차 내용: 지문 passages개 × 문장 sentencesPerPassage개(직접 지은 문장 — 교재 지문 아님), 속도마다 지문 트랙과 문장 시각. 1.0은 정확한 시각, 다른 속도는
-     * 1.0 시각을 길이 비율(1.0 / 속도)로 늘이거나 줄인 근사. 반환: "p1:1.0" → trackId
+     * 회차 내용: 지문 passages개 × 문장 sentencesPerPassage개(직접 지은 문장 — 교재 지문 아님), 목소리마다 지문 트랙과 정확한 문장 시각(ADR-27). 목소리끼리
+     * 길이가 같다. 반환: "p1:us_w" → trackId
      */
     public Map<String, Long> lessonContent(
-            String lessonCode, int passages, int sentencesPerPassage, List<String> speeds) {
+            String lessonCode, int passages, int sentencesPerPassage, List<String> voices) {
         long lessonId = lessonId(lessonCode);
         Map<String, Long> tracks = new LinkedHashMap<>();
         for (int p = 1; p <= passages; p++) {
@@ -137,31 +137,27 @@ public final class TestData {
                         "Passage " + p + " sentence " + s + " is a made-up line.",
                         s == 2 ? "A" : null));
             }
-            int oneSpeedMs = sentencesPerPassage * SENTENCE_MS + (sentencesPerPassage - 1) * GAP_MS;
-            for (int i = 0; i < speeds.size(); i++) {
-                String speed = speeds.get(i);
-                double ratio = 1.0 / Double.parseDouble(speed);
-                boolean approximate = !"1.0".equals(speed);
+            int passageMs = sentencesPerPassage * SENTENCE_MS + (sentencesPerPassage - 1) * GAP_MS;
+            for (int i = 0; i < voices.size(); i++) {
+                String voice = voices.get(i);
                 long trackId = insert(
                         "insert into track (lesson_id, passage_id, kind, variant, file_key, duration_ms, sort_order)"
                                 + " values (?, ?, 'passage', ?, ?, ?, ?)",
                         lessonId,
                         passageId,
-                        "p" + p + ":" + speed,
-                        "audio/" + lessonCode + "/" + lessonCode + "_p" + p + "_" + speed + ".mp3",
-                        (int) Math.round(oneSpeedMs * ratio),
+                        "p" + p + ":" + voice,
+                        "audio/" + lessonCode + "/" + lessonCode + "_p" + p + "_" + voice + ".mp3",
+                        passageMs,
                         p * 10 + i);
-                tracks.put("p" + p + ":" + speed, trackId);
+                tracks.put("p" + p + ":" + voice, trackId);
                 for (int s = 0; s < sentencesPerPassage; s++) {
                     int start = s * (SENTENCE_MS + GAP_MS);
                     jdbc.update(
-                            "insert into sentence_timing (sentence_id, track_id, start_ms, end_ms, approximate)"
-                                    + " values (?, ?, ?, ?, ?)",
+                            "insert into sentence_timing (sentence_id, track_id, start_ms, end_ms) values (?, ?, ?, ?)",
                             sentenceIds.get(s),
                             trackId,
-                            (int) Math.round(start * ratio),
-                            (int) Math.round((start + SENTENCE_MS) * ratio),
-                            approximate);
+                            start,
+                            start + SENTENCE_MS);
                 }
             }
         }

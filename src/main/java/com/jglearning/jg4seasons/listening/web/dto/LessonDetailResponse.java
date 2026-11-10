@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** 2.3 회차 상세(S-05). 순서는 화면 순서(지문 no, 문장 no, 속도). */
+/** 2.3 회차 상세(S-05). 순서는 화면 순서(지문 no, 문장 no, 목소리). */
 public record LessonDetailResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Lesson lesson,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Level level,
@@ -26,7 +26,7 @@ public record LessonDetailResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"regular", "module_review", "integrated"})
+                    allowableValues = {"regular", "module_review", "integrated", "supplement"})
             String type) {}
 
     /** 반 레벨(진행 바·완료 표시 색) */
@@ -71,8 +71,10 @@ public record LessonDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<Sentence> sentences,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-            List<Speed> speeds) {}
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "목소리별 지문 트랙(ADR-27). 학생이 골라 듣고, 아무 목소리 하나를 끝까지 들으면 그 지문 완료. 재생 속도는 플레이어가 조절")
+            List<Voice> voices) {}
 
     @Schema(name = "LessonDetailSentence")
     public record Sentence(
@@ -85,16 +87,16 @@ public record LessonDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "대화문 화자. 대화문이 아니면 null")
             String speaker) {}
 
-    @Schema(name = "LessonDetailSpeed")
-    public record Speed(
+    @Schema(name = "LessonDetailVoice")
+    public record Voice(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             long trackId,
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    example = "1.0",
-                    allowableValues = {"0.8", "1.0", "1.2"},
-                    description = "속도")
+                    example = "us_w",
+                    allowableValues = {"us_w", "us_m", "uk_w", "uk_m"},
+                    description = "목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남")
             String variant,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "같은 도메인 상대 경로")
@@ -103,7 +105,7 @@ public record LessonDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "음원 길이(ms)")
             int durationMs,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 완료에 필요한 속도인가(완료 규칙 결과)")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "이 목소리로 끝까지 들으면 지문 완료로 치는가(완료 규칙 결과)")
             boolean required,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "청취율 0~1(병합된 구간 / 길이)")
@@ -120,7 +122,9 @@ public record LessonDetailResponse(
                     schema = @Schema(type = "array", example = "[0, 3000]"))
             List<int[]> timings,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "true면 1.0 시각을 길이 비율로 늘이거나 줄인 근사")
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "true면 근사 시각. 지금 콘텐츠는 목소리마다 정확한 시각이라 항상 false")
             boolean timingsApproximate,
 
             @ArraySchema(

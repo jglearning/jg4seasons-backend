@@ -48,7 +48,7 @@ public class TeacherDetailController {
         throw NotImplemented.yet();
     }
 
-    @Operation(summary = "회차 상세", description = "학생 × 트랙 표(선택 속도 포함)" + NOT_YET)
+    @Operation(summary = "회차 상세", description = "학생 × 트랙 표(목소리별)" + NOT_YET)
     @GetMapping("/api/v1/teacher/classes/{classId}/lessons/{lessonCode}")
     public TeacherLessonDetailResponse lesson(
             @PathVariable @Positive long classId,
@@ -83,7 +83,7 @@ public class TeacherDetailController {
     @Operation(
             summary = "휴강",
             description =
-                    "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(24회 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요" + NOT_YET)
+                    "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(행 수 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요" + NOT_YET)
     @PostMapping("/api/v1/teacher/classes/{classId}/sessions/{seq}/cancel")
     public SessionListResponse cancelSession(
             @PathVariable @Positive long classId,

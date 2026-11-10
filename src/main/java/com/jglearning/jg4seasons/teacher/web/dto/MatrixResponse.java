@@ -38,7 +38,9 @@ public record MatrixResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "진도표 행 번호(휴강 행도 번호를 차지한다)")
             int seq,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "열 머리글은 lesson.number")
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "열 머리글은 code 끝(07 → 7회, S1 → 보충 1). number는 정렬용")
             MatrixLesson lesson,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
@@ -61,7 +63,9 @@ public record MatrixResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "L2-B1-05")
             String code,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "회차 번호 1~24")
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "권 안 진도표 순서(블랙 1~28, 그 밖 1~24). 화면의 회차 번호는 code 끝")
             int number,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "Reading Day 5")

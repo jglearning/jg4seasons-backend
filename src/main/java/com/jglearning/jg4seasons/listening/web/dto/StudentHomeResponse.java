@@ -64,7 +64,7 @@ public record StudentHomeResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"regular", "module_review", "integrated"})
+                    allowableValues = {"regular", "module_review", "integrated", "supplement"})
             String type,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)

@@ -25,6 +25,10 @@ public class Book {
     @Column(nullable = false)
     private String code;
 
+    /** 권의 회차 수 = 진도표 행 수(블랙 28, 그 밖 24 — ADR-27) */
+    @Column(name = "lesson_count", nullable = false, columnDefinition = "tinyint")
+    private Integer lessonCount;
+
     protected Book() {}
 
     public Long getId() {
@@ -41,5 +45,9 @@ public class Book {
 
     public String getCode() {
         return code;
+    }
+
+    public Integer getLessonCount() {
+        return lessonCount;
     }
 }

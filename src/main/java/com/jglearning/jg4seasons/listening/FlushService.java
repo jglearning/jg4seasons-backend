@@ -173,7 +173,7 @@ public class FlushService {
         return new TrackResult(coverage, completedAt != null);
     }
 
-    /** 지문마다 필수 속도 트랙 중 하나라도 완료면 그 지문 완료. 회차 completed는 한 번 되면 유지(결정 E) */
+    /** 지문마다 필수 목소리 트랙 중 하나라도 완료면 그 지문 완료. 회차 completed는 한 번 되면 유지(결정 E) */
     private LessonProgressRow updateLesson(
             long studentId,
             LessonContent lesson,
@@ -184,9 +184,9 @@ public class FlushService {
             Instant now) {
         Set<Long> requiredTrackIds = new HashSet<>();
         lesson.passages()
-                .forEach(passage -> passage.speeds().stream()
-                        .filter(speed -> CompletionRuleEvaluator.isRequired(rule, speed.speed()))
-                        .forEach(speed -> requiredTrackIds.add(speed.trackId())));
+                .forEach(passage -> passage.voices().stream()
+                        .filter(voice -> CompletionRuleEvaluator.isRequired(rule, voice.voice()))
+                        .forEach(voice -> requiredTrackIds.add(voice.trackId())));
         Set<Long> others = new HashSet<>(requiredTrackIds);
         others.remove(currentTrackId);
         Set<Long> completed = new HashSet<>(store.completedTracksForShare(studentId, others));
@@ -195,9 +195,9 @@ public class FlushService {
         }
         int total = lesson.passages().size();
         int done = (int) lesson.passages().stream()
-                .filter(passage -> passage.speeds().stream()
-                        .filter(speed -> CompletionRuleEvaluator.isRequired(rule, speed.speed()))
-                        .anyMatch(speed -> completed.contains(speed.trackId())))
+                .filter(passage -> passage.voices().stream()
+                        .filter(voice -> CompletionRuleEvaluator.isRequired(rule, voice.voice()))
+                        .anyMatch(voice -> completed.contains(voice.trackId())))
                 .count();
         LessonProgressStatus status;
         Instant completedAt = null;

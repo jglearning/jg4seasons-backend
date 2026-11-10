@@ -48,7 +48,7 @@
         "tags" : [ "class-admin-controller" ]
       },
       "post" : {
-        "description" : "진도표 24회(개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요",
+        "description" : "진도표(권의 회차 수만큼 — 블랙 28, 그 밖 24회, 개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요",
         "operationId" : "create_1",
         "requestBody" : {
           "content" : {
@@ -950,7 +950,7 @@
     },
     "/api/v1/student/lessons/{lessonCode}" : {
       "get" : {
-        "description" : "지문·문장·속도별 음원·문장 시각·들은 구간·완료 상태. 소속 반이 둘이면 어느 반에서든 열렸으면 연다. 어느 소속 반 진도표에도 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED",
+        "description" : "지문·문장·목소리별 음원·문장 시각·들은 구간·완료 상태. 소속 반이 둘이면 어느 반에서든 열렸으면 연다. 어느 소속 반 진도표에도 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED",
         "operationId" : "detail",
         "parameters" : [ {
           "description" : "회차 코드",
@@ -1113,7 +1113,7 @@
     },
     "/api/v1/teacher/classes/{classId}/lessons/{lessonCode}" : {
       "get" : {
-        "description" : "학생 × 트랙 표(선택 속도 포함) — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "학생 × 트랙 표(목소리별) — 구현 전: 501 NOT_IMPLEMENTED",
         "operationId" : "lesson",
         "parameters" : [ {
           "in" : "path",
@@ -1326,7 +1326,7 @@
     },
     "/api/v1/teacher/classes/{classId}/sessions/{seq}/cancel" : {
       "post" : {
-        "description" : "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(24회 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(행 수 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
         "operationId" : "cancelSession",
         "parameters" : [ {
           "in" : "path",
@@ -1514,7 +1514,7 @@
           },
           "season" : {
             "type" : "string",
-            "enum" : [ "겨울", "봄", "여름", "가을" ]
+            "enum" : [ "겨울", "봄", "여름", "가을", "새봄" ]
           }
         },
         "required" : [ "code", "season" ]
@@ -1637,7 +1637,7 @@
           },
           "type" : {
             "type" : "string",
-            "enum" : [ "regular", "module_review", "integrated" ]
+            "enum" : [ "regular", "module_review", "integrated", "supplement" ]
           }
         },
         "required" : [ "code", "number", "progress", "scheduledDate", "state", "title", "type" ]
@@ -1758,7 +1758,7 @@
           },
           "season" : {
             "type" : "string",
-            "enum" : [ "겨울", "봄", "여름", "가을" ]
+            "enum" : [ "겨울", "봄", "여름", "가을", "새봄" ]
           },
           "startDate" : {
             "type" : "string",
@@ -2090,7 +2090,7 @@
           },
           "type" : {
             "type" : "string",
-            "enum" : [ "regular", "module_review", "integrated" ]
+            "enum" : [ "regular", "module_review", "integrated", "supplement" ]
           }
         },
         "required" : [ "code", "number", "title", "type" ]
@@ -2126,21 +2126,22 @@
               "$ref" : "#/components/schemas/LessonDetailSentence"
             }
           },
-          "speeds" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/LessonDetailSpeed"
-            }
-          },
           "title" : {
             "type" : "string"
+          },
+          "voices" : {
+            "type" : "array",
+            "description" : "목소리별 지문 트랙(ADR-27). 학생이 골라 듣고, 아무 목소리 하나를 끝까지 들으면 그 지문 완료. 재생 속도는 플레이어가 조절",
+            "items" : {
+              "$ref" : "#/components/schemas/LessonDetailVoice"
+            }
           },
           "wordCount" : {
             "type" : "integer",
             "format" : "int32"
           }
         },
-        "required" : [ "no", "sentences", "speeds", "title", "wordCount" ]
+        "required" : [ "no", "sentences", "title", "voices", "wordCount" ]
       },
       "LessonDetailResponse" : {
         "type" : "object",
@@ -2183,7 +2184,7 @@
         },
         "required" : [ "no", "speaker", "text" ]
       },
-      "LessonDetailSpeed" : {
+      "LessonDetailVoice" : {
         "type" : "object",
         "properties" : {
           "audioUrl" : {
@@ -2216,7 +2217,7 @@
           },
           "required" : {
             "type" : "boolean",
-            "description" : "지문 완료에 필요한 속도인가(완료 규칙 결과)"
+            "description" : "이 목소리로 끝까지 들으면 지문 완료로 치는가(완료 규칙 결과)"
           },
           "timings" : {
             "type" : "array",
@@ -2232,7 +2233,7 @@
           },
           "timingsApproximate" : {
             "type" : "boolean",
-            "description" : "true면 1.0 시각을 길이 비율로 늘이거나 줄인 근사"
+            "description" : "true면 근사 시각. 지금 콘텐츠는 목소리마다 정확한 시각이라 항상 false"
           },
           "trackId" : {
             "type" : "integer",
@@ -2240,9 +2241,9 @@
           },
           "variant" : {
             "type" : "string",
-            "description" : "속도",
-            "enum" : [ "0.8", "1.0", "1.2" ],
-            "example" : "1.0"
+            "description" : "목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남",
+            "enum" : [ "us_w", "us_m", "uk_w", "uk_m" ],
+            "example" : "us_w"
           }
         },
         "required" : [ "audioUrl", "completed", "coverage", "durationMs", "heardRanges", "required", "timings", "timingsApproximate", "trackId", "variant" ]
@@ -2389,7 +2390,7 @@
           "number" : {
             "type" : "integer",
             "format" : "int32",
-            "description" : "회차 번호 1~24"
+            "description" : "권 안 진도표 순서(블랙 1~28, 그 밖 1~24). 화면의 회차 번호는 code 끝"
           },
           "title" : {
             "type" : "string",
@@ -2440,7 +2441,7 @@
           },
           "lesson" : {
             "$ref" : "#/components/schemas/MatrixLesson",
-            "description" : "열 머리글은 lesson.number"
+            "description" : "열 머리글은 code 끝(07 → 7회, S1 → 보충 1). number는 정렬용"
           },
           "opened" : {
             "type" : "boolean",
@@ -2760,7 +2761,7 @@
           },
           "season" : {
             "type" : "string",
-            "enum" : [ "겨울", "봄", "여름", "가을" ]
+            "enum" : [ "겨울", "봄", "여름", "가을", "새봄" ]
           }
         },
         "required" : [ "code", "label", "season" ]
@@ -2879,7 +2880,7 @@
           },
           "tracks" : {
             "type" : "array",
-            "description" : "지문 트랙(선택 속도 포함)",
+            "description" : "지문 트랙(목소리별)",
             "items" : {
               "$ref" : "#/components/schemas/StudentDetailTrack"
             }
@@ -3200,7 +3201,7 @@
           },
           "type" : {
             "type" : "string",
-            "enum" : [ "regular", "module_review", "integrated" ]
+            "enum" : [ "regular", "module_review", "integrated", "supplement" ]
           }
         },
         "required" : [ "code", "number", "passages", "title", "type" ]
@@ -3426,7 +3427,7 @@
           },
           "season" : {
             "type" : "string",
-            "enum" : [ "겨울", "봄", "여름", "가을" ]
+            "enum" : [ "겨울", "봄", "여름", "가을", "새봄" ]
           }
         },
         "required" : [ "code", "label", "season" ]
@@ -3612,7 +3613,7 @@
           },
           "tracks" : {
             "type" : "array",
-            "description" : "지문 트랙(선택 속도 포함, required로 구분)",
+            "description" : "지문 트랙(목소리별, required로 구분)",
             "items" : {
               "$ref" : "#/components/schemas/TeacherLessonTrack"
             }

@@ -54,7 +54,7 @@ public class ClassAdminController {
 
     @Operation(
             summary = "반 생성",
-            description = "진도표 24회(개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다."
+            description = "진도표(권의 회차 수만큼 — 블랙 28, 그 밖 24회, 개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다."
                     + " 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

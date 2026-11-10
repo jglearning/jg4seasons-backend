@@ -13,8 +13,8 @@ public interface LessonCatalog {
     Optional<LessonContent> findByCode(String lessonCode);
 
     /**
-     * 지문 트랙(kind=passage) id로 트랙·회차·권·지문 번호·속도·길이를 찾는다. 없거나 지문 트랙이 아니면 empty. 트랙의 지문이 없거나 다른 회차 지문이거나
-     * variant가 p{지문 no}:{속도}가 아니면 데이터 오류라 IllegalStateException
+     * 지문 트랙(kind=passage) id로 트랙·회차·권·지문 번호·목소리·길이를 찾는다. 없거나 지문 트랙이 아니면 empty. 트랙의 지문이 없거나 다른 회차 지문이거나
+     * variant가 p{지문 no}:{목소리}가 아니면 데이터 오류라 IllegalStateException
      */
     Optional<PassageTrack> findPassageTrack(long trackId);
 

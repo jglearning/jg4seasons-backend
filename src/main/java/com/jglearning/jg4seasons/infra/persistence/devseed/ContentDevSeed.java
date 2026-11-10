@@ -13,8 +13,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 로컬 확인용 회차 내용: 데모 반 권(L2-B1)의 회차 1~24마다 지문 6 × 문장 3. 문장은 직접 지은 문장이다 — 교재 지문은 공개 저장소에 넣지 않는다(실제 데이터는 콘텐츠
- * import 스크립트가 DB에만 넣는다). 음원 파일은 없고 경로(file_key)만 있다. 레벨의 속도마다 지문 트랙을 만들고, 1.0은 문장 3000ms·간격 500ms로 이어 붙인
- * 정확한 시각, 다른 속도는 1.0 시각을 길이 비율로 늘이거나 줄인 근사(approximate). 이미 1회차 지문이 있으면 아무것도 하지 않는다.
+ * import가 DB에만 넣는다). 음원 파일은 없고 경로(file_key)만 있다. 레벨의 목소리마다(ADR-27) 지문 트랙을 만들고, 시각은 문장 3000ms·간격 500ms로 이어
+ * 붙인 정확한 시각이다(목소리끼리 길이가 같다). 이미 1회차 지문이 있으면 아무것도 하지 않는다.
  */
 public class ContentDevSeed {
 
@@ -47,7 +47,7 @@ public class ContentDevSeed {
         if (existing != null && existing > 0) {
             return false;
         }
-        List<String> speeds = speeds();
+        List<String> voices = voices();
         List<LessonRef> lessons = jdbc.query(
                 "select l.id, l.code, l.number from lesson l join book b on b.id = l.book_id"
                         + " where b.code = ? order by l.number",
@@ -55,7 +55,7 @@ public class ContentDevSeed {
                 BOOK_CODE);
         for (LessonRef lesson : lessons) {
             for (int p = 1; p <= PASSAGES; p++) {
-                seedPassage(lesson, p, speeds);
+                seedPassage(lesson, p, voices);
             }
         }
         return true;
@@ -63,20 +63,20 @@ public class ContentDevSeed {
 
     private record LessonRef(long id, String code, int number) {}
 
-    /** 그 권 레벨의 passage_speeds(예: ["0.8","1.0","1.2"]) */
-    private List<String> speeds() {
+    /** 그 권 레벨의 passage_voices(예: ["us_w","us_m","uk_w","uk_m"]) */
+    private List<String> voices() {
         String json = jdbc.queryForObject(
-                "select v.passage_speeds from level v join book b on b.level_id = v.id where b.code = ?",
+                "select v.passage_voices from level v join book b on b.level_id = v.id where b.code = ?",
                 String.class,
                 BOOK_CODE);
-        List<String> speeds = new ArrayList<>();
-        for (JsonNode speed : JSON.readTree(json)) {
-            speeds.add(speed.asString());
+        List<String> voices = new ArrayList<>();
+        for (JsonNode voice : JSON.readTree(json)) {
+            voices.add(voice.asString());
         }
-        return speeds;
+        return voices;
     }
 
-    private void seedPassage(LessonRef lesson, int p, List<String> speeds) {
+    private void seedPassage(LessonRef lesson, int p, List<String> voices) {
         long passageId = insert(
                 "insert into passage (lesson_id, no, title, word_count) values (?, ?, ?, ?)",
                 lesson.id(),
@@ -91,30 +91,26 @@ public class ContentDevSeed {
                     s,
                     SUBJECTS[(lesson.number() + p + s) % SUBJECTS.length] + " " + ACTIONS[s - 1]));
         }
-        int oneSpeedMs = SENTENCES * SENTENCE_MS + (SENTENCES - 1) * GAP_MS;
-        for (int i = 0; i < speeds.size(); i++) {
-            String speed = speeds.get(i);
-            double ratio = 1.0 / Double.parseDouble(speed);
-            boolean approximate = !"1.0".equals(speed);
+        int passageMs = SENTENCES * SENTENCE_MS + (SENTENCES - 1) * GAP_MS;
+        for (int i = 0; i < voices.size(); i++) {
+            String voice = voices.get(i);
             long trackId = insert(
                     "insert into track (lesson_id, passage_id, kind, variant, file_key, duration_ms, sort_order)"
                             + " values (?, ?, 'passage', ?, ?, ?, ?)",
                     lesson.id(),
                     passageId,
-                    "p" + p + ":" + speed,
-                    "audio/" + lesson.code() + "/" + lesson.code() + "_p" + p + "_" + speed + ".mp3",
-                    (int) Math.round(oneSpeedMs * ratio),
+                    "p" + p + ":" + voice,
+                    "audio/" + lesson.code() + "/" + lesson.code() + "_p" + p + "_" + voice + ".mp3",
+                    passageMs,
                     p * 10 + i);
             for (int s = 0; s < SENTENCES; s++) {
                 int start = s * (SENTENCE_MS + GAP_MS);
                 jdbc.update(
-                        "insert into sentence_timing (sentence_id, track_id, start_ms, end_ms, approximate)"
-                                + " values (?, ?, ?, ?, ?)",
+                        "insert into sentence_timing (sentence_id, track_id, start_ms, end_ms) values (?, ?, ?, ?)",
                         sentenceIds.get(s),
                         trackId,
-                        (int) Math.round(start * ratio),
-                        (int) Math.round((start + SENTENCE_MS) * ratio),
-                        approximate);
+                        start,
+                        start + SENTENCE_MS);
             }
         }
     }

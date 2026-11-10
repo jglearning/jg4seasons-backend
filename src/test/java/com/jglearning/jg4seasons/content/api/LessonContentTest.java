@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.content.api.LessonContent.Passage;
 import com.jglearning.jg4seasons.content.api.LessonContent.Sentence;
-import com.jglearning.jg4seasons.content.api.LessonContent.Speed;
 import com.jglearning.jg4seasons.content.api.LessonContent.TimeRange;
+import com.jglearning.jg4seasons.content.api.LessonContent.Voice;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +22,7 @@ class LessonContentTest {
     @Test
     void 시각_개수가_문장_수와_다른_지문은_만들_수_없다() {
         List<Sentence> sentences = List.of(new Sentence(1, "One.", null), new Sentence(2, "Two.", null));
-        Speed oneTiming = new Speed(1L, "1.0", "audio/x.mp3", 1000, List.of(new TimeRange(0, 500)), false);
+        Voice oneTiming = new Voice(1L, "us_w", "audio/x.mp3", 1000, List.of(new TimeRange(0, 500)), false);
 
         assertThatThrownBy(() -> new Passage(1, "P", 10, sentences, List.of(oneTiming)))
                 .isInstanceOf(IllegalArgumentException.class);

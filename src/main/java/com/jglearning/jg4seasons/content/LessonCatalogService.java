@@ -4,8 +4,8 @@ import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonContent;
 import com.jglearning.jg4seasons.content.api.LessonContent.Passage;
 import com.jglearning.jg4seasons.content.api.LessonContent.Sentence;
-import com.jglearning.jg4seasons.content.api.LessonContent.Speed;
 import com.jglearning.jg4seasons.content.api.LessonContent.TimeRange;
+import com.jglearning.jg4seasons.content.api.LessonContent.Voice;
 import com.jglearning.jg4seasons.content.api.LessonSummary;
 import com.jglearning.jg4seasons.content.api.PassageTrack;
 import com.jglearning.jg4seasons.content.persistence.LessonContentStore;
@@ -30,8 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 class LessonCatalogService implements LessonCatalog {
 
-    /** 지문 트랙 variant: p{지문 no}:{속도} */
-    private static final Pattern PASSAGE_VARIANT = Pattern.compile("^p(\\d+):(\\d\\.\\d)$");
+    /** 지문 트랙 variant: p{지문 no}:{목소리}(ADR-27 — us_w·us_m·uk_w·uk_m) */
+    private static final Pattern PASSAGE_VARIANT = Pattern.compile("^p(\\d+):((?:us|uk)_[wm])$");
 
     private final LessonContentStore store;
 
@@ -55,8 +55,8 @@ class LessonCatalogService implements LessonCatalog {
             }
             Matcher variant = PASSAGE_VARIANT.matcher(row.variant());
             if (!variant.matches() || Integer.parseInt(variant.group(1)) != row.passageNo()) {
-                throw new IllegalStateException(
-                        "지문 트랙 variant가 p" + row.passageNo() + ":{속도}가 아니다: " + row.lessonCode() + " track " + trackId);
+                throw new IllegalStateException("지문 트랙 variant가 p" + row.passageNo() + ":{목소리}가 아니다: "
+                        + row.lessonCode() + " track " + trackId);
             }
             return new PassageTrack(
                     trackId,
@@ -76,9 +76,12 @@ class LessonCatalogService implements LessonCatalog {
                 .toList();
     }
 
-    /** 묶음은 8회차씩 1~3(회차 목록 묶음·"겨울 1" 라벨). 범위 밖은 콘텐츠 import 오류 — 조용히 4번째 묶음을 만들지 않는다 */
+    /**
+     * 묶음은 진도표 순서로 8회차씩(회차 목록 묶음·"겨울 1" 라벨): 1~3, 블랙 28회차는 4까지(V2·V5와 같은 식). 맞지 않으면 기준 데이터 오류 — 조용히 엉뚱한
+     * 묶음을 만들지 않는다
+     */
     private static LessonSummary summary(LessonSummaryRow row) {
-        if (row.module() < 1 || row.module() > 3 || row.number() < 1) {
+        if (row.number() < 1 || row.module() != (row.number() - 1) / 8 + 1) {
             throw new IllegalStateException(
                     "회차의 묶음·번호가 범위 밖이다: " + row.code() + " module " + row.module() + " number " + row.number());
         }
@@ -109,8 +112,8 @@ class LessonCatalogService implements LessonCatalog {
         List<Passage> passages = new ArrayList<>();
         for (PassageRow passage : passageRows) {
             List<SentenceRow> sentences = sentencesByPassage.getOrDefault(passage.id(), List.of());
-            List<Speed> speeds = tracksByPassage.getOrDefault(passage.id(), List.of()).stream()
-                    .map(track -> speed(
+            List<Voice> voices = tracksByPassage.getOrDefault(passage.id(), List.of()).stream()
+                    .map(track -> voice(
                             lesson.code(),
                             passage.no(),
                             track,
@@ -124,7 +127,7 @@ class LessonCatalogService implements LessonCatalog {
                     sentences.stream()
                             .map(s -> new Sentence(s.no(), s.text(), s.speaker()))
                             .toList(),
-                    speeds));
+                    voices));
         }
         return new LessonContent(
                 lesson.id(),
@@ -140,7 +143,7 @@ class LessonCatalogService implements LessonCatalog {
     }
 
     /** 시각이 없으면 빈 목록. 있으면 그 지문 문장마다 정확히 하나여야 한다(결정 H — 데이터 오류를 숨기지 않는다) */
-    private static Speed speed(
+    private static Voice voice(
             String lessonCode,
             int passageNo,
             TrackRow track,
@@ -149,10 +152,10 @@ class LessonCatalogService implements LessonCatalog {
         Matcher variant = PASSAGE_VARIANT.matcher(track.variant());
         if (!variant.matches() || Integer.parseInt(variant.group(1)) != passageNo) {
             throw new IllegalStateException(
-                    "지문 트랙 variant가 p" + passageNo + ":{속도}가 아니다: " + lessonCode + " track " + track.id());
+                    "지문 트랙 variant가 p" + passageNo + ":{목소리}가 아니다: " + lessonCode + " track " + track.id());
         }
         if (timingsBySentence.isEmpty()) {
-            return new Speed(track.id(), variant.group(2), track.fileKey(), track.durationMs(), List.of(), false);
+            return new Voice(track.id(), variant.group(2), track.fileKey(), track.durationMs(), List.of(), false);
         }
         if (timingsBySentence.size() != sentences.size()) {
             throw new IllegalStateException("문장 시각 수가 문장 수와 다르다: " + lessonCode + " track " + track.id());
@@ -167,6 +170,6 @@ class LessonCatalogService implements LessonCatalog {
             timings.add(new TimeRange(timing.startMs(), timing.endMs()));
             approximate |= timing.approximate();
         }
-        return new Speed(track.id(), variant.group(2), track.fileKey(), track.durationMs(), timings, approximate);
+        return new Voice(track.id(), variant.group(2), track.fileKey(), track.durationMs(), timings, approximate);
     }
 }

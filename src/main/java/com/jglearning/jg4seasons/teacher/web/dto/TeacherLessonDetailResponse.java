@@ -9,7 +9,7 @@ import java.util.Map;
 public record TeacherLessonDetailResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) TeacherLessonInfo lesson,
 
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 트랙(선택 속도 포함, required로 구분)")
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 트랙(목소리별, required로 구분)")
         List<TeacherLessonTrack> tracks,
 
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "현재 소속 학생(이름 순)")

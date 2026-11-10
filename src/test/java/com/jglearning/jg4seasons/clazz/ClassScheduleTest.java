@@ -39,10 +39,9 @@ class ClassScheduleTest {
     }
 
     @Test
-    void 기본_24개이고_마지막_날짜() {
-        List<LocalDate> dates = ClassSchedule.dates(LocalDate.of(2026, 11, 9), MON_WED, ClassSchedule.SESSION_COUNT);
+    void 개수만큼_뽑고_마지막_날짜() {
+        List<LocalDate> dates = ClassSchedule.dates(LocalDate.of(2026, 11, 9), MON_WED, 24);
 
-        assertThat(ClassSchedule.SESSION_COUNT).isEqualTo(24);
         assertThat(dates).hasSize(24).isSorted().doesNotHaveDuplicates();
         assertThat(dates.get(23)).isEqualTo(LocalDate.of(2027, 1, 27));
     }

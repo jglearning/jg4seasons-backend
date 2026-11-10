@@ -56,7 +56,7 @@ class DashboardTest {
         data = new TestData(jdbc);
         academyId = data.academy("현황 학원");
         adminId = data.staff(academyId, "관리자", "admin");
-        tracks = data.lessonContent("L2-B1-05", 1, 1, List.of("1.0"));
+        tracks = data.lessonContent("L2-B1-05", 1, 1, List.of("us_w"));
     }
 
     @AfterEach
@@ -92,7 +92,7 @@ class DashboardTest {
                 "insert into track_progress (student_id, track_id, merged_ranges, last_played_at)"
                         + " values (?, ?, '[]', ?)",
                 student,
-                tracks.get("p1:1.0"),
+                tracks.get("p1:us_w"),
                 LocalDateTime.parse(lastPlayedAtUtc));
     }
 

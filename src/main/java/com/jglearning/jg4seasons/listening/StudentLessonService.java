@@ -84,8 +84,8 @@ public class StudentLessonService {
         CompletionRule rule = CompletionRule.parse(
                 lesson.rule().coverageThreshold(), lesson.rule().requiredTracksJson());
         List<Long> trackIds = lesson.passages().stream()
-                .flatMap(passage -> passage.speeds().stream())
-                .map(LessonContent.Speed::trackId)
+                .flatMap(passage -> passage.voices().stream())
+                .map(LessonContent.Voice::trackId)
                 .toList();
         Map<Long, TrackProgressRow> tracks = progress.trackProgress(studentId, trackIds);
         LessonProgressRow lessonProgress = lessonProgress(studentId, lesson);
@@ -138,25 +138,25 @@ public class StudentLessonService {
                 passage.sentences().stream()
                         .map(s -> new LessonDetailResponse.Sentence(s.no(), s.text(), s.speaker()))
                         .toList(),
-                passage.speeds().stream()
-                        .map(speed -> speed(speed, rule, tracks.get(speed.trackId())))
+                passage.voices().stream()
+                        .map(voice -> voice(voice, rule, tracks.get(voice.trackId())))
                         .toList());
     }
 
     /** heard가 null이면 아직 안 들은 트랙 */
-    private LessonDetailResponse.Speed speed(LessonContent.Speed speed, CompletionRule rule, TrackProgressRow heard) {
-        return new LessonDetailResponse.Speed(
-                speed.trackId(),
-                speed.speed(),
-                audio.urlOf(speed.fileKey()),
-                speed.durationMs(),
-                CompletionRuleEvaluator.isRequired(rule, speed.speed()),
+    private LessonDetailResponse.Voice voice(LessonContent.Voice voice, CompletionRule rule, TrackProgressRow heard) {
+        return new LessonDetailResponse.Voice(
+                voice.trackId(),
+                voice.voice(),
+                audio.urlOf(voice.fileKey()),
+                voice.durationMs(),
+                CompletionRuleEvaluator.isRequired(rule, voice.voice()),
                 heard == null ? BigDecimal.ZERO : plain(heard.coverage()),
                 heard != null && heard.completed(),
-                speed.timings().stream()
+                voice.timings().stream()
                         .map(t -> new int[] {t.startMs(), t.endMs()})
                         .toList(),
-                speed.timingsApproximate(),
+                voice.timingsApproximate(),
                 heard == null
                         ? List.of()
                         : heard.mergedRanges().stream()

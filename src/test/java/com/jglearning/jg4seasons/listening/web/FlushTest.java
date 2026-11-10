@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 3.1 POST /listening/flush — 청취 구간을 받아 원본을 추가하고 트랙·회차 집계를 갱신한다. 오늘 = 서울 2026-11-10. 반 L2-B1, 5회차 오늘·6회차 내일.
- * 5회차는 지문 2 × 문장 2, 속도 0.8(8125ms)·1.0(6500ms), 필수 속도 1.0, 기준 0.9.
+ * 5회차는 지문 2 × 문장 2, 목소리 us_m·us_w(각 6500ms), 아무 목소리나 완료(ADR-27), 기준 0.9.
  */
 @IntegrationTest
 @Transactional
@@ -33,7 +33,7 @@ class FlushTest {
 
     static final String URL = "/api/v1/listening/flush";
     static final Instant NOON = Instant.parse("2026-11-10T03:00:00Z");
-    static final int ONE_SPEED_MS = 2 * TestData.SENTENCE_MS + TestData.GAP_MS; // 6500
+    static final int VOICE_MS = 2 * TestData.SENTENCE_MS + TestData.GAP_MS; // 6500
 
     @Autowired
     MockMvcTester mvc;
@@ -64,8 +64,8 @@ class FlushTest {
         data.enroll(classId, studentId);
         data.session(classId, 5, "L2-B1-05", LocalDate.of(2026, 11, 10), "scheduled");
         data.session(classId, 6, "L2-B1-06", LocalDate.of(2026, 11, 11), "scheduled");
-        tracks = data.lessonContent("L2-B1-05", 2, 2, List.of("0.8", "1.0"));
-        tomorrowTracks = data.lessonContent("L2-B1-06", 1, 1, List.of("1.0"));
+        tracks = data.lessonContent("L2-B1-05", 2, 2, List.of("us_m", "us_w"));
+        tomorrowTracks = data.lessonContent("L2-B1-06", 1, 1, List.of("us_w"));
     }
 
     @AfterEach
@@ -122,7 +122,7 @@ class FlushTest {
 
     @Test
     void 첫_flush는_세션_세그먼트_집계를_만든다() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
 
         MvcTestResult result = flush(body(newSession(), one, seg(0, 3000)));
 
@@ -152,7 +152,7 @@ class FlushTest {
 
     @Test
     void 두_번째_flush는_구간을_합친다() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         String session = newSession();
         flush(body(session, one, seg(0, 3000)));
 
@@ -167,7 +167,7 @@ class FlushTest {
 
     @Test
     void 같은_구간_재전송은_집계가_같다() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         String session = newSession();
         flush(body(session, one, seg(0, 3000), seg(3000, 4000)));
         Map<String, Object> once = trackRow(one);
@@ -189,7 +189,7 @@ class FlushTest {
 
     @Test
     void 세션이_다르면_세션_수가_늘어난다() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         flush(body(newSession(), one, seg(0, 1000)));
         flush(body(newSession(), one, seg(0, 1000)));
 
@@ -198,7 +198,7 @@ class FlushTest {
 
     @Test
     void 기준을_넘으면_트랙_완료_시각을_한_번만() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         String session = newSession();
 
         MvcTestResult first = flush(body(session, one, seg(0, 5850))); // 0.9 정확히
@@ -212,24 +212,54 @@ class FlushTest {
 
     @Test
     void 기준_바로_아래는_미완료() {
-        MvcTestResult result = flush(body(newSession(), tracks.get("p1:1.0"), seg(0, 5849)));
+        MvcTestResult result = flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 5849)));
 
         assertThat(result).bodyJson().extractingPath("$.track.completed").isEqualTo(false);
     }
 
     @Test
-    void 필수가_아닌_속도는_지문_완료가_아니다() {
-        MvcTestResult result = flush(body(newSession(), tracks.get("p1:0.8"), seg(0, 8125)));
+    void 다른_목소리로_들어도_지문_완료() {
+        MvcTestResult result = flush(body(newSession(), tracks.get("p1:us_m"), seg(0, 6500)));
 
         assertThat(result).bodyJson().extractingPath("$.track.completed").isEqualTo(true);
+        assertThat(result).bodyJson().extractingPath("$.lesson.requiredDone").isEqualTo(1);
+    }
+
+    @Test
+    void 목소리를_나눠_들은_구간은_합치지_않는다() {
+        flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 3250)));
+
+        MvcTestResult result = flush(body(newSession(), tracks.get("p1:us_m"), seg(3250, 6500)));
+
+        assertThat(result).bodyJson().extractingPath("$.track.completed").isEqualTo(false);
         assertThat(result).bodyJson().extractingPath("$.lesson.requiredDone").isEqualTo(0);
     }
 
     @Test
-    void 모든_지문_완료면_회차_completed() {
-        flush(body(newSession(), tracks.get("p1:1.0"), seg(0, 6500)));
+    void 한_지문을_두_목소리로_끝내도_지문_하나() {
+        flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 6500)));
 
-        MvcTestResult result = flush(body(newSession(), tracks.get("p2:1.0"), seg(0, 6500)));
+        MvcTestResult result = flush(body(newSession(), tracks.get("p1:us_m"), seg(0, 6500)));
+
+        var json = assertThat(result).bodyJson();
+        json.extractingPath("$.lesson.requiredDone").isEqualTo(1);
+        json.extractingPath("$.lesson.status").isEqualTo("in_progress");
+    }
+
+    @Test
+    void 지문마다_다른_목소리로_끝내면_회차_completed() {
+        flush(body(newSession(), tracks.get("p1:us_m"), seg(0, 6500)));
+
+        MvcTestResult result = flush(body(newSession(), tracks.get("p2:us_w"), seg(0, 6500)));
+
+        assertThat(result).bodyJson().extractingPath("$.lesson.status").isEqualTo("completed");
+    }
+
+    @Test
+    void 모든_지문_완료면_회차_completed() {
+        flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 6500)));
+
+        MvcTestResult result = flush(body(newSession(), tracks.get("p2:us_w"), seg(0, 6500)));
 
         var json = assertThat(result).bodyJson();
         json.extractingPath("$.lesson.status").isEqualTo("completed");
@@ -244,7 +274,7 @@ class FlushTest {
 
     @Test
     void 잘못된_세그먼트만_오면_200_dropped_집계_없음() {
-        MvcTestResult result = flush(body(newSession(), tracks.get("p1:1.0"), seg(-5, 100), seg(100, 100)));
+        MvcTestResult result = flush(body(newSession(), tracks.get("p1:us_w"), seg(-5, 100), seg(100, 100)));
 
         assertThat(result).hasStatusOk();
         var json = assertThat(result).bodyJson();
@@ -268,7 +298,7 @@ class FlushTest {
             segments[i] = seg(i * 100, i * 100 + 50);
         }
 
-        MvcTestResult result = flush(body(newSession(), tracks.get("p1:1.0"), segments));
+        MvcTestResult result = flush(body(newSession(), tracks.get("p1:us_w"), segments));
 
         assertThat(result).bodyJson().extractingPath("$.dropped").isEqualTo(1);
     }
@@ -278,9 +308,9 @@ class FlushTest {
         long other = data.student(academyId, "이학생");
         data.enroll(classId, other);
         String session = newSession();
-        flushAs(other, academyId, body(session, tracks.get("p1:1.0"), seg(0, 1000)));
+        flushAs(other, academyId, body(session, tracks.get("p1:us_w"), seg(0, 1000)));
 
-        MvcTestResult result = flush(body(session, tracks.get("p1:1.0"), seg(0, 1000)));
+        MvcTestResult result = flush(body(session, tracks.get("p1:us_w"), seg(0, 1000)));
 
         assertThat(result).hasStatus(400);
         assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("clientSessionId");
@@ -289,26 +319,26 @@ class FlushTest {
     @Test
     void 같은_세션_id로_다른_트랙이면_400() {
         String session = newSession();
-        flush(body(session, tracks.get("p1:1.0"), seg(0, 1000)));
+        flush(body(session, tracks.get("p1:us_w"), seg(0, 1000)));
 
-        MvcTestResult result = flush(body(session, tracks.get("p2:1.0"), seg(0, 1000)));
+        MvcTestResult result = flush(body(session, tracks.get("p2:us_w"), seg(0, 1000)));
 
         assertThat(result).hasStatus(400);
         assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("clientSessionId");
-        assertThat(count("select count(*) from track_progress where track_id = ?", tracks.get("p2:1.0")))
+        assertThat(count("select count(*) from track_progress where track_id = ?", tracks.get("p2:us_w")))
                 .isZero();
     }
 
     @Test
     void 모르는_필드는_400() {
-        String json = body(newSession(), tracks.get("p1:1.0"), seg(0, 1000)).replace("\"final\":false", "\"extra\":1");
+        String json = body(newSession(), tracks.get("p1:us_w"), seg(0, 1000)).replace("\"final\":false", "\"extra\":1");
 
         assertThat(flush(json)).hasStatus(400);
     }
 
     @Test
     void 세션_id_형식이_틀리면_400() {
-        MvcTestResult result = flush(body("not-a-uuid", tracks.get("p1:1.0"), seg(0, 1000)));
+        MvcTestResult result = flush(body("not-a-uuid", tracks.get("p1:us_w"), seg(0, 1000)));
 
         assertThat(result).hasStatus(400);
         assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("clientSessionId");
@@ -322,7 +352,7 @@ class FlushTest {
         data.enroll(otherClass, otherStudent);
 
         MvcTestResult result =
-                flushAs(otherStudent, otherAcademy, body(newSession(), tracks.get("p1:1.0"), seg(0, 1000)));
+                flushAs(otherStudent, otherAcademy, body(newSession(), tracks.get("p1:us_w"), seg(0, 1000)));
 
         assertThat(result).hasStatus(404);
         assertThat(count("select count(*) from listening_session")).isZero();
@@ -334,7 +364,7 @@ class FlushTest {
         long l3Student = data.student(academyId, "최학생");
         data.enroll(l3Class, l3Student);
 
-        assertThat(flushAs(l3Student, academyId, body(newSession(), tracks.get("p1:1.0"), seg(0, 1000))))
+        assertThat(flushAs(l3Student, academyId, body(newSession(), tracks.get("p1:us_w"), seg(0, 1000))))
                 .hasStatus(404);
         assertThat(count("select count(*) from listening_session")).isZero();
     }
@@ -344,9 +374,9 @@ class FlushTest {
         long second = data.clazz(academyId, "L2-B2", "봄 그린 반", TestData.uniqueAccessCode(), "active");
         data.enroll(second, studentId);
         data.session(second, 1, "L2-B2-01", LocalDate.of(2026, 11, 10), "scheduled");
-        Map<String, Long> spring = data.lessonContent("L2-B2-01", 1, 1, List.of("1.0"));
+        Map<String, Long> spring = data.lessonContent("L2-B2-01", 1, 1, List.of("us_w"));
 
-        assertThat(flush(body(newSession(), spring.get("p1:1.0"), seg(0, 1000))))
+        assertThat(flush(body(newSession(), spring.get("p1:us_w"), seg(0, 1000))))
                 .hasStatusOk();
         assertThat(count("select count(*) from listening_session")).isEqualTo(1);
     }
@@ -357,7 +387,7 @@ class FlushTest {
         data.enroll(second, studentId);
         data.session(second, 6, "L2-B1-06", LocalDate.of(2026, 11, 9), "scheduled");
 
-        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:1.0"), seg(0, 1000))))
+        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:us_w"), seg(0, 1000))))
                 .hasStatusOk();
     }
 
@@ -367,24 +397,25 @@ class FlushTest {
         long other = data.clazz(otherAcademy, "L2-B2", "다른 학원 반", TestData.uniqueAccessCode(), "active");
         data.enroll(other, studentId);
         data.session(other, 1, "L2-B2-01", LocalDate.of(2026, 11, 10), "scheduled");
-        Map<String, Long> spring = data.lessonContent("L2-B2-01", 1, 1, List.of("1.0"));
+        Map<String, Long> spring = data.lessonContent("L2-B2-01", 1, 1, List.of("us_w"));
 
-        assertThat(flush(body(newSession(), spring.get("p1:1.0"), seg(0, 1000))))
+        assertThat(flush(body(newSession(), spring.get("p1:us_w"), seg(0, 1000))))
                 .hasStatus(404);
         assertThat(count("select count(*) from listening_session")).isZero();
     }
 
     @Test
     void 진도표에_없는_회차는_404() {
-        Map<String, Long> other = data.lessonContent("L2-B1-07", 1, 1, List.of("1.0"));
+        Map<String, Long> other = data.lessonContent("L2-B1-07", 1, 1, List.of("us_w"));
 
-        assertThat(flush(body(newSession(), other.get("p1:1.0"), seg(0, 1000)))).hasStatus(404);
+        assertThat(flush(body(newSession(), other.get("p1:us_w"), seg(0, 1000))))
+                .hasStatus(404);
         assertThat(count("select count(*) from listening_session")).isZero();
     }
 
     @Test
     void 내일_회차는_423() {
-        MvcTestResult result = flush(body(newSession(), tomorrowTracks.get("p1:1.0"), seg(0, 1000)));
+        MvcTestResult result = flush(body(newSession(), tomorrowTracks.get("p1:us_w"), seg(0, 1000)));
 
         assertThat(result).hasStatus(423);
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("LESSON_LOCKED");
@@ -403,7 +434,7 @@ class FlushTest {
                 .uri(URL)
                 .contentType(MediaType.TEXT_PLAIN)
                 .cookie(cookies.studentAccess(studentId, academyId), AuthCookieSupport.csrf())
-                .content(bodyWith(newSession(), tracks.get("p1:1.0"), AuthCookieSupport.CSRF_VALUE, seg(0, 1000)))
+                .content(bodyWith(newSession(), tracks.get("p1:us_w"), AuthCookieSupport.CSRF_VALUE, seg(0, 1000)))
                 .exchange();
 
         assertThat(result).hasStatusOk();
@@ -415,7 +446,7 @@ class FlushTest {
                 .uri(URL)
                 .contentType(MediaType.TEXT_PLAIN)
                 .cookie(cookies.studentAccess(studentId, academyId), AuthCookieSupport.csrf())
-                .content(body(newSession(), tracks.get("p1:1.0"), seg(0, 1000)))
+                .content(body(newSession(), tracks.get("p1:us_w"), seg(0, 1000)))
                 .exchange();
 
         assertThat(result).hasStatus(403);
@@ -428,20 +459,20 @@ class FlushTest {
                 .uri(URL)
                 .contentType(MediaType.TEXT_PLAIN)
                 .cookie(cookies.studentAccess(studentId, academyId), AuthCookieSupport.csrf())
-                .content(bodyWith(newSession(), tracks.get("p1:1.0"), "wrong", seg(0, 1000)))
+                .content(bodyWith(newSession(), tracks.get("p1:us_w"), "wrong", seg(0, 1000)))
                 .exchange();
         MvcTestResult wrongHeader = mvc.post()
                 .uri(URL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .cookie(cookies.studentAccess(studentId, academyId), AuthCookieSupport.csrf())
                 .header(AuthCookieSupport.CSRF_HEADER, "wrong")
-                .content(body(newSession(), tracks.get("p1:1.0"), seg(0, 1000)))
+                .content(body(newSession(), tracks.get("p1:us_w"), seg(0, 1000)))
                 .exchange();
         MvcTestResult noCookie = mvc.post()
                 .uri(URL)
                 .contentType(MediaType.TEXT_PLAIN)
                 .cookie(cookies.studentAccess(studentId, academyId))
-                .content(bodyWith(newSession(), tracks.get("p1:1.0"), AuthCookieSupport.CSRF_VALUE, seg(0, 1000)))
+                .content(bodyWith(newSession(), tracks.get("p1:us_w"), AuthCookieSupport.CSRF_VALUE, seg(0, 1000)))
                 .exchange();
 
         MvcTestResult wrongHeaderRightBody = mvc.post()
@@ -449,7 +480,7 @@ class FlushTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .cookie(cookies.studentAccess(studentId, academyId), AuthCookieSupport.csrf())
                 .header(AuthCookieSupport.CSRF_HEADER, "wrong")
-                .content(bodyWith(newSession(), tracks.get("p1:1.0"), AuthCookieSupport.CSRF_VALUE, seg(0, 1000)))
+                .content(bodyWith(newSession(), tracks.get("p1:us_w"), AuthCookieSupport.CSRF_VALUE, seg(0, 1000)))
                 .exchange();
 
         assertThat(wrongBody).hasStatus(403);
@@ -463,7 +494,7 @@ class FlushTest {
         MvcTestResult result = mvc.post()
                 .uri(URL)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(body(newSession(), tracks.get("p1:1.0"), seg(0, 1000)))
+                .content(body(newSession(), tracks.get("p1:us_w"), seg(0, 1000)))
                 .exchange();
 
         assertThat(result).hasStatus(401);
@@ -478,7 +509,7 @@ class FlushTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .cookie(cookies.access(teacher, UserRole.TEACHER, academyId), AuthCookieSupport.csrf())
                 .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
-                .content(body(newSession(), tracks.get("p1:1.0"), seg(0, 1000)))
+                .content(body(newSession(), tracks.get("p1:us_w"), seg(0, 1000)))
                 .exchange();
 
         assertThat(result).hasStatus(403);
@@ -491,7 +522,7 @@ class FlushTest {
                 .contentType(MediaType.APPLICATION_XML)
                 .cookie(cookies.studentAccess(studentId, academyId), AuthCookieSupport.csrf())
                 .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
-                .content(body(newSession(), tracks.get("p1:1.0"), seg(0, 1000)))
+                .content(body(newSession(), tracks.get("p1:us_w"), seg(0, 1000)))
                 .exchange();
 
         assertThat(result).hasStatus(415);
@@ -499,7 +530,7 @@ class FlushTest {
 
     @Test
     void flush_뒤_회차_상세에_들은_구간이_보인다() {
-        flush(body(newSession(), tracks.get("p1:1.0"), seg(0, 3000)));
+        flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 3000)));
 
         MvcTestResult detail = mvc.get()
                 .uri("/api/v1/student/lessons/L2-B1-05")
@@ -508,7 +539,7 @@ class FlushTest {
 
         assertThat(detail)
                 .bodyJson()
-                .extractingPath("$.passages[0].speeds[1].heardRanges")
+                .extractingPath("$.passages[0].voices[1].heardRanges")
                 .isEqualTo(List.of(List.of(0, 3000)));
     }
 
@@ -523,7 +554,7 @@ class FlushTest {
 
     @Test
     void 트랙_길이를_넘는_부분은_총_재생_시간에_더하지_않는다() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         String session = newSession();
 
         flush(body(session, one, seg(6000, 7000), seg(6600, 7400)));
@@ -535,7 +566,7 @@ class FlushTest {
 
     @Test
     void 완료한_트랙에_잘못된_세그먼트만_오면_현재_값_그대로() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         flush(body(newSession(), one, seg(0, 6500)));
         Map<String, Object> before = trackRow(one);
 
@@ -553,11 +584,11 @@ class FlushTest {
 
     @Test
     void 회차_완료_시각은_처음_값을_유지한다() {
-        flush(body(newSession(), tracks.get("p1:1.0"), seg(0, 6500)));
-        flush(body(newSession(), tracks.get("p2:1.0"), seg(0, 6500)));
+        flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 6500)));
+        flush(body(newSession(), tracks.get("p2:us_w"), seg(0, 6500)));
         clock.set(NOON.plusSeconds(60));
 
-        flush(body(newSession(), tracks.get("p1:0.8"), seg(0, 1000)));
+        flush(body(newSession(), tracks.get("p1:us_m"), seg(0, 1000)));
 
         assertThat(jdbc.queryForMap(
                         "select status, completed_at from lesson_progress where student_id = ? and lesson_id = ?",
@@ -569,7 +600,7 @@ class FlushTest {
 
     @Test
     void 첫_flush가_모두_버려진_세션도_나중에_세션_수_1() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         String session = newSession();
         flush(body(session, one, seg(-5, 100)));
 
@@ -582,7 +613,7 @@ class FlushTest {
     void 서울_자정_직전은_내일_회차_423() {
         clock.set(Instant.parse("2026-11-10T14:59:59Z")); // 서울 11/10 23:59:59
 
-        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:1.0"), seg(0, 1000))))
+        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:us_w"), seg(0, 1000))))
                 .hasStatus(423);
     }
 
@@ -590,7 +621,7 @@ class FlushTest {
     void 서울_자정이_지나면_내일_회차가_열린다() {
         clock.set(Instant.parse("2026-11-10T15:00:30Z")); // 서울 11/11 00:00:30, UTC는 아직 11/10
 
-        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:1.0"), seg(0, 1000))))
+        assertThat(flush(body(newSession(), tomorrowTracks.get("p1:us_w"), seg(0, 1000))))
                 .hasStatusOk();
     }
 
@@ -598,7 +629,7 @@ class FlushTest {
     void 정지_학원_학생은_401_행이_안_생긴다() {
         jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
 
-        assertThat(flush(body(newSession(), tracks.get("p1:1.0"), seg(0, 1000))))
+        assertThat(flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 1000))))
                 .hasStatus(401);
         assertThat(count("select count(*) from listening_session")).isZero();
     }

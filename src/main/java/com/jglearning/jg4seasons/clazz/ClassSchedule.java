@@ -7,9 +7,6 @@ import java.util.List;
 /** 반 진도표 수업일(ADM-01). 개강일(포함)부터 수업 요일에 맞는 날짜를 차례로 뽑는다. 공휴일은 반영하지 않는다(휴강 처리로). */
 final class ClassSchedule {
 
-    /** 권마다 회차 1~24 — 진도표 행 수 */
-    static final int SESSION_COUNT = 24;
-
     private ClassSchedule() {}
 
     static List<LocalDate> dates(LocalDate startDate, Weekdays weekdays, int count) {

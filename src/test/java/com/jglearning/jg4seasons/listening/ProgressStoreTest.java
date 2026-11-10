@@ -41,7 +41,7 @@ class ProgressStoreTest {
         long academyId = data.academy("테스트 학원");
         studentId = data.student(academyId, "김학생");
         otherStudentId = data.student(academyId, "이학생");
-        tracks = data.lessonContent("L2-B1-05", 1, 2, List.of("0.8", "1.0"));
+        tracks = data.lessonContent("L2-B1-05", 1, 2, List.of("us_m", "us_w"));
     }
 
     private void trackProgress(long student, long trackId, String ranges, String coverage, boolean completed) {
@@ -57,23 +57,23 @@ class ProgressStoreTest {
 
     @Test
     void 트랙_집계를_읽는다() {
-        long one = tracks.get("p1:1.0");
-        long slow = tracks.get("p1:0.8");
+        long one = tracks.get("p1:us_w");
+        long other = tracks.get("p1:us_m");
         trackProgress(studentId, one, "[[0,8120],[8400,61000]]", "0.9400", true);
-        trackProgress(studentId, slow, "[]", "0.0000", false);
+        trackProgress(studentId, other, "[]", "0.0000", false);
 
-        Map<Long, TrackProgressRow> found = store.trackProgress(studentId, List.of(one, slow));
+        Map<Long, TrackProgressRow> found = store.trackProgress(studentId, List.of(one, other));
 
         assertThat(found.get(one).coverage()).isEqualByComparingTo("0.94");
         assertThat(found.get(one).completed()).isTrue();
         assertThat(found.get(one).mergedRanges()).containsExactly(new Range(0, 8120), new Range(8400, 61000));
-        assertThat(found.get(slow).completed()).isFalse();
-        assertThat(found.get(slow).mergedRanges()).isEmpty();
+        assertThat(found.get(other).completed()).isFalse();
+        assertThat(found.get(other).mergedRanges()).isEmpty();
     }
 
     @Test
     void 다른_학생_집계는_안_읽힌다() {
-        long one = tracks.get("p1:1.0");
+        long one = tracks.get("p1:us_w");
         trackProgress(otherStudentId, one, "[[0,1000]]", "0.1000", false);
 
         assertThat(store.trackProgress(studentId, List.of(one))).isEmpty();
@@ -107,14 +107,14 @@ class ProgressStoreTest {
 
     @Test
     void 구간이_뒤집혔거나_청취율이_1을_넘으면_IllegalState() {
-        long one = tracks.get("p1:1.0");
-        long slow = tracks.get("p1:0.8");
+        long one = tracks.get("p1:us_w");
+        long other = tracks.get("p1:us_m");
         trackProgress(studentId, one, "[[5000,100]]", "0.5000", false);
-        trackProgress(otherStudentId, slow, "[[0,100]]", "1.2000", false);
+        trackProgress(otherStudentId, other, "[[0,100]]", "1.2000", false);
 
         assertThatThrownBy(() -> store.trackProgress(studentId, List.of(one)))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> store.trackProgress(otherStudentId, List.of(slow)))
+        assertThatThrownBy(() -> store.trackProgress(otherStudentId, List.of(other)))
                 .isInstanceOf(IllegalStateException.class);
     }
 

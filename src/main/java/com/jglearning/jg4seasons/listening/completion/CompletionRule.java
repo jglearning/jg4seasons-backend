@@ -10,30 +10,31 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 레벨별 완료 규칙(completion_rule, ADR-07)을 읽은 값. 1차가 지원하는 형태는 하나:
- * {@code [{"kind":"passage","eachPassage":true,"anyOf":["1.0", …]}]} — 지문마다 anyOf 속도 중 하나를 threshold 이상 들으면 그 지문 완료.
+ * {@code [{"kind":"passage","eachPassage":true,"anyOf":["us_w", …]}]} — 지문마다 anyOf 목소리 중 하나를 threshold 이상 들으면 그 지문
+ * 완료(ADR-27). 목소리끼리 들은 구간은 합치지 않는다.
  * 다른 형태는 데이터 오류라 IllegalStateException(규칙을 조용히 무시하지 않는다).
  */
-public record CompletionRule(BigDecimal threshold, Set<String> requiredSpeeds) {
+public record CompletionRule(BigDecimal threshold, Set<String> requiredVoices) {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
-    /** 지문 트랙 variant의 속도와 같은 형식(content의 p{n}:{속도}) — 다르면 어떤 속도도 필수가 아니게 되어 회차가 끝나지 않는다 */
-    private static final Pattern SPEED = Pattern.compile("^\\d\\.\\d$");
+    /** 지문 트랙 variant의 목소리와 같은 형식(content의 p{n}:{목소리}) — 다르면 어떤 목소리도 필수가 아니게 되어 회차가 끝나지 않는다 */
+    private static final Pattern VOICE = Pattern.compile("^(?:us|uk)_[wm]$");
 
     /** 생성자에서 검사한다 — parse를 거치지 않고 만들어도 같은 불변식 */
     public CompletionRule {
         if (threshold == null || threshold.signum() <= 0 || threshold.compareTo(BigDecimal.ONE) > 0) {
             throw new IllegalStateException("완료 기준 청취율은 0보다 크고 1 이하여야 한다: " + threshold);
         }
-        if (requiredSpeeds == null || requiredSpeeds.isEmpty()) {
-            throw new IllegalStateException("필수 속도가 없다");
+        if (requiredVoices == null || requiredVoices.isEmpty()) {
+            throw new IllegalStateException("필수 목소리가 없다");
         }
-        for (String speed : requiredSpeeds) {
-            if (speed == null || !SPEED.matcher(speed).matches()) {
-                throw new IllegalStateException("필수 속도 형식은 0.0이어야 한다: " + speed);
+        for (String voice : requiredVoices) {
+            if (voice == null || !VOICE.matcher(voice).matches()) {
+                throw new IllegalStateException("필수 목소리 형식은 us_w·us_m·uk_w·uk_m이어야 한다: " + voice);
             }
         }
-        requiredSpeeds = Set.copyOf(requiredSpeeds);
+        requiredVoices = Set.copyOf(requiredVoices);
     }
 
     public static CompletionRule parse(BigDecimal coverageThreshold, String requiredTracksJson) {
@@ -58,14 +59,14 @@ public record CompletionRule(BigDecimal threshold, Set<String> requiredSpeeds) {
         if (anyOf == null || !anyOf.isArray() || anyOf.isEmpty()) {
             throw new IllegalStateException("required_tracks anyOf가 비었다: " + requiredTracksJson);
         }
-        Set<String> speeds = new LinkedHashSet<>();
-        for (JsonNode speed : anyOf) {
-            if (!speed.isString()) {
-                throw new IllegalStateException("required_tracks anyOf 속도는 문자열이어야 한다: " + requiredTracksJson);
+        Set<String> voices = new LinkedHashSet<>();
+        for (JsonNode voice : anyOf) {
+            if (!voice.isString()) {
+                throw new IllegalStateException("required_tracks anyOf 목소리는 문자열이어야 한다: " + requiredTracksJson);
             }
-            speeds.add(speed.asString());
+            voices.add(voice.asString());
         }
-        return new CompletionRule(coverageThreshold, speeds);
+        return new CompletionRule(coverageThreshold, voices);
     }
 
     private static String text(JsonNode node, String field) {

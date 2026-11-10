@@ -41,7 +41,7 @@ class ProgressSummaryStoreTest {
         b = data.student(academyId, "나");
         c = data.student(academyId, "다");
         lessonId = data.lessonId("L2-B1-05");
-        tracks = data.lessonContent("L2-B1-05", 2, 1, List.of("1.0"));
+        tracks = data.lessonContent("L2-B1-05", 2, 1, List.of("us_w"));
     }
 
     private void lessonProgress(long student, long lesson, String status) {
@@ -76,8 +76,8 @@ class ProgressSummaryStoreTest {
     void 목록_밖_학생은_세지_않는다() {
         lessonProgress(a, lessonId, "completed");
         lessonProgress(b, lessonId, "completed");
-        played(a, tracks.get("p1:1.0"), "2026-11-10T01:00:00");
-        played(b, tracks.get("p1:1.0"), "2026-11-10T01:00:00");
+        played(a, tracks.get("p1:us_w"), "2026-11-10T01:00:00");
+        played(b, tracks.get("p1:us_w"), "2026-11-10T01:00:00");
 
         assertThat(store.completedCount(lessonId, List.of(a))).isEqualTo(1);
         assertThat(store.playedBetween(
@@ -96,9 +96,9 @@ class ProgressSummaryStoreTest {
 
     @Test
     void 구간_끝은_포함하지_않고_시작은_포함한다() {
-        played(a, tracks.get("p1:1.0"), "2026-11-10T00:00:00"); // 시작 = 포함
-        played(b, tracks.get("p1:1.0"), "2026-11-11T00:00:00"); // 끝 = 제외
-        played(c, tracks.get("p1:1.0"), "2026-11-09T23:59:59"); // 시작 전
+        played(a, tracks.get("p1:us_w"), "2026-11-10T00:00:00"); // 시작 = 포함
+        played(b, tracks.get("p1:us_w"), "2026-11-11T00:00:00"); // 끝 = 제외
+        played(c, tracks.get("p1:us_w"), "2026-11-09T23:59:59"); // 시작 전
 
         assertThat(store.playedBetween(
                         List.of(a, b, c), Instant.parse("2026-11-10T00:00:00Z"), Instant.parse("2026-11-11T00:00:00Z")))
@@ -107,8 +107,8 @@ class ProgressSummaryStoreTest {
 
     @Test
     void 트랙_여러_개를_들어도_학생은_한_번() {
-        played(a, tracks.get("p1:1.0"), "2026-11-10T01:00:00");
-        played(a, tracks.get("p2:1.0"), "2026-11-10T02:00:00");
+        played(a, tracks.get("p1:us_w"), "2026-11-10T01:00:00");
+        played(a, tracks.get("p2:us_w"), "2026-11-10T02:00:00");
 
         assertThat(store.playedBetween(
                         List.of(a), Instant.parse("2026-11-10T00:00:00Z"), Instant.parse("2026-11-11T00:00:00Z")))

@@ -47,7 +47,7 @@ public record ClassLessonsResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"regular", "module_review", "integrated"})
+                    allowableValues = {"regular", "module_review", "integrated", "supplement"})
             String type,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "진도표 수업일(휴강 뒤 옮겨졌으면 새 날짜)")

@@ -21,7 +21,7 @@ class ContentDevSeedTest {
     }
 
     @Test
-    void 회차마다_지문_6_문장_3_속도_3() {
+    void 회차마다_지문_6_문장_3_목소리_4() {
         assertThat(new ContentDevSeed(jdbc).seed()).isTrue();
 
         assertThat(
@@ -33,14 +33,14 @@ class ContentDevSeedTest {
                 .isEqualTo(6 * 3);
         assertThat(count("select count(*) from track t join lesson l on l.id = t.lesson_id"
                         + " where l.code = 'L2-B1-05' and t.kind = 'passage'"))
-                .as("L2 속도 0.8·1.0·1.2")
-                .isEqualTo(6 * 3);
-        assertThat(count("select count(*) from track where file_key = 'audio/L2-B1-05/L2-B1-05_p1_1.0.mp3'"
-                        + " and variant = 'p1:1.0' and duration_ms = 10000"))
+                .as("목소리 us_w·us_m·uk_w·uk_m")
+                .isEqualTo(6 * 4);
+        assertThat(count("select count(*) from track where file_key = 'audio/L2-B1-05/L2-B1-05_p1_uk_m.mp3'"
+                        + " and variant = 'p1:uk_m' and duration_ms = 10000"))
                 .isEqualTo(1);
         assertThat(count("select count(*) from sentence_timing st join track t on t.id = st.track_id"
                         + " join lesson l on l.id = t.lesson_id where l.code = 'L2-B1-05'"))
-                .isEqualTo(6 * 3 * 3);
+                .isEqualTo(6 * 4 * 3);
     }
 
     @Test
@@ -54,17 +54,15 @@ class ContentDevSeedTest {
     }
 
     @Test
-    void 속도_1_0의_시각은_정확_나머지는_근사() {
+    void 목소리마다_시각은_정확하다() {
         new ContentDevSeed(jdbc).seed();
 
         assertThat(count("select count(*) from sentence_timing st join track t on t.id = st.track_id"
                         + " join sentence s on s.id = st.sentence_id"
-                        + " where t.file_key = 'audio/L2-B1-05/L2-B1-05_p1_1.0.mp3' and s.no = 2"
-                        + " and st.start_ms = 3500 and st.end_ms = 6500 and st.approximate = false"))
+                        + " where t.file_key = 'audio/L2-B1-05/L2-B1-05_p1_us_m.mp3' and s.no = 2"
+                        + " and st.start_ms = 3500 and st.end_ms = 6500"))
                 .isEqualTo(1);
-        assertThat(count("select count(*) from sentence_timing st join track t on t.id = st.track_id"
-                        + " where t.variant like '%:0.8' or t.variant like '%:1.2'"))
-                .isEqualTo(count("select count(*) from sentence_timing st join track t on t.id = st.track_id"
-                        + " where (t.variant like '%:0.8' or t.variant like '%:1.2') and st.approximate = true"));
+        assertThat(count("select count(*) from sentence_timing where approximate = true"))
+                .isZero();
     }
 }

@@ -13,7 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 책 조회(V2 기준 데이터): 입장 화면용 표시 정보, 반 생성용 회차 1~24. */
+/** 책 조회(V2·V5 기준 데이터): 입장 화면용 표시 정보, 반 생성용 회차(진도표 순서, 블랙은 보충 포함 28). */
 @IntegrationTest
 @Transactional
 class BookDirectoryTest {
@@ -41,6 +41,17 @@ class BookDirectoryTest {
     }
 
     @Test
+    void 블랙_권의_시즌은_새봄() {
+        // 블랙은 겨울 Book 1이 아니라 예비고1 "새봄 블랙"(12월에 겨울 세트와 함께 개강)
+        TestData data = new TestData(jdbc);
+
+        BookSummary black = books.summaryOf(data.bookId("K-B1"));
+
+        assertThat(black.season()).isEqualTo("새봄");
+        assertThat(black.label()).isEqualTo("Book 1");
+    }
+
+    @Test
     void 권_코드로_1회차부터_24회차_id를_찾는다() {
         long bookId = new TestData(jdbc).bookId("L2-B1");
 
@@ -51,6 +62,24 @@ class BookDirectoryTest {
         assertThat(lessons.lessonIdsByNumber().get(0)).isEqualTo(lessonId("L2-B1-01"));
         assertThat(lessons.lessonIdsByNumber().get(4)).isEqualTo(lessonId("L2-B1-05"));
         assertThat(lessons.lessonIdsByNumber().get(23)).isEqualTo(lessonId("L2-B1-24"));
+    }
+
+    @Test
+    void 블랙은_보충_회차를_포함해_진도표_순서로_28개() {
+        BookLessons lessons = books.findLessons("K-B1").orElseThrow();
+
+        assertThat(lessons.lessonIdsByNumber()).hasSize(28).doesNotHaveDuplicates();
+        assertThat(lessons.lessonIdsByNumber().get(5)).isEqualTo(lessonId("K-B1-06"));
+        assertThat(lessons.lessonIdsByNumber().get(6)).isEqualTo(lessonId("K-B1-S1"));
+        assertThat(lessons.lessonIdsByNumber().get(7)).isEqualTo(lessonId("K-B1-07"));
+        assertThat(lessons.lessonIdsByNumber().get(27)).isEqualTo(lessonId("K-B1-S4"));
+    }
+
+    @Test
+    void 회차_수가_권의_회차_수와_다르면_IllegalState() {
+        jdbc.update("update book set lesson_count = 25 where code = 'L2-B1'");
+
+        assertThatThrownBy(() -> books.findLessons("L2-B1")).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

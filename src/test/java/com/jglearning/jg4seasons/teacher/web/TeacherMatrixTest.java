@@ -157,7 +157,7 @@ class TeacherMatrixTest {
     @Test
     void 열린_회차는_학생마다_칸이_있고_열리지_않은_회차는_칸이_없다() throws Exception {
         sessions(3, 2);
-        data.lessonContent(code(1), 3, 1, List.of("1.0"));
+        data.lessonContent(code(1), 3, 1, List.of("us_w"));
         long a = enrolled("가");
 
         MvcTestResult result = matrix();
