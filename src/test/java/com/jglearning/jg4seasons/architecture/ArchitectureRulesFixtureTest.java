@@ -34,8 +34,10 @@ import com.jglearning.archfixture.listening.web.NoAccessRuleController;
 import com.jglearning.archfixture.listening.web.PackagePrivateEntityController;
 import com.jglearning.archfixture.listening.web.RepoCallingController;
 import com.jglearning.archfixture.listening.web.ResponseBodyController;
+import com.jglearning.archfixture.teacher.ScheduleBypasser;
 import com.jglearning.archfixture.teacher.ScopeBypasser;
 import com.jglearning.archfixture.teacher.ScopeNarrower;
+import com.jglearning.archfixture.teacher.TeacherScope;
 import com.jglearning.archfixture.words.ApiPrefixUser;
 import com.jglearning.archfixture.words.WordPlayCountReader;
 import com.jglearning.archfixture.words.WordStudyRecorder;
@@ -293,6 +295,21 @@ class ArchitectureRulesFixtureTest {
     @Test
     void 클래스에_붙은_접근_규칙도_인정한다() {
         assertThat(violates(ArchitectureRules.controllerMethodsHaveAccessRule(), ClassLevelRuleController.class))
+                .isFalse();
+    }
+
+    // 진도표 쓰기
+
+    @Test
+    void TeacherScope_밖에서_진도표_api를_부르면_잡는다() {
+        assertThat(violates(
+                        ArchitectureRules.classSchedulesOnlyThroughTeacherScope(FIXTURE_BASE), ScheduleBypasser.class))
+                .isTrue();
+    }
+
+    @Test
+    void TeacherScope는_진도표_api를_부를_수_있다() {
+        assertThat(violates(ArchitectureRules.classSchedulesOnlyThroughTeacherScope(FIXTURE_BASE), TeacherScope.class))
                 .isFalse();
     }
 

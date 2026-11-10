@@ -2,8 +2,8 @@ package com.jglearning.jg4seasons.teacher.web;
 
 import com.jglearning.jg4seasons.infra.security.Principals;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
-import com.jglearning.jg4seasons.infra.web.error.NotImplemented;
 import com.jglearning.jg4seasons.teacher.TeacherDetailService;
+import com.jglearning.jg4seasons.teacher.TeacherScheduleService;
 import com.jglearning.jg4seasons.teacher.TeacherStudentService;
 import com.jglearning.jg4seasons.teacher.web.dto.PersonalCodeResponse;
 import com.jglearning.jg4seasons.teacher.web.dto.SessionCancelRequest;
@@ -29,20 +29,21 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 4.3~4.8 교사 학생·회차 상세(T-04·T-05), 진도표(T-06), 개인 코드 재발급. 교사(관리자 포함), 담당 반·그 반 학생만 — 그 밖은 404. 4.3·4.4(이슈 #39)·4.8(이슈 #29)은 구현, 나머지는 계약만(이슈 #26).
+ * 4.3~4.8 교사 학생·회차 상세(T-04·T-05), 진도표(T-06), 개인 코드 재발급. 교사(관리자 포함), 담당 반·그 반 학생만 — 그 밖은 404. 모두 구현(4.3·4.4 이슈 #39, 4.5~4.7 이슈 #41 — ADR 0030, 4.8 이슈 #29).
  */
 @RestController
 @RolesAllowed("TEACHER")
 public class TeacherDetailController {
 
-    private static final String NOT_YET = " — 구현 전: 501 NOT_IMPLEMENTED";
-
     private final TeacherStudentService students;
     private final TeacherDetailService details;
+    private final TeacherScheduleService schedules;
 
-    TeacherDetailController(TeacherStudentService students, TeacherDetailService details) {
+    TeacherDetailController(
+            TeacherStudentService students, TeacherDetailService details, TeacherScheduleService schedules) {
         this.students = students;
         this.details = details;
+        this.schedules = schedules;
     }
 
     @Operation(
@@ -73,37 +74,60 @@ public class TeacherDetailController {
         return details.lesson(Principals.academyId(jwt), Principals.userId(jwt), classId, lessonCode);
     }
 
-    @Operation(summary = "진도표", description = "휴강 행 포함, seq 순" + NOT_YET)
+    @Operation(
+            summary = "진도표",
+            description = "휴강 행 포함, seq 순(= 날짜 순, 같은 날은 휴강 행 먼저). 휴강하면 행이 남고 같은 회차가 새 행으로 들어가 행 수가 회차 수보다 많을 수 있다."
+                    + " 요청한 교사가 비활성화됐으면 401, 담당 아닌 반은 404")
     @GetMapping("/api/v1/teacher/classes/{classId}/sessions")
-    public SessionListResponse sessions(@PathVariable @Positive long classId) {
-        throw NotImplemented.yet();
+    public SessionListResponse sessions(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long classId) {
+        return schedules.sessions(Principals.academyId(jwt), Principals.userId(jwt), classId);
     }
 
     @Operation(
             summary = "진도표 한 행 수정",
-            description = "날짜·메모. shiftFollowing이면 뒤 수업도 같은 간격으로 민다. 바꿀 값이 없으면 400. 회차 순서 바꾸기는 1차에 없다."
-                    + " 바뀐 뒤 진도표 전체. X-CSRF 필요" + NOT_YET)
+            description =
+                    "날짜·메모. 메모는 지난 수업·휴강 행도 언제든(\"\" = 지움). 날짜가 지금과 같으면 날짜 변경이 아니다(메모만 반영, shiftFollowing 무시). 날짜는 앞 수업보다 뒤, 오늘 이후여야 하고, shiftFollowing이 아니면 뒤 수업보다 앞이어야 한다"
+                            + "(아니면 400 scheduledDate). shiftFollowing이면 뒤 수업들을 새 날짜의 다음 수업일(수업 요일, 휴강 날짜 제외)부터 차례로 다시 놓는다."
+                            + " 지난 수업의 날짜 변경은 409 SESSION_PAST, 휴강 행의 날짜 변경은 400. 바꿀 값이 없으면 400. 회차 순서 바꾸기는 1차에 없다."
+                            + " 바뀐 뒤 진도표 전체(seq는 날짜 순으로 다시 매김 — 이 응답으로 다시 그린다). X-CSRF 필요")
     @PatchMapping("/api/v1/teacher/classes/{classId}/sessions/{seq}")
     public SessionListResponse updateSession(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Positive long classId,
-            @Parameter(description = "진도표 행 번호 1~99") @PathVariable @Min(1) @Max(99) int seq,
+            @Parameter(description = "진도표 행 번호 1~99(방금 받은 진도표의 seq)") @PathVariable @Min(1) @Max(99) int seq,
             @Valid @RequestBody SessionUpdateRequest request) {
         if (!request.hasChange()) {
             throw ApiException.validation("body", "바꿀 값이 없어요");
         }
-        throw NotImplemented.yet();
+        return schedules.update(
+                Principals.academyId(jwt),
+                Principals.userId(jwt),
+                classId,
+                seq,
+                request.scheduledDate(),
+                request.note(),
+                Boolean.TRUE.equals(request.shiftFollowing()));
     }
 
     @Operation(
             summary = "휴강",
             description =
-                    "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(행 수 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요" + NOT_YET)
+                    "그 행은 날짜 그대로 cancelled로 남는다(메모 저장). shiftFollowing이면 같은 회차가 새 행으로 들어가고 뒤 수업들이 한 칸씩 다음 수업일로 밀린다"
+                            + "(행 +1). false면 그 행만 휴강(그 회차는 건너뜀). note \"\" = 메모 없음. 이미 휴강한 행이면 아무것도 바꾸지 않고 200(메모도 — 메모는 4.6으로). 지난 수업은 409 SESSION_PAST(오늘 수업은 가능)."
+                            + " 바뀐 뒤 진도표 전체(seq 다시 매김). X-CSRF 필요")
     @PostMapping("/api/v1/teacher/classes/{classId}/sessions/{seq}/cancel")
     public SessionListResponse cancelSession(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Positive long classId,
-            @Parameter(description = "진도표 행 번호 1~99") @PathVariable @Min(1) @Max(99) int seq,
+            @Parameter(description = "진도표 행 번호 1~99(방금 받은 진도표의 seq)") @PathVariable @Min(1) @Max(99) int seq,
             @Valid @RequestBody SessionCancelRequest request) {
-        throw NotImplemented.yet();
+        return schedules.cancel(
+                Principals.academyId(jwt),
+                Principals.userId(jwt),
+                classId,
+                seq,
+                request.note(),
+                request.shiftFollowing());
     }
 
     @Operation(

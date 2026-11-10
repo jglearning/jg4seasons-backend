@@ -42,4 +42,7 @@ class ArchitectureTest {
 
     @ArchTest
     static final ArchRule 학원_학생_묶음은_auth만_만든다 = ArchitectureRules.academyStudentsAreCreatedOnlyInAuth(BASE);
+
+    @ArchTest
+    static final ArchRule 진도표_쓰기는_TeacherScope만_부른다 = ArchitectureRules.classSchedulesOnlyThroughTeacherScope(BASE);
 }

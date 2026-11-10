@@ -19,8 +19,8 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 4.3~4.8 교사 학생·회차 상세, 진도표 조회·수정·휴강, 개인 코드 재발급 계약. 4.5~4.7은 구현 전(501), 4.3·4.4(이슈 #39)·4.8(이슈 #29)은 구현됨 — 실제 동작은
- * TeacherStudentDetailTest·TeacherLessonDetailTest·TeacherPersonalCodeTest.
+ * 4.3~4.8 교사 학생·회차 상세, 진도표 조회·수정·휴강, 개인 코드 재발급의 요청 검증·접근 규칙. 모두 구현됨(4.3·4.4 이슈 #39, 4.5~4.7 이슈 #41, 4.8 이슈
+ * #29) — 실제 동작은 TeacherStudentDetailTest·TeacherLessonDetailTest·TeacherScheduleTest·TeacherPersonalCodeTest.
  */
 @IntegrationTest
 @Transactional
@@ -40,9 +40,6 @@ class TeacherDetailContractTest {
                     "{\"scheduledDate\":\"2026-12-26\",\"note\":\"보강\",\"shiftFollowing\":true}"),
             new Call(HttpMethod.POST, SESSION + "/cancel", "{\"note\":\"내신 휴강\",\"shiftFollowing\":true}"),
             new Call(HttpMethod.POST, "/api/v1/teacher/students/2/personal-code/regenerate", null));
-
-    /** 구현 전(4.5~4.7). 4.3·4.4(#39)·4.8은 구현됨 — 경로의 반·학생이 이 학원에 없어 404 */
-    static final List<Call> NOT_YET = CALLS.subList(2, 5);
 
     @Autowired
     MockMvcTester mvc;
@@ -91,12 +88,13 @@ class TeacherDetailContractTest {
     }
 
     @Test
-    void 교사의_올바른_요청은_501_NOT_IMPLEMENTED() {
-        for (Call c : NOT_YET) {
+    void 교사의_올바른_요청은_검증을_통과해_반_확인에서_404() {
+        // 경로의 반·학생(1·2)이 이 학원에 없다 — 형식 검증·역할·CSRF를 지나 범위 확인까지 간다
+        for (Call c : CALLS) {
             MvcTestResult result = call(c, as(teacherId, UserRole.TEACHER), true);
 
-            assertThat(result).as(c.method() + " " + c.path()).hasStatus(501);
-            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_IMPLEMENTED");
+            assertThat(result).as(c.method() + " " + c.path()).hasStatus(404);
+            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_FOUND");
         }
     }
 
@@ -161,15 +159,12 @@ class TeacherDetailContractTest {
         // 역할 계층(admin ⊃ teacher) — 학원관리자가 T-04~T-06을 쓴다
         long adminId = new TestData(jdbc).staff(academyId, "관리자", "admin");
 
-        for (Call c : NOT_YET) {
+        // 역할을 통과해 반·학생 확인까지 간다(이 학원에 없는 id라 404)
+        for (Call c : CALLS) {
             assertThat(call(c, as(adminId, UserRole.ADMIN), true))
                     .as(c.method() + " " + c.path())
-                    .hasStatus(501);
+                    .hasStatus(404);
         }
-        // 4.3·4.4·4.8은 역할을 통과해 반·학생 확인까지 간다(이 학원에 없는 id라 404)
-        assertThat(call(CALLS.get(0), as(adminId, UserRole.ADMIN), true)).hasStatus(404);
-        assertThat(call(CALLS.get(1), as(adminId, UserRole.ADMIN), true)).hasStatus(404);
-        assertThat(call(CALLS.get(5), as(adminId, UserRole.ADMIN), true)).hasStatus(404);
     }
 
     @Test
@@ -182,12 +177,12 @@ class TeacherDetailContractTest {
     void 진도표_수정의_경계() {
         // 뒤를 밀지 여부만으로는 바뀌는 것이 없다
         assertValidation(asTeacher(HttpMethod.PATCH, SESSION, "{\"shiftFollowing\":true}"), "body");
-        // 메모 빈 문자열 = 지우기, 경계값(seq 99·메모 100자)은 통과
-        assertThat(asTeacher(HttpMethod.PATCH, SESSION, "{\"note\":\"\"}")).hasStatus(501);
+        // 메모 빈 문자열 = 지우기, 경계값(seq 99·메모 100자)은 검증을 통과(이 학원에 없는 반이라 404)
+        assertThat(asTeacher(HttpMethod.PATCH, SESSION, "{\"note\":\"\"}")).hasStatus(404);
         assertThat(asTeacher(
                         HttpMethod.PATCH,
                         "/api/v1/teacher/classes/1/sessions/99",
                         "{\"note\":\"" + "가".repeat(100) + "\"}"))
-                .hasStatus(501);
+                .hasStatus(404);
     }
 }

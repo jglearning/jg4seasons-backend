@@ -11,6 +11,7 @@ import com.jglearning.jg4seasons.clazz.api.ClassDetail;
 import com.jglearning.jg4seasons.clazz.api.ClassManagement;
 import com.jglearning.jg4seasons.clazz.api.ClassStatus;
 import com.jglearning.jg4seasons.clazz.api.NewClass;
+import com.jglearning.jg4seasons.clazz.api.SessionStatus;
 import com.jglearning.jg4seasons.clazz.persistence.AccessCodeLookup;
 import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore;
 import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore.SessionRow;
@@ -122,7 +123,7 @@ class ClassManagementTest {
             assertThat(row.seq()).isEqualTo(i + 1);
             assertThat(row.lessonId()).isEqualTo(lessons.lessonIdsByNumber().get(i));
             assertThat(row.scheduledDate()).isEqualTo(expectedDates.get(i));
-            assertThat(row.status()).isEqualTo("scheduled");
+            assertThat(row.status()).isEqualTo(SessionStatus.SCHEDULED);
         }
     }
 
