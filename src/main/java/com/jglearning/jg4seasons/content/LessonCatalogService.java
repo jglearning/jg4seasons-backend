@@ -76,9 +76,12 @@ class LessonCatalogService implements LessonCatalog {
                 .toList();
     }
 
-    /** 묶음은 8회차씩 1~3(회차 목록 묶음·"겨울 1" 라벨). 범위 밖은 콘텐츠 import 오류 — 조용히 4번째 묶음을 만들지 않는다 */
+    /**
+     * 묶음은 진도표 순서로 8회차씩(회차 목록 묶음·"겨울 1" 라벨): 1~3, 블랙 28회차는 4까지(V2·V5와 같은 식). 맞지 않으면 기준 데이터 오류 — 조용히 엉뚱한
+     * 묶음을 만들지 않는다
+     */
     private static LessonSummary summary(LessonSummaryRow row) {
-        if (row.module() < 1 || row.module() > 3 || row.number() < 1) {
+        if (row.number() < 1 || row.module() != (row.number() - 1) / 8 + 1) {
             throw new IllegalStateException(
                     "회차의 묶음·번호가 범위 밖이다: " + row.code() + " module " + row.module() + " number " + row.number());
         }

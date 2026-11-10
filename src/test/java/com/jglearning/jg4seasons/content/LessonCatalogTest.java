@@ -301,7 +301,19 @@ class LessonCatalogTest {
     }
 
     @Test
-    void 묶음_번호가_1에서_3_밖이면_데이터_오류() {
+    void 블랙_권은_보충을_포함해_28회차_묶음_4까지() {
+        List<LessonSummary> lessons = catalog.lessonsOfBook(data.bookId("K-B1"));
+
+        assertThat(lessons).hasSize(28);
+        assertThat(lessons.get(6).code()).isEqualTo("K-B1-S1");
+        assertThat(lessons.get(6).type()).isEqualTo("supplement");
+        assertThat(lessons.get(24).module()).isEqualTo(4);
+        assertThat(lessons.getLast().code()).isEqualTo("K-B1-S4");
+        assertThat(lessons.getLast().module()).isEqualTo(4);
+    }
+
+    @Test
+    void 묶음_번호가_회차_번호와_맞지_않으면_데이터_오류() {
         jdbc.update("update lesson set module = 4 where code = ?", CODE);
 
         assertThatThrownBy(() -> catalog.lessonsOfBook(data.bookId("L2-B1")))
