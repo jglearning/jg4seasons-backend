@@ -46,7 +46,7 @@
     {
       "no": 2,
       "english": "all day",
-      "source": "extra",
+      "source": "book",
       "pos": "phr",
       "korean": "하루 종일",
       "exampleEn": "We played outside all day.",
@@ -64,6 +64,17 @@
       "exampleKo": null,
       "track": null,
       "exampleTrack": null
+    },
+    {
+      "no": 4,
+      "english": "puddle",
+      "source": "extra",
+      "pos": "n",
+      "korean": "웅덩이",
+      "exampleEn": "He jumped into a puddle.",
+      "exampleKo": "그는 웅덩이에 뛰어들었다.",
+      "track": { "fileKey": "audio/L1-B1-01/L1-B1-01_w05_us_w.mp3", "durationMs": 750 },
+      "exampleTrack": { "fileKey": "audio/L1-B1-01/L1-B1-01_w05_ex_us_w.mp3", "durationMs": 2000 }
     }
   ]
 }

@@ -31,9 +31,11 @@ class LessonManifestTest {
                 .containsExactly("us_w", "us_m", "uk_w", "uk_m");
         assertThat(first.sentences().get(0).speaker()).isNull();
         assertThat(first.sentences().get(1).text()).isEqualTo("“It’s so high!” she says.");
-        assertThat(manifest.words()).extracting(LessonManifest.Word::pos).containsExactly("n", "phr", "pron");
-        // 출처(ADR 0029): 녹음 자료에도 있는 어휘책 단어·어휘책에 없는 회차 어휘·어휘책에만 있는 단어
-        assertThat(manifest.words()).extracting(LessonManifest.Word::source).containsExactly("book", "extra", "book");
+        assertThat(manifest.words()).extracting(LessonManifest.Word::pos).containsExactly("n", "phr", "pron", "n");
+        // 출처(ADR 0029): 어휘책 단어(녹음 자료에도 있는 것 1·2, 어휘책에만 있는 것 3) → 어휘책에 없는 회차 어휘 4
+        assertThat(manifest.words())
+                .extracting(LessonManifest.Word::source)
+                .containsExactly("book", "book", "book", "extra");
         assertThat(manifest.words().get(1).exampleTrack().fileKey())
                 .isEqualTo("audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3");
         assertThat(manifest.words().get(1).audioNo()).isEqualTo(2);
@@ -151,9 +153,53 @@ class LessonManifestTest {
     @Test
     void 단어_출처가_없거나_모르는_값이면_거부() {
         // 옛 manifest(출처 없음)가 조용히 book으로 들어가지 않게
-        assertRejected("\"source\": \"extra\",\n", "", "단어 2");
-        assertRejected("\"source\": \"extra\"", "\"source\": null", "단어 2");
-        assertRejected("\"source\": \"extra\"", "\"source\": \"lesson\"", "단어 2");
+        assertRejected("\"source\": \"extra\",\n", "", "단어 4");
+        assertRejected("\"source\": \"extra\"", "\"source\": null", "단어 4");
+        assertRejected("\"source\": \"extra\"", "\"source\": \"lesson\"", "단어 4");
+    }
+
+    @Test
+    void 추가_어휘는_음원과_예문_해석이_있어야_한다() {
+        // 회차 어휘(녹음 자료)에만 있는 단어라 늘 있다 — 없으면 스크립트가 출처를 잘못 붙인 것(리뷰 3)
+        assertRejected("\"exampleKo\": \"그는 웅덩이에 뛰어들었다.\"", "\"exampleKo\": null", "단어 4");
+        assertRejected(
+                "      \"track\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w05_us_w.mp3\", \"durationMs\": 750 },\n"
+                        + "      \"exampleTrack\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w05_ex_us_w.mp3\", \"durationMs\": 2000 }",
+                "      \"track\": null,\n      \"exampleTrack\": null",
+                "단어 4");
+    }
+
+    @Test
+    void 추가_어휘_뒤에_어휘책_단어가_오면_거부() {
+        // 교재 순서는 어휘책 단어·숙어 → 어휘책에 없는 회차 어휘(ADR 0027 결정 6)
+        assertRejected(
+                "\"english\": \"kite\",\n      \"source\": \"book\"",
+                "\"english\": \"kite\",\n      \"source\": \"extra\"",
+                "단어 2");
+    }
+
+    @Test
+    void 단어가_127개를_넘으면_거부() throws IOException {
+        // word.sort_order·word_study 칸이 TINYINT — DB 오류 대신 manifest에서 알린다(리뷰 10)
+        StringBuilder extra = new StringBuilder();
+        for (int no = 5; no <= 128; no++) {
+            extra.append(",\n    { \"no\": ")
+                    .append(no)
+                    .append(", \"english\": \"w")
+                    .append(no)
+                    .append("\", \"source\": \"book\", \"pos\": \"n\", \"korean\": \"뜻\", \"exampleEn\": \"A line.\",")
+                    .append(" \"exampleKo\": null, \"track\": null, \"exampleTrack\": null }");
+        }
+        String last = "\"durationMs\": 2000 }\n    }";
+        String text = fixture();
+        assertThat(text).contains(last);
+        // 개수 검사가 순서 검사(추가 어휘 뒤 어휘책 단어)보다 먼저라 뒤에 붙여도 개수로 거부된다
+        Path file = dir.resolve("L1-B1-01.json");
+        Files.writeString(file, text.replace(last, last + extra), StandardCharsets.UTF_8);
+
+        assertThatThrownBy(() -> reader.read(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("127");
     }
 
     @Test
