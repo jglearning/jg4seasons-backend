@@ -42,7 +42,9 @@ public record TeacherLessonDetailResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"0.8", "1.0", "1.2"})
+                    example = "us_w",
+                    allowableValues = {"us_w", "us_m", "uk_w", "uk_m"},
+                    description = "목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남")
             String variant,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)

@@ -186,6 +186,8 @@ class TeacherMatrixTest {
     @Test
     void 칸은_진도_그대로() {
         sessions(3, 2);
+        data.lessonContent(code(1), 6, 1, List.of("us_w"));
+        data.lessonContent(code(2), 6, 1, List.of("us_w"));
         long a = enrolled("가");
         progress(a, code(1), "completed", 6, 6, "2026-11-09T10:15:30");
         progress(a, code(2), "in_progress", 3, 6, null);
@@ -216,6 +218,40 @@ class TeacherMatrixTest {
                 .bodyJson()
                 .extractingPath(cell(a, code(2)) + ".requiredDone")
                 .isEqualTo(3);
+    }
+
+    @Test
+    void 저장된_지문_수가_지금_회차와_다르면_지금_지문_수로() {
+        // 학생이 들은 뒤 회차에 지문이 바뀌어 다시 import됐고 아직 다시 듣지 않음 — 학생 화면(2.1·2.3)과 같은 숫자
+        sessions(2, 2);
+        data.lessonContent(code(1), 2, 1, List.of("us_w"));
+        data.lessonContent(code(2), 4, 1, List.of("us_w"));
+        long a = enrolled("가");
+        progress(a, code(1), "in_progress", 3, 6, null);
+        progress(a, code(2), "in_progress", 1, 3, null);
+
+        MvcTestResult result = matrix();
+
+        assertThat(result)
+                .bodyJson()
+                .extractingPath(cell(a, code(1)) + ".requiredDone")
+                .isEqualTo(2);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath(cell(a, code(1)) + ".requiredTotal")
+                .isEqualTo(2);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath(cell(a, code(2)) + ".requiredDone")
+                .isEqualTo(1);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath(cell(a, code(2)) + ".requiredTotal")
+                .isEqualTo(4);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath(cell(a, code(2)) + ".status")
+                .isEqualTo("in_progress");
     }
 
     @Test

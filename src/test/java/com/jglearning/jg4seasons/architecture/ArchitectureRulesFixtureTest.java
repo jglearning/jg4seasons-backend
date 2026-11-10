@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.architecture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jglearning.archfixture.auth.RosterMaker;
 import com.jglearning.archfixture.clazz.CrudLeakingRepository;
 import com.jglearning.archfixture.clazz.OrLeakRepository;
 import com.jglearning.archfixture.clazz.QueryIgnoringRepository;
@@ -33,6 +34,8 @@ import com.jglearning.archfixture.listening.web.NoAccessRuleController;
 import com.jglearning.archfixture.listening.web.PackagePrivateEntityController;
 import com.jglearning.archfixture.listening.web.RepoCallingController;
 import com.jglearning.archfixture.listening.web.ResponseBodyController;
+import com.jglearning.archfixture.teacher.ScopeBypasser;
+import com.jglearning.archfixture.teacher.ScopeNarrower;
 import com.jglearning.archfixture.words.ApiPrefixUser;
 import com.jglearning.archfixture.words.WordPlayCountReader;
 import com.jglearning.archfixture.words.WordStudyRecorder;
@@ -290,6 +293,27 @@ class ArchitectureRulesFixtureTest {
     @Test
     void 클래스에_붙은_접근_규칙도_인정한다() {
         assertThat(violates(ArchitectureRules.controllerMethodsHaveAccessRule(), ClassLevelRuleController.class))
+                .isFalse();
+    }
+
+    // 학원 학생 묶음
+
+    @Test
+    void auth_밖에서_학원_학생_묶음을_만들면_호출과_메서드_참조_둘_다_잡는다() {
+        List<String> details = violationDetails(
+                ArchitectureRules.academyStudentsAreCreatedOnlyInAuth(FIXTURE_BASE), ScopeBypasser.class);
+
+        assertThat(details).hasSize(2);
+        assertThat(details).anyMatch(d -> d.contains("call("));
+        assertThat(details).anyMatch(d -> d.contains("reference("));
+    }
+
+    @Test
+    void auth_안에서_만들고_밖에서_좁히기만_하면_통과한다() {
+        assertThat(violates(
+                        ArchitectureRules.academyStudentsAreCreatedOnlyInAuth(FIXTURE_BASE),
+                        RosterMaker.class,
+                        ScopeNarrower.class))
                 .isFalse();
     }
 }

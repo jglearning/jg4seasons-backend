@@ -1,17 +1,11 @@
 package com.jglearning.jg4seasons.teacher;
 
-import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import com.jglearning.jg4seasons.auth.api.LoginAlerts;
-import com.jglearning.jg4seasons.auth.api.StaffAccounts;
-import com.jglearning.jg4seasons.auth.api.StaffRole;
 import com.jglearning.jg4seasons.auth.api.StudentAccount;
-import com.jglearning.jg4seasons.auth.api.StudentAccounts;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.TeacherClass;
-import com.jglearning.jg4seasons.clazz.api.TeacherClasses;
 import com.jglearning.jg4seasons.content.api.BookDirectory;
 import com.jglearning.jg4seasons.content.api.BookSummary;
-import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonSummary;
 import com.jglearning.jg4seasons.listening.api.LessonBoard;
 import com.jglearning.jg4seasons.listening.api.LessonBoard.Board;
@@ -32,16 +26,12 @@ import com.jglearning.jg4seasons.teacher.web.dto.TeacherClassListResponse.Teache
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherClassListResponse.TeacherClassItem;
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherClassListResponse.TeacherClassNext;
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherLessonRef;
-import java.time.Clock;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,56 +47,34 @@ public class TeacherClassService {
     /** 범위를 빼면 오늘 회차가 든 8개 묶음(결정 C) */
     static final int SEQ_BLOCK = 8;
 
-    private static final Logger log = LoggerFactory.getLogger(TeacherClassService.class);
-
-    private final AcademyDirectory academies;
-    private final StaffAccounts staff;
-    private final StudentAccounts students;
-    private final TeacherClasses teacherClasses;
+    private final TeacherScope scope;
     private final LessonProgressQuery progress;
     private final BookDirectory books;
-    private final LessonCatalog catalog;
     private final LoginAlerts loginAlerts;
-    private final Clock clock;
 
     TeacherClassService(
-            AcademyDirectory academies,
-            StaffAccounts staff,
-            StudentAccounts students,
-            TeacherClasses teacherClasses,
-            LessonProgressQuery progress,
-            BookDirectory books,
-            LessonCatalog catalog,
-            LoginAlerts loginAlerts,
-            Clock clock) {
-        this.academies = academies;
-        this.staff = staff;
-        this.students = students;
-        this.teacherClasses = teacherClasses;
+            TeacherScope scope, LessonProgressQuery progress, BookDirectory books, LoginAlerts loginAlerts) {
+        this.scope = scope;
         this.progress = progress;
         this.books = books;
-        this.catalog = catalog;
         this.loginAlerts = loginAlerts;
-        this.clock = clock;
     }
 
     public TeacherClassListResponse classes(long academyId, long actorId) {
-        boolean wholeAcademy = staff.requireActiveStaff(academyId, actorId) == StaffRole.ADMIN;
-        LocalDate today = today(academyId);
-        List<TeacherClassItem> items = teacherClasses.activeClasses(academyId, actorId, wholeAcademy, today).stream()
-                .map(clazz -> toItem(academyId, clazz, today))
+        List<TeacherClassItem> items = scope.activeClasses(academyId, actorId).stream()
+                .map(this::toItem)
                 .toList();
         return new TeacherClassListResponse(items);
     }
 
     /**
      * 4.2. 범위(seq, 포함)는 둘 다 오거나 둘 다 null(컨트롤러가 검증). 열 = 접은 회차 중 휴강 행만 있는 것은 빼고 범위 안, seq 순. 칸 = 열린 회차마다 현재 학생
-     * 전부(진도 없으면 not_started·0/지문 수 — 결정 B)
+     * 전부(진도 없으면 not_started·0/지문 수 — 결정 B, 저장된 지문 수가 지금과 다르면 지금 지문 수 — TeacherScope.progressOf)
      */
     public MatrixResponse matrix(long academyId, long actorId, long classId, Integer fromSeq, Integer toSeq) {
-        boolean wholeAcademy = staff.requireActiveStaff(academyId, actorId) == StaffRole.ADMIN;
-        LocalDate today = today(academyId);
-        TeacherClass clazz = teacherClasses.classOf(academyId, actorId, wholeAcademy, classId, today);
+        TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
+        LocalDate today = scoped.today();
+        TeacherClass clazz = scoped.clazz();
         Board classBoard = LessonBoard.evaluate(clazz.lessons(), Map.of(), today);
         int from;
         int to;
@@ -122,8 +90,8 @@ public class TeacherClassService {
                 .filter(ClassLesson::held)
                 .filter(lesson -> lesson.seq() >= from && lesson.seq() <= to)
                 .toList();
-        Map<Long, LessonSummary> lessons = lessonsOf(clazz);
-        List<StudentAccount> rows = academyStudents(academyId, clazz);
+        Map<Long, LessonSummary> lessons = scope.lessonsOf(scoped);
+        List<StudentAccount> rows = scope.roster(scoped).accounts();
         Map<Long, Map<Long, LessonProgressSummary>> progressById = progress.progressOf(
                 rows.stream().map(StudentAccount::id).toList(),
                 clazz.lessons().stream().map(ClassLesson::lessonId).toList());
@@ -131,7 +99,7 @@ public class TeacherClassService {
 
         List<MatrixSession> sessions = columns.stream()
                 .map(lesson -> {
-                    LessonSummary summary = summaryOf(lessons, clazz, lesson);
+                    LessonSummary summary = TeacherScope.summaryOf(lessons, clazz, lesson);
                     return new MatrixSession(
                             lesson.seq(),
                             new MatrixLesson(summary.code(), summary.number(), summary.title()),
@@ -155,23 +123,16 @@ public class TeacherClassService {
                 if (!lesson.open()) {
                     continue;
                 }
-                LessonSummary summary = summaryOf(lessons, clazz, lesson);
-                LessonProgressSummary p = mine.get(lesson.lessonId());
+                LessonSummary summary = TeacherScope.summaryOf(lessons, clazz, lesson);
+                LessonProgressSummary p = TeacherScope.progressOf(mine.get(lesson.lessonId()), summary, student.id());
                 row.put(
                         summary.code(),
-                        p == null
-                                ? new MatrixCell(
-                                        LessonProgressStatus.NOT_STARTED.value(),
-                                        0,
-                                        summary.passageCount(),
-                                        null,
-                                        overdue.contains(lesson.lessonId()))
-                                : new MatrixCell(
-                                        p.status().value(),
-                                        p.requiredDone(),
-                                        p.requiredTotal(),
-                                        p.completedAt(),
-                                        overdue.contains(lesson.lessonId())));
+                        new MatrixCell(
+                                p.status().value(),
+                                p.requiredDone(),
+                                p.requiredTotal(),
+                                p.completedAt(),
+                                overdue.contains(lesson.lessonId())));
             }
             cells.put(String.valueOf(student.id()), row);
         }
@@ -188,35 +149,11 @@ public class TeacherClassService {
                 cells);
     }
 
-    private static LessonSummary summaryOf(Map<Long, LessonSummary> lessons, TeacherClass clazz, ClassLesson lesson) {
-        LessonSummary summary = lessons.get(lesson.lessonId());
-        if (summary == null) {
-            throw new IllegalStateException(
-                    "반 진도표 회차가 그 반 권에 없다: class " + clazz.classId() + " lesson " + lesson.lessonId());
-        }
-        return summary;
-    }
-
-    /**
-     * 반의 현재 소속 중 그 학원 학생만(이름 순). enrollment에는 학원 칸이 없어 소속이 어긋나면 다른 학원 학생·교사 id가 섞일 수 있다 — 4.1 숫자·4.2 행·진도
-     * 조회 모두 이 목록만 쓰고, 빠진 id는 WARN으로 남긴다(화면은 일관되게, 원인은 로그로)
-     */
-    private List<StudentAccount> academyStudents(long academyId, TeacherClass clazz) {
-        List<StudentAccount> found = students.findAll(academyId, clazz.studentIds());
-        if (found.size() != clazz.studentIds().size()) {
-            Set<Long> kept = found.stream().map(StudentAccount::id).collect(Collectors.toSet());
-            log.warn(
-                    "반 소속에 그 학원 학생이 아닌 id가 있다: class {} ids {}",
-                    clazz.classId(),
-                    clazz.studentIds().stream().filter(id -> !kept.contains(id)).toList());
-        }
-        return found;
-    }
-
-    private TeacherClassItem toItem(long academyId, TeacherClass clazz, LocalDate today) {
-        List<Long> studentIds = academyStudents(academyId, clazz).stream()
-                .map(StudentAccount::id)
-                .toList();
+    private TeacherClassItem toItem(TeacherScope.ScopedClass scoped) {
+        TeacherClass clazz = scoped.clazz();
+        LocalDate today = scoped.today();
+        List<Long> studentIds =
+                scope.roster(scoped).accounts().stream().map(StudentAccount::id).toList();
         Map<Long, Map<Long, LessonProgressStatus>> statuses = statusesOf(clazz, studentIds);
         Board classBoard = LessonBoard.evaluate(clazz.lessons(), Map.of(), today); // 오늘 회차·다음 수업은 학생과 무관
         int overdueStudents = (int) studentIds.stream()
@@ -227,7 +164,7 @@ public class TeacherClassService {
         BookSummary book = books.summaryOf(clazz.bookId());
         TeacherClassCurrent current = classBoard
                 .today()
-                .map(lesson -> current(clazz, lesson, statuses, studentIds))
+                .map(lesson -> current(scoped, lesson, statuses, studentIds))
                 .orElse(null);
         TeacherClassNext next = classBoard
                 .next()
@@ -250,7 +187,7 @@ public class TeacherClassService {
     }
 
     private TeacherClassCurrent current(
-            TeacherClass clazz,
+            TeacherScope.ScopedClass scoped,
             ClassLesson lesson,
             Map<Long, Map<Long, LessonProgressStatus>> statuses,
             List<Long> studentIds) {
@@ -265,7 +202,7 @@ public class TeacherClassService {
                 inProgress++;
             }
         }
-        LessonSummary summary = summaryOf(lessonsOf(clazz), clazz, lesson);
+        LessonSummary summary = TeacherScope.summaryOf(scope.lessonsOf(scoped), scoped.clazz(), lesson);
         return new TeacherClassCurrent(
                 lesson.seq(),
                 new TeacherLessonRef(summary.code(), summary.title()),
@@ -285,14 +222,5 @@ public class TeacherClassService {
                         e -> e.getValue().entrySet().stream()
                                 .collect(Collectors.toMap(
                                         Map.Entry::getKey, p -> p.getValue().status()))));
-    }
-
-    private Map<Long, LessonSummary> lessonsOf(TeacherClass clazz) {
-        return catalog.lessonsOfBook(clazz.bookId()).stream()
-                .collect(Collectors.toMap(LessonSummary::lessonId, Function.identity()));
-    }
-
-    private LocalDate today(long academyId) {
-        return LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
     }
 }

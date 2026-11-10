@@ -1113,7 +1113,7 @@
     },
     "/api/v1/teacher/classes/{classId}/lessons/{lessonCode}" : {
       "get" : {
-        "description" : "학생 × 트랙 표(목소리별) — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "학생 × 지문 트랙 표(트랙은 지문 → 목소리 순, 학생은 그 반 현재 소속 이름 순 — 매트릭스와 같은 학생). byTrack은 들은 트랙만. 수업 전 회차도 조회된다. 그 반 권의 회차가 아니거나 없으면 404. 요청한 교사가 비활성화됐으면 401",
         "operationId" : "lesson",
         "parameters" : [ {
           "in" : "path",
@@ -1387,7 +1387,7 @@
     },
     "/api/v1/teacher/classes/{classId}/students/{studentId}" : {
       "get" : {
-        "description" : "그 반에서 열린 회차(seq 순)별 트랙 청취·단어 학습 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "그 반에서 열린 회차(seq 순)별 지문 트랙(지문 → 목소리 순, 안 들은 트랙 포함)·회차 진도·단어 학습. 회차 진도가 없으면 not_started·0/지문 수(매트릭스와 같음). 학생은 그 반 현재 소속만 — 그 밖(다른 반·퇴원·다른 학원)은 404. 요청한 교사가 비활성화됐으면 401",
         "operationId" : "student",
         "parameters" : [ {
           "in" : "path",
@@ -2979,7 +2979,9 @@
           },
           "variant" : {
             "type" : "string",
-            "enum" : [ "0.8", "1.0", "1.2" ]
+            "description" : "목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남",
+            "enum" : [ "us_w", "us_m", "uk_w", "uk_m" ],
+            "example" : "us_w"
           }
         },
         "required" : [ "completed", "coverage", "durationMs", "kind", "lastPlayedAt", "passageNo", "required", "sessionCount", "totalPlayMs", "variant" ]
@@ -2989,7 +2991,8 @@
         "properties" : {
           "cardsViewed" : {
             "type" : "integer",
-            "format" : "int32"
+            "format" : "int32",
+            "description" : "카드 본 수(누적 최고). 기록 없으면 0"
           },
           "memKnown" : {
             "type" : "integer",
@@ -3002,9 +3005,14 @@
           "spellBest" : {
             "type" : "integer",
             "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "회차 단어 수(어휘책 + 추가 어휘). 없으면 0"
           }
         },
-        "required" : [ "cardsViewed", "memKnown", "recallBest", "spellBest" ]
+        "required" : [ "cardsViewed", "memKnown", "recallBest", "spellBest", "total" ]
       },
       "StudentHomeLessonRef" : {
         "type" : "object",
@@ -3708,7 +3716,9 @@
           },
           "variant" : {
             "type" : "string",
-            "enum" : [ "0.8", "1.0", "1.2" ]
+            "description" : "목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남",
+            "enum" : [ "us_w", "us_m", "uk_w", "uk_m" ],
+            "example" : "us_w"
           }
         },
         "required" : [ "kind", "passageNo", "required", "trackId", "variant" ]
