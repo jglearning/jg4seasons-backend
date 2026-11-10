@@ -71,7 +71,7 @@ public class TeacherClassService {
 
     /**
      * 4.2. 범위(seq, 포함)는 둘 다 오거나 둘 다 null(컨트롤러가 검증). 열 = 접은 회차 중 휴강 행만 있는 것은 빼고 범위 안, seq 순. 칸 = 열린 회차마다 현재 학생
-     * 전부(진도 없으면 not_started·0/지문 수 — 결정 B)
+     * 전부(진도 없으면 not_started·0/지문 수 — 결정 B, 저장된 지문 수가 지금과 다르면 지금 지문 수 — TeacherScope.progressOf)
      */
     public MatrixResponse matrix(long academyId, long actorId, long classId, Integer fromSeq, Integer toSeq) {
         TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
@@ -126,22 +126,15 @@ public class TeacherClassService {
                     continue;
                 }
                 LessonSummary summary = TeacherScope.summaryOf(lessons, clazz, lesson);
-                LessonProgressSummary p = mine.get(lesson.lessonId());
+                LessonProgressSummary p = TeacherScope.progressOf(mine.get(lesson.lessonId()), summary, student.id());
                 row.put(
                         summary.code(),
-                        p == null
-                                ? new MatrixCell(
-                                        LessonProgressStatus.NOT_STARTED.value(),
-                                        0,
-                                        summary.passageCount(),
-                                        null,
-                                        overdue.contains(lesson.lessonId()))
-                                : new MatrixCell(
-                                        p.status().value(),
-                                        p.requiredDone(),
-                                        p.requiredTotal(),
-                                        p.completedAt(),
-                                        overdue.contains(lesson.lessonId())));
+                        new MatrixCell(
+                                p.status().value(),
+                                p.requiredDone(),
+                                p.requiredTotal(),
+                                p.completedAt(),
+                                overdue.contains(lesson.lessonId())));
             }
             cells.put(String.valueOf(student.id()), row);
         }

@@ -100,7 +100,7 @@ public class TeacherDetailService {
         Map<Long, WordStudyScores> words = wordStudies.scoresOf(one, lessonIds).getOrDefault(studentId, Map.of());
 
         List<StudentDetailLesson> lessons = contents.stream()
-                .map(content -> lesson(content, summaries.get(content.lessonId()), progress, tracks, words))
+                .map(content -> lesson(content, summaries.get(content.lessonId()), studentId, progress, tracks, words))
                 .toList();
         return new StudentDetailResponse(
                 new StudentDetailStudent(
@@ -165,14 +165,15 @@ public class TeacherDetailService {
                 new TeacherLessonInfo(content.code(), content.title(), scheduledDate), trackList, rows);
     }
 
-    /** 회차 진도가 없으면 시작 전·0/지문 수(4.2 매트릭스와 같은 기본값) */
+    /** 회차 진도 칸은 4.2 매트릭스와 같은 규칙(TeacherScope.progressOf) */
     private StudentDetailLesson lesson(
             LessonContent content,
             LessonSummary summary,
+            long studentId,
             Map<Long, LessonProgressSummary> progress,
             Map<Long, TrackProgressSummary> tracks,
             Map<Long, WordStudyScores> words) {
-        LessonProgressSummary p = progress.get(content.lessonId());
+        LessonProgressSummary p = TeacherScope.progressOf(progress.get(content.lessonId()), summary, studentId);
         List<StudentDetailTrack> trackRows = content.passages().stream()
                 .flatMap(passage -> passage.voices().stream().map(voice -> track(content, passage, voice, tracks)))
                 .toList();
@@ -180,9 +181,9 @@ public class TeacherDetailService {
         return new StudentDetailLesson(
                 content.code(),
                 content.title(),
-                (p == null ? LessonProgressStatus.NOT_STARTED : p.status()).value(),
-                p == null ? 0 : p.requiredDone(),
-                p == null ? summary.passageCount() : p.requiredTotal(),
+                p.status().value(),
+                p.requiredDone(),
+                p.requiredTotal(),
                 trackRows,
                 w == null
                         ? new StudentDetailWords(content.wordTotal(), 0, 0, 0, 0)

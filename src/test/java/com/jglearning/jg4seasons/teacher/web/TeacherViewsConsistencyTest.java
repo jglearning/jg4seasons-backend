@@ -82,7 +82,7 @@ class TeacherViewsConsistencyTest {
         }
         data.leave(classId, lee);
         progress(kim, "L2-B1-01", "completed", 2, 2);
-        progress(kim, "L2-B1-03", "in_progress", 1, 2);
+        progress(kim, "L2-B1-03", "in_progress", 1, 3); // 저장된 지문 수가 지금(2)과 다름 — 세 화면 모두 지금 지문 수
         progress(lee, "L2-B1-01", "completed", 2, 2); // 퇴원생 진도 — 어느 화면에도 나오면 안 된다
     }
 

@@ -145,6 +145,26 @@ class TeacherStudentDetailTest {
     }
 
     @Test
+    void 저장된_지문_수가_지금_회차와_다르면_지금_지문_수로() {
+        // 매트릭스(4.2)·학생 화면(2.3)과 같은 규칙
+        data.lessonContent("L2-B1-01", 2, 1, List.of("us_w"));
+        data.lessonContent("L2-B1-02", 4, 1, List.of("us_w"));
+        jdbc.update(
+                "insert into lesson_progress (student_id, lesson_id, status, required_done, required_total)"
+                        + " values (?, ?, 'in_progress', 3, 6), (?, ?, 'in_progress', 1, 3)",
+                studentId,
+                data.lessonId("L2-B1-01"),
+                studentId,
+                data.lessonId("L2-B1-02"));
+
+        var json = assertThat(detail(studentId)).bodyJson();
+        json.extractingPath("$.lessons[0].requiredDone").isEqualTo(2);
+        json.extractingPath("$.lessons[0].requiredTotal").isEqualTo(2);
+        json.extractingPath("$.lessons[1].requiredDone").isEqualTo(1);
+        json.extractingPath("$.lessons[1].requiredTotal").isEqualTo(4);
+    }
+
+    @Test
     void 학생_정보와_마지막_로그인() {
         long other = data.student(academyId, "박학생");
         data.enroll(classId, other);

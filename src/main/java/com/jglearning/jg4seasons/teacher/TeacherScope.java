@@ -11,6 +11,8 @@ import com.jglearning.jg4seasons.clazz.api.TeacherClass;
 import com.jglearning.jg4seasons.clazz.api.TeacherClasses;
 import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonSummary;
+import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
+import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -103,6 +105,29 @@ class TeacherScope {
     Map<Long, LessonSummary> lessonsOf(TeacherClass clazz) {
         return catalog.lessonsOfBook(clazz.bookId()).stream()
                 .collect(Collectors.toMap(LessonSummary::lessonId, Function.identity()));
+    }
+
+    /**
+     * 교사 화면(4.2·4.3)의 회차 진도 한 칸. 진도가 없으면 시작 전·0/지문 수. 저장된 전체 수가 지금 지문 수와 다르면(지문이 바뀐 회차를 다시 import한 뒤 그 학생이
+     * 아직 다시 듣지 않음) 지금 지문 수를 쓰고 완료 수를 그 안으로 자른 뒤 WARN — 학생 화면(2.1·2.3)과 같은 규칙이라 교사와 학생이 같은 숫자를 본다. 상태는 저장값
+     * 그대로(다음 청취가 다시 판정한다)
+     */
+    static LessonProgressSummary progressOf(LessonProgressSummary stored, LessonSummary lesson, long studentId) {
+        int total = lesson.passageCount();
+        if (stored == null) {
+            return new LessonProgressSummary(LessonProgressStatus.NOT_STARTED, 0, total, null);
+        }
+        if (stored.requiredTotal() == total) {
+            return stored;
+        }
+        log.warn(
+                "회차 집계의 지문 수가 실제와 다르다: student {} lesson {} 집계 {} 실제 {} — 실제 지문 수로 보낸다",
+                studentId,
+                lesson.code(),
+                stored.requiredTotal(),
+                total);
+        return new LessonProgressSummary(
+                stored.status(), Math.min(stored.requiredDone(), total), total, stored.completedAt());
     }
 
     /** 진도표 회차의 요약. 그 반 권에 없으면 진도표 데이터 오류 */
