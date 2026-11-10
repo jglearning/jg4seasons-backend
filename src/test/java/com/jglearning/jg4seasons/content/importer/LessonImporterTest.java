@@ -105,6 +105,59 @@ class LessonImporterTest {
     }
 
     @Test
+    void 기록이_있는_트랙_옆_다른_목소리와_단어_음원의_길이_변경은_고친다() throws IOException {
+        importer.importLesson(manifest());
+        listen("p1:us_w");
+        List<Long> before = rowIds();
+
+        // p1:us_m 3900 → 4000(간격 900), 단어 1 음원 700 → 750
+        ImportResult result = importer.importLesson(
+                manifest("\"durationMs\": 3900", "\"durationMs\": 4000", "\"durationMs\": 700", "\"durationMs\": 750"));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(duration("p1:us_m")).isEqualTo(4000);
+        assertThat(timings("p1:us_m")).containsExactly(new TimeRange(0, 1550), new TimeRange(2450, 4000));
+        assertThat(jdbc.queryForObject(
+                        "select duration_ms from track where lesson_id = ? and kind = 'word' and variant = 'w01:us_w'",
+                        Integer.class,
+                        lessonId()))
+                .isEqualTo(750);
+        assertThat(rowIds()).containsExactlyInAnyOrderElementsOf(before);
+    }
+
+    @Test
+    void 원고를_고치면_문장_화자_단어_뜻이_바뀌고_행_id는_그대로다() throws IOException {
+        importer.importLesson(manifest());
+        List<Long> before = rowIds();
+
+        ImportResult result = importer.importLesson(manifest(
+                // 문장 1은 글만, 문장 2는 화자만 바꾼다(둘 중 하나의 비교가 빠지면 잡히게)
+                "\"text\": \"Mia flies a red kite.\"",
+                "\"text\": \"Mia flies a blue kite.\"",
+                "\"speaker\": \"Mia\"",
+                "\"speaker\": \"Leo\"",
+                "\"korean\": \"연\"",
+                "\"korean\": \"연(놀이)\""));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        List<Map<String, Object>> sentences = jdbc.queryForList(
+                "select s.text, s.speaker from sentence s join passage p on p.id = s.passage_id"
+                        + " where p.lesson_id = ? and p.no = 1 order by s.no",
+                lessonId());
+        assertThat(sentences.get(0))
+                .containsEntry("text", "Mia flies a blue kite.")
+                .containsEntry("speaker", null);
+        // 굽은 따옴표가 utf8mb4로 그대로
+        assertThat(sentences.get(1))
+                .containsEntry("text", "“It’s so high!” she says.")
+                .containsEntry("speaker", "Leo");
+        assertThat(jdbc.queryForObject(
+                        "select korean from word where lesson_id = ? and sort_order = 1", String.class, lessonId()))
+                .isEqualTo("연(놀이)");
+        assertThat(rowIds()).containsExactlyInAnyOrderElementsOf(before);
+    }
+
+    @Test
     void 청취_기록이_있는_트랙의_길이가_바뀌면_회차_전체를_거부한다() throws IOException {
         importer.importLesson(manifest());
         listen("p1:us_w");

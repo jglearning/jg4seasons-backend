@@ -236,6 +236,26 @@ class FlushTest {
     }
 
     @Test
+    void 한_지문을_두_목소리로_끝내도_지문_하나() {
+        flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 6500)));
+
+        MvcTestResult result = flush(body(newSession(), tracks.get("p1:us_m"), seg(0, 6500)));
+
+        var json = assertThat(result).bodyJson();
+        json.extractingPath("$.lesson.requiredDone").isEqualTo(1);
+        json.extractingPath("$.lesson.status").isEqualTo("in_progress");
+    }
+
+    @Test
+    void 지문마다_다른_목소리로_끝내면_회차_completed() {
+        flush(body(newSession(), tracks.get("p1:us_m"), seg(0, 6500)));
+
+        MvcTestResult result = flush(body(newSession(), tracks.get("p2:us_w"), seg(0, 6500)));
+
+        assertThat(result).bodyJson().extractingPath("$.lesson.status").isEqualTo("completed");
+    }
+
+    @Test
     void 모든_지문_완료면_회차_completed() {
         flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 6500)));
 
