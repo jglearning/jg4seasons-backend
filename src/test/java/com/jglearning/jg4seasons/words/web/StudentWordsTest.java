@@ -202,6 +202,16 @@ class StudentWordsTest {
         assertInternal(getAsStudent(TODAY_CODE));
     }
 
+    @Test
+    void 출처가_book_extra가_아니면_500_고정_문구() {
+        // manifest 검사를 거치지 않은 값이 계약(book·extra) 밖으로 나가지 않게(리뷰 2)
+        data.word(TODAY_CODE, 1, "brisk", "book", "adj", false);
+        jdbc.update(
+                "update word set source = 'Book' where lesson_id = ? and sort_order = 1", data.lessonId(TODAY_CODE));
+
+        assertInternal(getAsStudent(TODAY_CODE));
+    }
+
     private static void assertInternal(MvcTestResult result) {
         assertThat(result).hasStatus(500);
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("INTERNAL");

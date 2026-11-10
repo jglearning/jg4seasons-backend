@@ -31,6 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 class LessonCatalogService implements LessonCatalog {
 
+    /** 단어 출처(ADR 0029). API 계약(allowableValues)과 같은 값만 내보낸다 */
+    private static final Set<String> WORD_SOURCES = Set.of("book", "extra");
+
     /** 지문 트랙 variant: p{지문 no}:{목소리}(ADR-27 — us_w·us_m·uk_w·uk_m) */
     private static final Pattern PASSAGE_VARIANT = Pattern.compile("^p(\\d+):((?:us|uk)_[wm])$");
 
@@ -51,7 +54,7 @@ class LessonCatalogService implements LessonCatalog {
                 .map(row -> new LessonWord(
                         row.id(),
                         row.sortOrder(),
-                        row.source(),
+                        wordSource(row.source(), row.id()),
                         row.english(),
                         row.korean(),
                         row.pos(),
@@ -66,6 +69,14 @@ class LessonCatalogService implements LessonCatalog {
                                 row.exampleMs(),
                                 row.id())))
                 .toList();
+    }
+
+    /** book·extra가 아니면 데이터 오류(manifest를 거치지 않은 값이 계약 밖으로 나가지 않게) */
+    private static String wordSource(String source, long wordId) {
+        if (!WORD_SOURCES.contains(source)) {
+            throw new IllegalStateException("단어 출처가 book·extra가 아니다: word " + wordId);
+        }
+        return source;
     }
 
     /** 단어에 연결된 트랙이 없으면 null. 종류가 다르거나 길이가 0 이하면 데이터 오류 */

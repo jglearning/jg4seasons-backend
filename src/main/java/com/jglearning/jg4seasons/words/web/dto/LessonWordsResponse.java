@@ -42,7 +42,7 @@ public record LessonWordsResponse(
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
                     nullable = true,
-                    description = "예문 해석. 없으면 null(어휘책에만 있는 단어)")
+                    description = "예문 해석. 없으면 null(지금 자료에서는 어휘책에만 있는 단어 — source와 따로 판단)")
             String exampleKo,
 
             @Schema(
