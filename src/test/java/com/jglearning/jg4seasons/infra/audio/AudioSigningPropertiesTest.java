@@ -39,6 +39,38 @@ class AudioSigningPropertiesTest {
         assertThatThrownBy(() ->
                         new AudioSigningProperties(true, "K1", KEY, "https://site.test/\"audio/*", Duration.ofHours(2)))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() ->
+                        new AudioSigningProperties(true, "K1", KEY, "https://site.test/\\audio/*", Duration.ofHours(2)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() ->
+                        new AudioSigningProperties(true, "K1", KEY, "http://site.test/audio/*", Duration.ofHours(2)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void resource는_쿠키_Path와_짝인_audio_별로_끝나야_한다() {
+        // CloudFront는 Resource가 요청 URL과 맞지 않으면 모든 음원을 403으로 막는다 — 서버가 뜰 때 막는다
+        for (String wrong :
+                new String[] {"https://site.test/audio", "https://site.test/audio/", "https://site.test/aduio/*"}) {
+            assertThatThrownBy(() -> new AudioSigningProperties(true, "K1", KEY, wrong, Duration.ofHours(2)))
+                    .as(wrong)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("resource");
+        }
+        assertThat(new AudioSigningProperties(true, "K1", KEY, "https://site.test/audio/*", Duration.ofHours(2))
+                        .resource())
+                .isEqualTo("https://site.test/audio/*");
+    }
+
+    @Test
+    void 키_쌍_ID는_대문자와_숫자만() {
+        // CloudFront 공개 키 ID 형식(K…). 쿠키 값에 못 쓰는 ; , 공백이 섞이면 로그인마다 500이 된다
+        for (String wrong : new String[] {"K1;x", "K1,2", "k1abc", "K1-2"}) {
+            assertThatThrownBy(() -> new AudioSigningProperties(true, wrong, KEY, RESOURCE, Duration.ofHours(2)))
+                    .as(wrong)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("key-pair-id");
+        }
     }
 
     @Test

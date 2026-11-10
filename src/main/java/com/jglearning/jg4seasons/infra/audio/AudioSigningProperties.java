@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.infra.audio;
 
 import java.time.Duration;
+import java.util.regex.Pattern;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -22,18 +23,30 @@ public record AudioSigningProperties(
         String resource,
         @DefaultValue("2h") Duration ttl) {
 
+    private static final Pattern KEY_PAIR_ID = Pattern.compile("^[A-Z0-9]+$");
+    private static final String AUDIO_RESOURCE_SUFFIX = "/audio/*";
+
     public AudioSigningProperties {
         if (ttl == null || ttl.isNegative() || ttl.isZero()) {
             throw new IllegalArgumentException("jg4seasons.audio.signing.ttl은 0보다 커야 한다");
         }
         if (enabled) {
             require("key-pair-id", keyPairId);
+            // CloudFront 공개 키 ID(K…). 쿠키 값에 못 쓰는 글자(; , 공백)가 섞이면 로그인마다 500이 된다 — 서버가 뜰 때 막는다
+            if (!KEY_PAIR_ID.matcher(keyPairId).matches()) {
+                throw new IllegalArgumentException("jg4seasons.audio.signing.key-pair-id는 대문자와 숫자만 쓴다");
+            }
             require("private-key", privateKey);
             require("resource", resource);
             // 정책 JSON에 그대로 들어간다 — 따옴표·역슬래시는 JSON을 깨뜨린다
-            if (!resource.startsWith("https://") || resource.contains("\"") || resource.contains("\\")) {
+            // 쿠키 Path(/audio/)와 짝 — CloudFront는 Resource가 요청 URL과 맞지 않으면 모든 음원을 403으로 막는다(로그 없이)
+            if (!resource.startsWith("https://")
+                    || !resource.endsWith(AUDIO_RESOURCE_SUFFIX)
+                    || resource.length() <= "https://".length() + AUDIO_RESOURCE_SUFFIX.length()
+                    || resource.contains("\"")
+                    || resource.contains("\\")) {
                 throw new IllegalArgumentException(
-                        "jg4seasons.audio.signing.resource는 https://로 시작하고 따옴표·역슬래시가 없어야 한다");
+                        "jg4seasons.audio.signing.resource는 https://<호스트>/audio/* 형식이어야 한다(따옴표·역슬래시 없이)");
             }
         }
     }

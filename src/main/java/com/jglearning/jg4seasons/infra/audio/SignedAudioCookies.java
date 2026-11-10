@@ -8,9 +8,6 @@ import java.util.Set;
 /** 서명 쿠키: 기한 = 지금(주입된 Clock) + 수명 */
 final class SignedAudioCookies implements AudioCookies {
 
-    private static final Set<String> NAMES =
-            Set.of(CloudFrontCookieSigner.POLICY, CloudFrontCookieSigner.SIGNATURE, CloudFrontCookieSigner.KEY_PAIR_ID);
-
     private final CloudFrontCookieSigner signer;
     private final Clock clock;
     private final Duration ttl;
@@ -28,7 +25,7 @@ final class SignedAudioCookies implements AudioCookies {
 
     @Override
     public Set<String> names() {
-        return NAMES;
+        return CloudFrontCookieSigner.NAMES;
     }
 
     @Override
