@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.listening.persistence;
 
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
+import com.jglearning.jg4seasons.listening.api.TrackProgressSummary;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -97,6 +98,40 @@ public class ProgressStore {
                                 rs.getInt("passages_total")))
                 .stream()
                 .findFirst();
+    }
+
+    /**
+     * 여러 학생 × 여러 트랙(교사 화면 4.3·4.4). 학생 id → 트랙 id → 집계, 행이 있는 것만. studentIds는 호출자가 학원 범위로 확인한 값(AcademyStudents). 시각은
+     * UTC로 읽는다
+     */
+    public Map<Long, Map<Long, TrackProgressSummary>> trackProgressOf(
+            Collection<Long> studentIds, Collection<Long> trackIds) {
+        if (studentIds.isEmpty() || trackIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Map<Long, TrackProgressSummary>> rows = new HashMap<>();
+        jdbc.query(
+                "select student_id, track_id, coverage, completed_at, total_play_ms, session_count, last_played_at"
+                        + " from track_progress where student_id in (:studentIds) and track_id in (:trackIds)",
+                new MapSqlParameterSource("studentIds", studentIds).addValue("trackIds", trackIds),
+                rs -> {
+                    BigDecimal coverage = rs.getBigDecimal("coverage");
+                    long trackId = rs.getLong("track_id");
+                    if (coverage == null || coverage.signum() < 0 || coverage.compareTo(BigDecimal.ONE) > 0) {
+                        throw new IllegalStateException("청취율은 0~1이어야 한다: track " + trackId + " " + coverage);
+                    }
+                    rows.computeIfAbsent(rs.getLong("student_id"), id -> new HashMap<>())
+                            .put(
+                                    trackId,
+                                    new TrackProgressSummary(
+                                            coverage,
+                                            rs.getObject("completed_at") != null,
+                                            rs.getLong("total_play_ms"),
+                                            rs.getInt("session_count"),
+                                            rs.getObject("last_played_at", LocalDateTime.class)
+                                                    .toInstant(ZoneOffset.UTC)));
+                });
+        return Collections.unmodifiableMap(rows);
     }
 
     /** 여러 학생 × 여러 회차(교사 화면). 학생 id → 회차 id → 진도, 진도 행이 있는 것만. completed_at은 UTC로 읽는다 */

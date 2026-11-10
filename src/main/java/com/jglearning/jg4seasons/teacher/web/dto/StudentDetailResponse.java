@@ -65,7 +65,9 @@ public record StudentDetailResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"0.8", "1.0", "1.2"})
+                    example = "us_w",
+                    allowableValues = {"us_w", "us_m", "uk_w", "uk_m"},
+                    description = "목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남")
             String variant,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "회차 완료에 필요한 트랙인가")
@@ -97,7 +99,10 @@ public record StudentDetailResponse(
             Instant lastPlayedAt) {}
 
     public record StudentDetailWords(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "회차 단어 수(어휘책 + 추가 어휘). 없으면 0")
+            int total,
+
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "카드 본 수(누적 최고). 기록 없으면 0")
             int cardsViewed,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)

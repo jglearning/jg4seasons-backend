@@ -93,7 +93,7 @@ public class TeacherClassService {
                 .filter(lesson -> lesson.seq() >= from && lesson.seq() <= to)
                 .toList();
         Map<Long, LessonSummary> lessons = scope.lessonsOf(clazz);
-        List<StudentAccount> rows = scope.academyStudents(academyId, clazz);
+        List<StudentAccount> rows = scope.roster(academyId, clazz).accounts();
         Map<Long, Map<Long, LessonProgressSummary>> progressById = progress.progressOf(
                 rows.stream().map(StudentAccount::id).toList(),
                 clazz.lessons().stream().map(ClassLesson::lessonId).toList());
@@ -159,7 +159,7 @@ public class TeacherClassService {
     }
 
     private TeacherClassItem toItem(long academyId, TeacherClass clazz, LocalDate today) {
-        List<Long> studentIds = scope.academyStudents(academyId, clazz).stream()
+        List<Long> studentIds = scope.roster(academyId, clazz).accounts().stream()
                 .map(StudentAccount::id)
                 .toList();
         Map<Long, Map<Long, LessonProgressStatus>> statuses = statusesOf(clazz, studentIds);

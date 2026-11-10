@@ -1,10 +1,17 @@
 package com.jglearning.jg4seasons.words.persistence;
 
+import com.jglearning.jg4seasons.words.api.WordStudyScores;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /** word_study 읽기·쓰기. academy_id 칸이 없어, 호출자가 학생의 학원 소속을 먼저 확인한다. 시각은 UTC LocalDateTime. */
@@ -15,9 +22,34 @@ public class WordStudyStore {
     public record WordStudyRow(int cardsViewed, int memKnown, int recallBest, int spellBest, boolean allViewed) {}
 
     private final JdbcTemplate jdbc;
+    private final NamedParameterJdbcTemplate named;
 
-    public WordStudyStore(JdbcTemplate jdbc) {
+    public WordStudyStore(JdbcTemplate jdbc, NamedParameterJdbcTemplate named) {
         this.jdbc = jdbc;
+        this.named = named;
+    }
+
+    /** 여러 학생 × 여러 회차(교사 화면). 학생 id → 회차 id → 결과, 행이 있는 것만. studentIds는 호출자가 학원 범위로 확인한 값 */
+    public Map<Long, Map<Long, WordStudyScores>> scoresOf(Collection<Long> studentIds, Collection<Long> lessonIds) {
+        if (studentIds.isEmpty() || lessonIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Map<Long, WordStudyScores>> rows = new HashMap<>();
+        named.query(
+                "select student_id, lesson_id, cards_viewed, mem_known, recall_best, spell_best from word_study"
+                        + " where student_id in (:studentIds) and lesson_id in (:lessonIds)",
+                new MapSqlParameterSource("studentIds", studentIds).addValue("lessonIds", lessonIds),
+                rs -> {
+                    rows.computeIfAbsent(rs.getLong("student_id"), id -> new HashMap<>())
+                            .put(
+                                    rs.getLong("lesson_id"),
+                                    new WordStudyScores(
+                                            rs.getInt("cards_viewed"),
+                                            rs.getInt("mem_known"),
+                                            rs.getInt("recall_best"),
+                                            rs.getInt("spell_best")));
+                });
+        return Collections.unmodifiableMap(rows);
     }
 
     public Optional<Integer> memKnown(long studentId, long lessonId) {

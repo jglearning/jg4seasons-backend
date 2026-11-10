@@ -5,6 +5,7 @@ import com.jglearning.jg4seasons.auth.api.StaffAccounts;
 import com.jglearning.jg4seasons.auth.api.StaffRole;
 import com.jglearning.jg4seasons.auth.api.StudentAccount;
 import com.jglearning.jg4seasons.auth.api.StudentAccounts;
+import com.jglearning.jg4seasons.auth.api.StudentRoster;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.TeacherClass;
 import com.jglearning.jg4seasons.clazz.api.TeacherClasses;
@@ -85,8 +86,9 @@ class TeacherScope {
      * 반의 현재 소속 중 그 학원 학생만(이름 순). enrollment에는 학원 칸이 없어 소속이 어긋나면 다른 학원 학생·교사 id가 섞일 수 있다 — 교사 화면의 숫자·행·진도
      * 조회는 모두 이 목록만 쓰고, 빠진 id는 WARN으로 남긴다(화면은 일관되게, 원인은 로그로)
      */
-    List<StudentAccount> academyStudents(long academyId, TeacherClass clazz) {
-        List<StudentAccount> found = students.findAll(academyId, clazz.studentIds());
+    StudentRoster roster(long academyId, TeacherClass clazz) {
+        StudentRoster roster = students.roster(academyId, clazz.studentIds());
+        List<StudentAccount> found = roster.accounts();
         if (found.size() != clazz.studentIds().size()) {
             Set<Long> kept = found.stream().map(StudentAccount::id).collect(Collectors.toSet());
             log.warn(
@@ -94,7 +96,7 @@ class TeacherScope {
                     clazz.classId(),
                     clazz.studentIds().stream().filter(id -> !kept.contains(id)).toList());
         }
-        return found;
+        return roster;
     }
 
     /** 반 권의 회차, 회차 id → 요약 */
