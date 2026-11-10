@@ -52,6 +52,62 @@ public class ClassSessionStore {
                 rs.getString("note"));
     }
 
+    /** 진도표를 바꿀 때 쓸 행. id null = 새 행 */
+    public record SessionWrite(
+            Long id, int seq, long lessonId, LocalDate scheduledDate, SessionStatus status, String note) {}
+
+    /**
+     * 반 진도표를 rows로 바꾼다(ADR 0030). 호출자가 반 행을 잠근 트랜잭션 안에서만. 유일 키 (class_id, seq)가 중간에 겹치지 않게 먼저 그 반의 seq를 음수로 비켜 두고
+     * 행마다 고친 뒤 새 행을 넣는다. rows는 그 반의 기존 행을 모두 포함해야 한다(빠진 행은 음수 seq로 남는다 — 호출자 버그)
+     */
+    public void replace(long classId, List<SessionWrite> rows) {
+        jdbc.update("update class_session set seq = -seq where class_id = ?", classId);
+        for (SessionWrite row : rows) {
+            if (row.id() == null) {
+                jdbc.update(
+                        "insert into class_session (class_id, seq, lesson_id, scheduled_date, status, note)"
+                                + " values (?, ?, ?, ?, ?, ?)",
+                        classId,
+                        row.seq(),
+                        row.lessonId(),
+                        row.scheduledDate(),
+                        row.status().value(),
+                        row.note());
+            } else {
+                int updated = jdbc.update(
+                        "update class_session set seq = ?, scheduled_date = ?, status = ?, note = ?"
+                                + " where id = ? and class_id = ?",
+                        row.seq(),
+                        row.scheduledDate(),
+                        row.status().value(),
+                        row.note(),
+                        row.id(),
+                        classId);
+                if (updated != 1) {
+                    throw new IllegalStateException("진도표 행이 그 반에 없다: class " + classId + " id " + row.id());
+                }
+            }
+        }
+        // rows에 빠진 행이 있으면 음수 seq로 남는다 — 조용히 버리지 않고 트랜잭션째 되돌린다
+        Integer left = jdbc.queryForObject(
+                "select count(*) from class_session where class_id = ? and seq < 0", Integer.class, classId);
+        if (left == null || left != 0) {
+            throw new IllegalStateException("진도표를 바꾼 뒤 빠진 행이 있다: class " + classId + " " + left + "행");
+        }
+    }
+
+    /**
+     * 편집용 읽기(seq 순): 잠금 읽기라 이 트랜잭션의 앞선 일반 읽기 스냅숏(REPEATABLE READ)이 아니라 가장 최근에 커밋된 행을 본다. 반 행을 잠근 뒤에 부른다 — 일반
+     * 읽기로 하면 먼저 끝난 다른 편집의 새 행을 못 보고 옛 진도표로 덮어쓴다(TeacherScheduleCommitTest)
+     */
+    public List<SessionRow> findByClassForUpdate(long classId) {
+        return jdbc.query(
+                "select id, seq, lesson_id, scheduled_date, status, note from class_session where class_id = ?"
+                        + " order by seq for update",
+                ClassSessionStore::row,
+                classId);
+    }
+
     /** seq 순 */
     public List<SessionRow> findByClass(long classId) {
         return jdbc.query(

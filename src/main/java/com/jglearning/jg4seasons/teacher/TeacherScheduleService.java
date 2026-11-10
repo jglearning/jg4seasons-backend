@@ -1,10 +1,12 @@
 package com.jglearning.jg4seasons.teacher;
 
+import com.jglearning.jg4seasons.clazz.api.ScheduleChange;
 import com.jglearning.jg4seasons.clazz.api.ScheduleEntry;
 import com.jglearning.jg4seasons.content.api.LessonSummary;
 import com.jglearning.jg4seasons.teacher.web.dto.SessionListResponse;
 import com.jglearning.jg4seasons.teacher.web.dto.SessionListResponse.SessionItem;
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherLessonRef;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,28 @@ public class TeacherScheduleService {
     public SessionListResponse sessions(long academyId, long actorId, long classId) {
         TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
         return response(scoped, scope.schedule(scoped));
+    }
+
+    /** 4.6. 바뀐 뒤 진도표 전체 */
+    @Transactional
+    public SessionListResponse update(
+            long academyId,
+            long actorId,
+            long classId,
+            int seq,
+            LocalDate scheduledDate,
+            String note,
+            boolean shiftFollowing) {
+        TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
+        return response(scoped, scope.reschedule(scoped, seq, new ScheduleChange(scheduledDate, note, shiftFollowing)));
+    }
+
+    /** 4.7. 바뀐 뒤 진도표 전체 */
+    @Transactional
+    public SessionListResponse cancel(
+            long academyId, long actorId, long classId, int seq, String note, boolean shiftFollowing) {
+        TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
+        return response(scoped, scope.cancel(scoped, seq, note, shiftFollowing));
     }
 
     private SessionListResponse response(TeacherScope.ScopedClass scoped, List<ScheduleEntry> entries) {

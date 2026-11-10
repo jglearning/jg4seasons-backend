@@ -8,6 +8,7 @@ import com.jglearning.jg4seasons.auth.api.StudentAccounts;
 import com.jglearning.jg4seasons.auth.api.StudentRoster;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.ClassSchedules;
+import com.jglearning.jg4seasons.clazz.api.ScheduleChange;
 import com.jglearning.jg4seasons.clazz.api.ScheduleEntry;
 import com.jglearning.jg4seasons.clazz.api.TeacherClass;
 import com.jglearning.jg4seasons.clazz.api.TeacherClasses;
@@ -137,6 +138,17 @@ class TeacherScope {
      */
     List<ScheduleEntry> schedule(ScopedClass scoped) {
         return schedules.schedule(scoped.academyId(), scoped.clazz().classId());
+    }
+
+    /** 진도표 한 행 변경(4.6). today = 범위 확인 때 구한 학원 날짜 */
+    List<ScheduleEntry> reschedule(ScopedClass scoped, int seq, ScheduleChange change) {
+        return schedules.reschedule(scoped.academyId(), scoped.clazz().classId(), seq, change, scoped.today());
+    }
+
+    /** 휴강(4.7) */
+    List<ScheduleEntry> cancel(ScopedClass scoped, int seq, String note, boolean shiftFollowing) {
+        return schedules.cancel(
+                scoped.academyId(), scoped.clazz().classId(), seq, note, shiftFollowing, scoped.today());
     }
 
     /** 반 권의 회차, 회차 id → 요약 */
