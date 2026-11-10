@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.clazz;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.ClassStatus;
 import com.jglearning.jg4seasons.clazz.api.LessonAccess;
+import com.jglearning.jg4seasons.clazz.api.SessionStatus;
 import com.jglearning.jg4seasons.clazz.api.StudentClass;
 import com.jglearning.jg4seasons.clazz.api.StudentClasses;
 import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore;
@@ -68,7 +69,7 @@ class StudentClassesService implements StudentClasses {
     /** 휴강이 아닌 행 중 seq가 가장 작은 것을 대표로(없으면 휴강 행). reached는 휴강이 아닌 행만, open은 LessonOpening */
     private static ClassLesson fold(long classId, List<SessionRow> rows, LocalDate today, boolean allowFuture) {
         List<SessionRow> held = rows.stream()
-                .filter(row -> !LessonOpening.CANCELLED.equals(row.status()))
+                .filter(row -> row.status() != SessionStatus.CANCELLED)
                 .sorted(Comparator.comparingInt(SessionRow::seq))
                 .toList();
         if (held.size() > 1) {

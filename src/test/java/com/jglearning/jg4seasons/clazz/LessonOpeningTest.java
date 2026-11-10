@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.clazz;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jglearning.jg4seasons.clazz.api.SessionStatus;
 import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore.SessionRow;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,11 +14,11 @@ class LessonOpeningTest {
     static final LocalDate NOV_5 = LocalDate.of(2026, 11, 5);
 
     static SessionRow scheduled(LocalDate date) {
-        return new SessionRow(1, 10L, date, "scheduled");
+        return new SessionRow(1L, 1, 10L, date, SessionStatus.SCHEDULED, null);
     }
 
     static SessionRow cancelled(LocalDate date) {
-        return new SessionRow(1, 10L, date, "cancelled");
+        return new SessionRow(1L, 1, 10L, date, SessionStatus.CANCELLED, null);
     }
 
     @Test
@@ -36,7 +37,8 @@ class LessonOpeningTest {
     void 지난_수업은_열림() {
         assertThat(LessonOpening.isOpen(List.of(scheduled(NOV_5)), NOV_5.plusDays(30), false))
                 .isTrue();
-        assertThat(LessonOpening.isOpen(List.of(new SessionRow(1, 10L, NOV_5, "done")), NOV_5.plusDays(1), false))
+        assertThat(LessonOpening.isOpen(
+                        List.of(new SessionRow(1L, 1, 10L, NOV_5, SessionStatus.DONE, null)), NOV_5.plusDays(1), false))
                 .as("done")
                 .isTrue();
     }

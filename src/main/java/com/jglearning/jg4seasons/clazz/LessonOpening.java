@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.clazz;
 
+import com.jglearning.jg4seasons.clazz.api.SessionStatus;
 import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore.SessionRow;
 import java.time.LocalDate;
 import java.util.List;
@@ -10,13 +11,11 @@ import java.util.List;
  */
 final class LessonOpening {
 
-    static final String CANCELLED = "cancelled";
-
     private LessonOpening() {}
 
     static boolean isOpen(List<SessionRow> sessionsOfLesson, LocalDate today, boolean allowFuture) {
         return sessionsOfLesson.stream()
-                .filter(session -> !CANCELLED.equals(session.status()))
+                .filter(session -> session.status() != SessionStatus.CANCELLED)
                 .anyMatch(session -> allowFuture || !session.scheduledDate().isAfter(today));
     }
 }

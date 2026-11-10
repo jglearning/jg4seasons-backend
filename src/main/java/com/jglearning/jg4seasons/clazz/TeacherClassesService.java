@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.clazz;
 
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.ClassStatus;
+import com.jglearning.jg4seasons.clazz.api.SessionStatus;
 import com.jglearning.jg4seasons.clazz.api.StudentClass;
 import com.jglearning.jg4seasons.clazz.api.StudentClasses;
 import com.jglearning.jg4seasons.clazz.api.TeacherClass;
@@ -26,8 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 class TeacherClassesService implements TeacherClasses {
-
-    private static final String DONE = "done";
 
     private final ClassRepository classes;
     private final EnrollmentRepository enrollments;
@@ -79,7 +78,7 @@ class TeacherClassesService implements TeacherClasses {
                 today);
         // 대표 행 = 접은 회차의 seq 행
         Set<Integer> doneSeqs = sessions.findByClass(clazz.getId()).stream()
-                .filter(row -> DONE.equals(row.status()))
+                .filter(row -> row.status() == SessionStatus.DONE)
                 .map(SessionRow::seq)
                 .collect(Collectors.toSet());
         Set<Long> doneLessonIds = lessons.stream()
