@@ -24,7 +24,11 @@ public interface ClassManagement {
 
     ClassDetail find(long academyId, long classId);
 
-    /** 반 행을 잠그고 바꾼다. 빈 칸은 그대로. active가 아니면 그 반 가입 코드로 입장할 수 없다 */
+    /**
+     * 반 행을 잠그고 바꾼다. 빈 칸은 그대로. active가 아니면 그 반 가입 코드로 입장할 수 없다. 끝난 반을 active로 되살리면 등록과 같은 사용권 확인(ADR 0031):
+     * 시작 전·기간 안이 아니면 403 LICENSE_INACTIVE, 그 반 학생이 들어와 권 학생 수 한도를 넘으면 409 LICENSE_SEATS_FULL — 둘 다 아무것도 바꾸지 않는다.
+     * 학원 잠금 안에서 부른다
+     */
     ClassDetail change(long academyId, long classId, ClassChange change);
 
     /** 새 가입 코드와 발급 시각. 이미 입장한 학생의 로그인은 그대로 둔다(옛 코드로 새 입장만 막힘) */

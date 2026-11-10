@@ -1,7 +1,6 @@
 package com.jglearning.jg4seasons.clazz;
 
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
-import com.jglearning.jg4seasons.academy.api.BookLicenses;
 import com.jglearning.jg4seasons.clazz.api.ClassChange;
 import com.jglearning.jg4seasons.clazz.api.ClassDetail;
 import com.jglearning.jg4seasons.clazz.api.ClassManagement;
@@ -32,7 +31,7 @@ class ClassManagementService implements ClassManagement {
     private final AccessCodeLookup accessCodes;
     private final AccessCodeGenerator codeGenerator;
     private final AcademyDirectory academies;
-    private final BookLicenses licenses;
+    private final LicenseGuard license;
     private final Clock clock;
 
     ClassManagementService(
@@ -42,7 +41,7 @@ class ClassManagementService implements ClassManagement {
             AccessCodeLookup accessCodes,
             AccessCodeGenerator codeGenerator,
             AcademyDirectory academies,
-            BookLicenses licenses,
+            LicenseGuard license,
             Clock clock) {
         this.classes = classes;
         this.enrollments = enrollments;
@@ -50,7 +49,7 @@ class ClassManagementService implements ClassManagement {
         this.accessCodes = accessCodes;
         this.codeGenerator = codeGenerator;
         this.academies = academies;
-        this.licenses = licenses;
+        this.license = license;
         this.clock = clock;
     }
 
@@ -64,10 +63,7 @@ class ClassManagementService implements ClassManagement {
             throw new IllegalArgumentException("회차 id가 없다");
         }
         // 입력 검사(400) 다음, 쓰기 전. 시작 전에는 개강 준비로 만들 수 있다(ADR 0031)
-        LocalDate today = LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
-        if (!licenses.statusOf(academyId, newClass.lessons().bookId(), today).allowsPreparation()) {
-            throw new ApiException(ClassErrorCode.LICENSE_INACTIVE, "사용 기간이 아니에요");
-        }
+        license.requirePreparation(academyId, newClass.lessons().bookId(), today(academyId));
 
         Clazz clazz = classes.save(Clazz.create(
                 academyId,
@@ -104,6 +100,19 @@ class ClassManagementService implements ClassManagement {
     @Override
     public ClassDetail change(long academyId, long classId, ClassChange change) {
         Clazz clazz = lockClass(academyId, classId);
+        boolean reactivating =
+                change.status().filter(s -> s == ClassStatus.ACTIVE).isPresent()
+                        && clazz.getStatus() != ClassStatus.ACTIVE;
+        if (reactivating) {
+            // 끝난 반을 되살리면 그 반 학생이 다시 학습한다 — 등록과 같은 사용권 확인(ADR 0031). 바꾸기 전에 본다
+            license.requirePreparation(academyId, clazz.getBookId(), today(academyId));
+            license.requireSeats(
+                    academyId,
+                    clazz.getBookId(),
+                    enrollments.findByClassIdAndLeftAtIsNullOrderByStudentIdAsc(clazz.getId()).stream()
+                            .map(Enrollment::getStudentId)
+                            .toList());
+        }
         change.name().map(ClassManagementService::cleanName).ifPresent(clazz::rename);
         change.status().ifPresent(clazz::changeStatus);
         change.allowFutureLessons().ifPresent(clazz::allowFutureLessons);
@@ -132,6 +141,11 @@ class ClassManagementService implements ClassManagement {
             throw ApiException.validation("name", "반 이름은 1~" + NAME_MAX + "자예요");
         }
         return name;
+    }
+
+    /** 학원 타임존 오늘 */
+    private LocalDate today(long academyId) {
+        return LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
     }
 
     private static ApiException notFound() {

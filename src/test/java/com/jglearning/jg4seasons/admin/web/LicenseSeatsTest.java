@@ -237,6 +237,61 @@ class LicenseSeatsTest {
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("ALREADY_IN_CLASS");
     }
 
+    private MvcTestResult changeClass(long classId, String body) {
+        return send(HttpMethod.PATCH, "/api/v1/admin/classes/" + classId, body);
+    }
+
+    private String statusOf(long classId) {
+        return jdbc.queryForObject("select status from `class` where id = ?", String.class, classId);
+    }
+
+    @Test
+    void 끝난_반을_되살려_한도를_넘으면_409이고_상태는_그대로() {
+        license("L2-B1", 1);
+        member(classA, "지금 반");
+        long finished = data.clazz(academyId, "L2-B1", "끝난 반", TestData.uniqueAccessCode(), "finished");
+        member(finished, "지난 학기");
+
+        assertSeatsFull(changeClass(finished, "{\"status\":\"active\"}"));
+        assertThat(statusOf(finished)).isEqualTo("finished");
+    }
+
+    @Test
+    void 한도_안이면_끝난_반을_되살린다() {
+        license("L2-B1", 2);
+        member(classA, "지금 반");
+        long finished = data.clazz(academyId, "L2-B1", "끝난 반", TestData.uniqueAccessCode(), "finished");
+        member(finished, "지난 학기");
+
+        assertThat(changeClass(finished, "{\"status\":\"active\"}")).hasStatusOk();
+    }
+
+    @Test
+    void 만료된_권의_끝난_반은_되살리지_못한다() {
+        expiredLicense("L2-B1");
+        long finished = data.clazz(academyId, "L2-B1", "끝난 반", TestData.uniqueAccessCode(), "finished");
+
+        assertInactive(changeClass(finished, "{\"status\":\"active\"}"));
+        assertThat(statusOf(finished)).isEqualTo("finished");
+    }
+
+    @Test
+    void 이미_진행_중인_반은_한도를_넘어도_status_active와_이름을_바꾼다() {
+        license("L2-B1", 1);
+        member(classA, "하나");
+        member(classA, "둘");
+
+        assertThat(changeClass(classA, "{\"name\":\"바뀐 반\",\"status\":\"active\"}"))
+                .hasStatusOk();
+    }
+
+    @Test
+    void 만료된_권의_반도_끝낼_수는_있다() {
+        expiredLicense("L2-B1");
+
+        assertThat(changeClass(classA, "{\"status\":\"finished\"}")).hasStatusOk();
+    }
+
     @Test
     void 만료_권_반으로_등록은_403() {
         expiredLicense("L2-B1");
