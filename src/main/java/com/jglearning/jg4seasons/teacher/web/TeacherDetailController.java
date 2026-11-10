@@ -4,6 +4,7 @@ import com.jglearning.jg4seasons.infra.security.Principals;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.NotImplemented;
 import com.jglearning.jg4seasons.teacher.TeacherDetailService;
+import com.jglearning.jg4seasons.teacher.TeacherScheduleService;
 import com.jglearning.jg4seasons.teacher.TeacherStudentService;
 import com.jglearning.jg4seasons.teacher.web.dto.PersonalCodeResponse;
 import com.jglearning.jg4seasons.teacher.web.dto.SessionCancelRequest;
@@ -29,7 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 4.3~4.8 교사 학생·회차 상세(T-04·T-05), 진도표(T-06), 개인 코드 재발급. 교사(관리자 포함), 담당 반·그 반 학생만 — 그 밖은 404. 4.3·4.4(이슈 #39)·4.8(이슈 #29)은 구현, 나머지는 계약만(이슈 #26).
+ * 4.3~4.8 교사 학생·회차 상세(T-04·T-05), 진도표(T-06), 개인 코드 재발급. 교사(관리자 포함), 담당 반·그 반 학생만 — 그 밖은 404. 4.3·4.4(이슈 #39)·4.5(이슈 #41)·4.8(이슈 #29)은 구현, 나머지는 계약만(이슈 #26).
  */
 @RestController
 @RolesAllowed("TEACHER")
@@ -39,10 +40,13 @@ public class TeacherDetailController {
 
     private final TeacherStudentService students;
     private final TeacherDetailService details;
+    private final TeacherScheduleService schedules;
 
-    TeacherDetailController(TeacherStudentService students, TeacherDetailService details) {
+    TeacherDetailController(
+            TeacherStudentService students, TeacherDetailService details, TeacherScheduleService schedules) {
         this.students = students;
         this.details = details;
+        this.schedules = schedules;
     }
 
     @Operation(
@@ -73,10 +77,13 @@ public class TeacherDetailController {
         return details.lesson(Principals.academyId(jwt), Principals.userId(jwt), classId, lessonCode);
     }
 
-    @Operation(summary = "진도표", description = "휴강 행 포함, seq 순" + NOT_YET)
+    @Operation(
+            summary = "진도표",
+            description = "휴강 행 포함, seq 순(= 날짜 순, 같은 날은 휴강 행 먼저). 휴강하면 행이 남고 같은 회차가 새 행으로 들어가 행 수가 회차 수보다 많을 수 있다."
+                    + " 요청한 교사가 비활성화됐으면 401, 담당 아닌 반은 404")
     @GetMapping("/api/v1/teacher/classes/{classId}/sessions")
-    public SessionListResponse sessions(@PathVariable @Positive long classId) {
-        throw NotImplemented.yet();
+    public SessionListResponse sessions(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long classId) {
+        return schedules.sessions(Principals.academyId(jwt), Principals.userId(jwt), classId);
     }
 
     @Operation(

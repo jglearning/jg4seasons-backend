@@ -19,7 +19,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 4.3~4.8 교사 학생·회차 상세, 진도표 조회·수정·휴강, 개인 코드 재발급 계약. 4.5~4.7은 구현 전(501), 4.3·4.4(이슈 #39)·4.8(이슈 #29)은 구현됨 — 실제 동작은
+ * 4.3~4.8 교사 학생·회차 상세, 진도표 조회·수정·휴강, 개인 코드 재발급 계약. 4.6·4.7은 구현 전(501), 4.3·4.4(이슈 #39)·4.5(이슈 #41)·4.8(이슈 #29)은 구현됨 — 실제 동작은
  * TeacherStudentDetailTest·TeacherLessonDetailTest·TeacherPersonalCodeTest.
  */
 @IntegrationTest
@@ -41,8 +41,8 @@ class TeacherDetailContractTest {
             new Call(HttpMethod.POST, SESSION + "/cancel", "{\"note\":\"내신 휴강\",\"shiftFollowing\":true}"),
             new Call(HttpMethod.POST, "/api/v1/teacher/students/2/personal-code/regenerate", null));
 
-    /** 구현 전(4.5~4.7). 4.3·4.4(#39)·4.8은 구현됨 — 경로의 반·학생이 이 학원에 없어 404 */
-    static final List<Call> NOT_YET = CALLS.subList(2, 5);
+    /** 구현 전(4.6·4.7). 4.3·4.4(#39)·4.5(#41)·4.8은 구현됨 — 경로의 반·학생이 이 학원에 없어 404 */
+    static final List<Call> NOT_YET = CALLS.subList(3, 5);
 
     @Autowired
     MockMvcTester mvc;
@@ -166,9 +166,10 @@ class TeacherDetailContractTest {
                     .as(c.method() + " " + c.path())
                     .hasStatus(501);
         }
-        // 4.3·4.4·4.8은 역할을 통과해 반·학생 확인까지 간다(이 학원에 없는 id라 404)
+        // 4.3·4.4·4.5·4.8은 역할을 통과해 반·학생 확인까지 간다(이 학원에 없는 id라 404)
         assertThat(call(CALLS.get(0), as(adminId, UserRole.ADMIN), true)).hasStatus(404);
         assertThat(call(CALLS.get(1), as(adminId, UserRole.ADMIN), true)).hasStatus(404);
+        assertThat(call(CALLS.get(2), as(adminId, UserRole.ADMIN), true)).hasStatus(404);
         assertThat(call(CALLS.get(5), as(adminId, UserRole.ADMIN), true)).hasStatus(404);
     }
 

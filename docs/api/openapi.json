@@ -1225,7 +1225,7 @@
     },
     "/api/v1/teacher/classes/{classId}/sessions" : {
       "get" : {
-        "description" : "휴강 행 포함, seq 순 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "휴강 행 포함, seq 순(= 날짜 순, 같은 날은 휴강 행 먼저). 휴강하면 행이 남고 같은 회차가 새 행으로 들어가 행 수가 회차 수보다 많을 수 있다. 요청한 교사가 비활성화됐으면 401, 담당 아닌 반은 404",
         "operationId" : "sessions",
         "parameters" : [ {
           "in" : "path",

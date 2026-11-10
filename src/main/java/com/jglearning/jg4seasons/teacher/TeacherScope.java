@@ -7,6 +7,8 @@ import com.jglearning.jg4seasons.auth.api.StudentAccount;
 import com.jglearning.jg4seasons.auth.api.StudentAccounts;
 import com.jglearning.jg4seasons.auth.api.StudentRoster;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
+import com.jglearning.jg4seasons.clazz.api.ClassSchedules;
+import com.jglearning.jg4seasons.clazz.api.ScheduleEntry;
 import com.jglearning.jg4seasons.clazz.api.TeacherClass;
 import com.jglearning.jg4seasons.clazz.api.TeacherClasses;
 import com.jglearning.jg4seasons.content.api.LessonCatalog;
@@ -38,6 +40,7 @@ class TeacherScope {
     private final StudentAccounts students;
     private final TeacherClasses teacherClasses;
     private final LessonCatalog catalog;
+    private final ClassSchedules schedules;
     private final Clock clock;
 
     TeacherScope(
@@ -46,12 +49,14 @@ class TeacherScope {
             StudentAccounts students,
             TeacherClasses teacherClasses,
             LessonCatalog catalog,
+            ClassSchedules schedules,
             Clock clock) {
         this.academies = academies;
         this.staff = staff;
         this.students = students;
         this.teacherClasses = teacherClasses;
         this.catalog = catalog;
+        this.schedules = schedules;
         this.clock = clock;
     }
 
@@ -125,6 +130,13 @@ class TeacherScope {
                     clazz.studentIds().stream().filter(id -> !kept.contains(id)).toList());
         }
         return roster;
+    }
+
+    /**
+     * 반 진도표(4.5). 진도표 api(ClassSchedules)는 범위 확인을 거친 반으로만 부르도록 여기서만 쓴다 — clazz는 학원 범위만 보고 담당 여부는 모른다
+     */
+    List<ScheduleEntry> schedule(ScopedClass scoped) {
+        return schedules.schedule(scoped.academyId(), scoped.clazz().classId());
     }
 
     /** 반 권의 회차, 회차 id → 요약 */
