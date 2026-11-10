@@ -73,8 +73,10 @@ public class AuthController {
 
     @Operation(
             summary = "가입 코드 + 개인 코드로 학생 입장",
-            description = "성공하면 Set-Cookie access·refresh·csrf. 틀리면 401 INVALID_CREDENTIALS(어느 쪽이 틀렸는지 구분하지 않음),"
-                    + " (반, IP) 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). CSRF 검사 없음")
+            description =
+                    "성공하면 Set-Cookie access·refresh·csrf(운영은 음원용 CloudFront-Policy·Signature·Key-Pair-Id도 — Path=/audio/, 2시간)."
+                            + " 틀리면 401 INVALID_CREDENTIALS(어느 쪽이 틀렸는지 구분하지 않음),"
+                            + " (반, IP) 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). CSRF 검사 없음")
     @PermitAll
     @PostMapping("/student/login")
     public ResponseEntity<StudentLoginResponse> studentLogin(
@@ -89,9 +91,10 @@ public class AuthController {
 
     @Operation(
             summary = "교사·관리자 로그인",
-            description = "성공하면 Set-Cookie access·refresh(14일)·csrf. 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를"
-                    + " 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 시도는 IP당 1분 10회(429, 성공·실패 모두)."
-                    + " 아이디는 대소문자 구분 없음. CSRF 검사 없음")
+            description =
+                    "성공하면 Set-Cookie access·refresh(14일)·csrf(운영은 음원용 CloudFront-* 3개도). 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를"
+                            + " 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 시도는 IP당 1분 10회(429, 성공·실패 모두)."
+                            + " 아이디는 대소문자 구분 없음. CSRF 검사 없음")
     @PermitAll
     @PostMapping("/staff/login")
     public ResponseEntity<StaffLoginResponse> staffLogin(
@@ -103,8 +106,9 @@ public class AuthController {
 
     @Operation(
             summary = "세션 갱신",
-            description = "요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음."
-                    + " 회전된 지 10초 안의 옛 refresh는 200(쿠키 그대로 — 다른 탭이 받은 쿠키를 같이 씀), 그 뒤에 오면 그 사용자 refresh를 모두 끊고 401")
+            description =
+                    "요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf(운영은 음원용 CloudFront-* 3개도, 기한 2시간 새로)를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음."
+                            + " 회전된 지 10초 안의 옛 refresh는 200(쿠키 그대로 — 다른 탭이 받은 쿠키를 같이 씀), 그 뒤에 오면 그 사용자 refresh를 모두 끊고 401")
     @PermitAll
     @PostMapping("/refresh")
     public ResponseEntity<MeResponse> refresh(
@@ -123,7 +127,7 @@ public class AuthController {
         throw new ApiException(CommonErrorCode.UNAUTHORIZED, "다시 들어와 주세요");
     }
 
-    @Operation(summary = "로그아웃", description = "refresh를 폐기하고 쿠키 3개를 만료시킨다. 헤더 X-CSRF 필요")
+    @Operation(summary = "로그아웃", description = "refresh를 폐기하고 쿠키 3개(운영은 음원 쿠키 3개도)를 만료시킨다. 헤더 X-CSRF 필요")
     @ApiResponse(responseCode = "204", description = "로그아웃됨")
     @PermitAll
     @PostMapping("/logout")

@@ -31,6 +31,13 @@ class ProdProfileYamlTest {
     }
 
     @Test
+    void 음원_서명은_기본으로_켜진다() {
+        // ADR 0028: 운영에서 실수로 꺼진 채 뜨지 않게. 키가 없으면 서버가 뜨지 않아 배포가 이전 슬롯에 머문다
+        assertThat(prodYaml().getProperty("jg4seasons.audio.signing.enabled"))
+                .isEqualTo("${JG4SEASONS_AUDIO_SIGNING_ENABLED:true}");
+    }
+
+    @Test
     void 클라이언트_IP는_Nginx가_덮어쓰는_X_Forwarded_For에서_읽는다() {
         // Nginx가 CloudFront-Viewer-Address에서 포트를 뗀 IP 하나로 덮어쓴다. 앱 포트는 서버 안(127.0.0.1)에만 열린다
         assertThat(prodYaml().getProperty("jg4seasons.auth.client-ip-header")).isEqualTo("X-Forwarded-For");

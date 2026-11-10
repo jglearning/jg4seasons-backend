@@ -14,6 +14,11 @@ jg4seasons:
     # Nginx가 CloudFront-Viewer-Address에서 포트를 뗀 IP 하나로 덮어쓴다(요청이 보낸 값은 버린다).
     # 앱 포트는 서버 안(127.0.0.1)에만 열려 Nginx를 거치지 않는 요청은 없다
     client-ip-header: X-Forwarded-For
+  # 음원 서명 쿠키(ADR 0028). 운영은 기본 켜짐 — 키(Parameter Store)가 없으면 서버가 뜨지 않아 배포가 이전 슬롯에 머문다.
+  # 키 ID·개인 키·resource는 application.yaml의 환경 변수 자리에서 받는다
+  audio:
+    signing:
+      enabled: ${JG4SEASONS_AUDIO_SIGNING_ENABLED:true}
   # 첫 학원·관리자(SYS-01). 학원이 하나도 없을 때만 읽는다 — 그때 값이 없거나 반쪽이면 서버가 뜨지 않는다.
   # 학원이 생긴 뒤에는 읽지 않으므로 기본값을 빈 값으로 둔다
   initial:
