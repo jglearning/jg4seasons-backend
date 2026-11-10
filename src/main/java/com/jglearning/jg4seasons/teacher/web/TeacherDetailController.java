@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 4.3~4.8 교사 학생·회차 상세(T-04·T-05), 진도표(T-06), 개인 코드 재발급. 교사(관리자 포함), 담당 반·그 반 학생만 — 그 밖은 404. 4.3(이슈 #39)·4.8(이슈 #29)은 구현, 나머지는 계약만(이슈 #26).
+ * 4.3~4.8 교사 학생·회차 상세(T-04·T-05), 진도표(T-06), 개인 코드 재발급. 교사(관리자 포함), 담당 반·그 반 학생만 — 그 밖은 404. 4.3·4.4(이슈 #39)·4.8(이슈 #29)은 구현, 나머지는 계약만(이슈 #26).
  */
 @RestController
 @RolesAllowed("TEACHER")
@@ -58,15 +58,19 @@ public class TeacherDetailController {
         return details.student(Principals.academyId(jwt), Principals.userId(jwt), classId, studentId);
     }
 
-    @Operation(summary = "회차 상세", description = "학생 × 트랙 표(목소리별)" + NOT_YET)
+    @Operation(
+            summary = "회차 상세",
+            description = "학생 × 지문 트랙 표(트랙은 지문 → 목소리 순, 학생은 그 반 현재 소속 이름 순 — 매트릭스와 같은 학생)."
+                    + " byTrack은 들은 트랙만. 수업 전 회차도 조회된다. 그 반 권의 회차가 아니거나 없으면 404. 요청한 교사가 비활성화됐으면 401")
     @GetMapping("/api/v1/teacher/classes/{classId}/lessons/{lessonCode}")
     public TeacherLessonDetailResponse lesson(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Positive long classId,
             @Parameter(description = "회차 코드", example = "L2-B1-05")
                     @PathVariable
                     @Pattern(regexp = "^[A-Za-z0-9-]{1,10}$", message = "회차 코드 형식이 아니에요")
                     String lessonCode) {
-        throw NotImplemented.yet();
+        return details.lesson(Principals.academyId(jwt), Principals.userId(jwt), classId, lessonCode);
     }
 
     @Operation(summary = "진도표", description = "휴강 행 포함, seq 순" + NOT_YET)

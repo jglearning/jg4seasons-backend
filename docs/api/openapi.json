@@ -1113,7 +1113,7 @@
     },
     "/api/v1/teacher/classes/{classId}/lessons/{lessonCode}" : {
       "get" : {
-        "description" : "학생 × 트랙 표(목소리별) — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "학생 × 지문 트랙 표(트랙은 지문 → 목소리 순, 학생은 그 반 현재 소속 이름 순 — 매트릭스와 같은 학생). byTrack은 들은 트랙만. 수업 전 회차도 조회된다. 그 반 권의 회차가 아니거나 없으면 404. 요청한 교사가 비활성화됐으면 401",
         "operationId" : "lesson",
         "parameters" : [ {
           "in" : "path",
@@ -3716,7 +3716,9 @@
           },
           "variant" : {
             "type" : "string",
-            "enum" : [ "0.8", "1.0", "1.2" ]
+            "description" : "목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남",
+            "enum" : [ "us_w", "us_m", "uk_w", "uk_m" ],
+            "example" : "us_w"
           }
         },
         "required" : [ "kind", "passageNo", "required", "trackId", "variant" ]
