@@ -48,7 +48,7 @@
         "tags" : [ "class-admin-controller" ]
       },
       "post" : {
-        "description" : "진도표 24회(개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요",
+        "description" : "진도표(권의 회차 수만큼 — 블랙 28, 그 밖 24회, 개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요",
         "operationId" : "create_1",
         "requestBody" : {
           "content" : {
@@ -1326,7 +1326,7 @@
     },
     "/api/v1/teacher/classes/{classId}/sessions/{seq}/cancel" : {
       "post" : {
-        "description" : "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(24회 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
+        "description" : "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(행 수 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED",
         "operationId" : "cancelSession",
         "parameters" : [ {
           "in" : "path",
@@ -2390,7 +2390,7 @@
           "number" : {
             "type" : "integer",
             "format" : "int32",
-            "description" : "회차 번호 1~24"
+            "description" : "권 안 진도표 순서(블랙 1~28, 그 밖 1~24). 화면의 회차 번호는 code 끝"
           },
           "title" : {
             "type" : "string",
@@ -2441,7 +2441,7 @@
           },
           "lesson" : {
             "$ref" : "#/components/schemas/MatrixLesson",
-            "description" : "열 머리글은 lesson.number"
+            "description" : "열 머리글은 code 끝(07 → 7회, S1 → 보충 1). number는 정렬용"
           },
           "opened" : {
             "type" : "boolean",

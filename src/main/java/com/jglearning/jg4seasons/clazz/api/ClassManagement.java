@@ -13,7 +13,7 @@ public interface ClassManagement {
     int NAME_MAX = 50;
 
     /**
-     * 반을 만들고 개강일(포함)부터 수업 요일에 맞는 24회 진도표(class_session, scheduled)와 가입 코드를 함께 만든다. 이름이 비었거나 50자 초과면 400
+     * 반을 만들고 개강일(포함)부터 수업 요일에 맞는 진도표(class_session, scheduled — 권의 회차 수만큼: 블랙 28, 그 밖 24회)와 가입 코드를 함께 만든다. 이름이 비었거나 50자 초과면 400
      * VALIDATION(name), 요일이 잘못되면 400 VALIDATION(weekdays) — 둘 다 아무것도 만들지 않는다
      */
     ClassDetail create(long academyId, NewClass newClass);

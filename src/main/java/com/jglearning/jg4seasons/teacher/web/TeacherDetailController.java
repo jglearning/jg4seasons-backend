@@ -83,7 +83,7 @@ public class TeacherDetailController {
     @Operation(
             summary = "휴강",
             description =
-                    "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(24회 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요" + NOT_YET)
+                    "그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(행 수 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요" + NOT_YET)
     @PostMapping("/api/v1/teacher/classes/{classId}/sessions/{seq}/cancel")
     public SessionListResponse cancelSession(
             @PathVariable @Positive long classId,
