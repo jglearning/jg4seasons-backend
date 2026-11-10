@@ -1,9 +1,7 @@
 package com.jglearning.jg4seasons.listening;
 
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
-import com.jglearning.jg4seasons.clazz.api.LessonAccess;
-import com.jglearning.jg4seasons.clazz.api.StudentClass;
-import com.jglearning.jg4seasons.clazz.api.StudentClasses;
+import com.jglearning.jg4seasons.clazz.api.StudentLessonGate;
 import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonContent;
 import com.jglearning.jg4seasons.infra.audio.AudioProperties;
@@ -18,8 +16,6 @@ import com.jglearning.jg4seasons.listening.persistence.ProgressStore.TrackProgre
 import com.jglearning.jg4seasons.listening.web.dto.LessonDetailResponse;
 import com.jglearning.jg4seasons.words.api.WordStudies;
 import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -28,7 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 2.3 회차 상세. 학생·학원은 JWT에서만. 순서: 학원 활성 → 회차 → 그 권의 소속 반들 중 하나라도 진도표에 있고 열렸는가 → 집계 읽기. 진도표에 없는 회차(다른 권·다른
+ * 2.3 회차 상세. 학생·학원은 JWT에서만. 순서: 학원 활성 → 회차 → 그 권의 소속 반들 중 하나라도 진도표에 있고 열렸는가(StudentLessonGate) → 집계 읽기. 진도표에 없는 회차(다른 권·다른
  * 학원)는 404, 아직 안 열린 회차는 423. 집계(track_progress·lesson_progress·word_study)는 학생이 그 학원 반 소속임을 확인한 뒤에만 읽는다.
  */
 @Service
@@ -38,28 +34,25 @@ public class StudentLessonService {
     private static final Logger log = LoggerFactory.getLogger(StudentLessonService.class);
 
     private final AcademyDirectory academies;
-    private final StudentClasses studentClasses;
+    private final StudentLessonGate gate;
     private final LessonCatalog catalog;
     private final ProgressStore progress;
     private final WordStudies wordStudies;
     private final AudioProperties audio;
-    private final Clock clock;
 
     StudentLessonService(
             AcademyDirectory academies,
-            StudentClasses studentClasses,
+            StudentLessonGate gate,
             LessonCatalog catalog,
             ProgressStore progress,
             WordStudies wordStudies,
-            AudioProperties audio,
-            Clock clock) {
+            AudioProperties audio) {
         this.academies = academies;
-        this.studentClasses = studentClasses;
+        this.gate = gate;
         this.catalog = catalog;
         this.progress = progress;
         this.wordStudies = wordStudies;
         this.audio = audio;
-        this.clock = clock;
     }
 
     public LessonDetailResponse detail(long academyId, long studentId, String lessonCode) {
@@ -68,18 +61,8 @@ public class StudentLessonService {
         }
         LessonContent lesson = catalog.findByCode(lessonCode)
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요"));
-        // 소속 반 중 그 회차의 권인 반 전부(리뷰 7 a). 하나도 없으면 NOT_IN_CLASS → 404
-        List<StudentClass> classes = studentClasses.currentClasses(academyId, studentId).stream()
-                .filter(clazz -> clazz.bookId() == lesson.bookId())
-                .toList();
-        LocalDate today = LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
-        LessonAccess access = studentClasses.access(classes, lesson.lessonId(), today);
-        if (access == LessonAccess.NOT_IN_CLASS) {
-            throw new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요");
-        }
-        if (access == LessonAccess.LOCKED) {
-            throw new ApiException(ListeningErrorCode.LESSON_LOCKED, "수업일이 되면 열려요");
-        }
+        // 소속 반 중 그 회차 권의 반 전부(두 반이면 어느 반에서든): 없으면 404, 모두 잠겼으면 423
+        gate.requireOpen(academyId, studentId, lesson.bookId(), lesson.lessonId());
 
         CompletionRule rule = CompletionRule.parse(
                 lesson.rule().coverageThreshold(), lesson.rule().requiredTracksJson());
