@@ -154,6 +154,15 @@ class TeacherLessonDetailTest {
     }
 
     @Test
+    void 그_반_권의_회차인데_진도표에_행이_없으면_데이터_오류_500() {
+        // 진도표 = 권의 회차 수만큼 행(ADR-09). 행이 없으면 "휴강만"과 구분해 조용히 null로 보내지 않는다
+        MvcTestResult result = lesson("L2-B1-07");
+
+        assertThat(result).hasStatus(500);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("INTERNAL");
+    }
+
+    @Test
     void 퇴원한_학생과_반에_섞인_다른_학원_학생은_행에_없다() {
         data.leave(classId, lee);
         long otherAcademy = data.academy("다른 학원");

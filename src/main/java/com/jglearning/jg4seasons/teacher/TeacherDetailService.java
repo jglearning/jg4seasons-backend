@@ -115,11 +115,13 @@ public class TeacherDetailService {
         LessonContent content = catalog.findByCode(lessonCode)
                 .filter(c -> c.bookId() == clazz.bookId())
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요"));
-        LocalDate scheduledDate = clazz.lessons().stream()
-                .filter(l -> l.lessonId() == content.lessonId() && l.held())
-                .map(ClassLesson::scheduledDate)
+        // 진도표는 권의 회차 수만큼 행이 있다(ADR-09) — 없으면 데이터 오류. 휴강 행만 있으면(held 아님) 날짜 없음
+        ClassLesson row = clazz.lessons().stream()
+                .filter(l -> l.lessonId() == content.lessonId())
                 .findFirst()
-                .orElse(null);
+                .orElseThrow(() -> new IllegalStateException(
+                        "반 권의 회차가 진도표에 없다: class " + clazz.classId() + " lesson " + content.lessonId()));
+        LocalDate scheduledDate = row.held() ? row.scheduledDate() : null;
         StudentRoster roster = scope.roster(scoped);
 
         List<TeacherLessonTrack> trackList = new ArrayList<>();
