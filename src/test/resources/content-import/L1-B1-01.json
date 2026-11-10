@@ -35,6 +35,7 @@
     {
       "no": 1,
       "english": "kite",
+      "source": "book",
       "pos": "n",
       "korean": "연",
       "exampleEn": "The kite is stuck in the tree.",
@@ -45,6 +46,7 @@
     {
       "no": 2,
       "english": "all day",
+      "source": "extra",
       "pos": "phr",
       "korean": "하루 종일",
       "exampleEn": "We played outside all day.",
@@ -55,6 +57,7 @@
     {
       "no": 3,
       "english": "everyone",
+      "source": "book",
       "pos": "pron",
       "korean": "모든 사람",
       "exampleEn": "Everyone looked up at the kite.",

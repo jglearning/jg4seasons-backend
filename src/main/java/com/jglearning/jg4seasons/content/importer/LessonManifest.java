@@ -27,6 +27,9 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
     /** 품사. 어휘책에 대명사·감탄사가 있다(ADR 0027 결정 6) */
     private static final Set<String> POS = Set.of("n", "v", "adj", "adv", "prep", "conj", "pron", "interj", "phr");
 
+    /** 단어 출처(ADR 0029): book 어휘책 단어·숙어, extra 어휘책에 없는 회차 어휘. 없으면 거부(옛 manifest가 book으로 들어가지 않게) */
+    private static final Set<String> SOURCES = Set.of("book", "extra");
+
     /** 단어 음원 키의 음원 번호. 단어 순서(no)와 따로다 — 음원은 회차 어휘 번호로 만들었고 단어 순서는 어휘책(교재) 순서다 */
     private static final Pattern WORD_AUDIO_NO = Pattern.compile("_w(\\d{2,3})_us_w\\.mp3$");
 
@@ -146,6 +149,7 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
     public record Word(
             int no,
             String english,
+            String source,
             String pos,
             String korean,
             String exampleEn,
@@ -155,6 +159,9 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
         public Word {
             String where = "단어 " + no;
             text(where, "english", english, ENGLISH_MAX);
+            if (source == null || !SOURCES.contains(source)) {
+                throw new IllegalArgumentException(where + ": 모르는 source: " + source);
+            }
             if (pos == null || !POS.contains(pos)) {
                 throw new IllegalArgumentException(where + ": 모르는 품사: " + pos);
             }

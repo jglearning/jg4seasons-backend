@@ -171,8 +171,8 @@ public final class TestData {
                 jdbc.queryForObject("select id from passage where lesson_id = ? and no = 1", Long.class, lessonId));
         for (int i = 1; i <= count; i++) {
             jdbc.update(
-                    "insert into word (lesson_id, passage_id, sort_order, english, korean, pos, example_en, example_ko)"
-                            + " values (?, ?, ?, ?, ?, 'n', ?, ?)",
+                    "insert into word (lesson_id, passage_id, sort_order, english, source, korean, pos, example_en,"
+                            + " example_ko) values (?, ?, ?, ?, 'book', ?, 'n', ?, ?)",
                     lessonId,
                     passageId,
                     i,

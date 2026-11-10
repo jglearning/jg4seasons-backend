@@ -32,6 +32,8 @@ class LessonManifestTest {
         assertThat(first.sentences().get(0).speaker()).isNull();
         assertThat(first.sentences().get(1).text()).isEqualTo("“It’s so high!” she says.");
         assertThat(manifest.words()).extracting(LessonManifest.Word::pos).containsExactly("n", "phr", "pron");
+        // 출처(ADR 0029): 녹음 자료에도 있는 어휘책 단어·어휘책에 없는 회차 어휘·어휘책에만 있는 단어
+        assertThat(manifest.words()).extracting(LessonManifest.Word::source).containsExactly("book", "extra", "book");
         assertThat(manifest.words().get(1).exampleTrack().fileKey())
                 .isEqualTo("audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3");
         assertThat(manifest.words().get(1).audioNo()).isEqualTo(2);
@@ -144,6 +146,14 @@ class LessonManifestTest {
     @Test
     void 단어_파일_키가_규칙과_다르면_거부() {
         assertRejected("L1-B1-01_w02_ex_us_w.mp3", "L1-B1-01_w01_ex_us_w.mp3", "단어 2");
+    }
+
+    @Test
+    void 단어_출처가_없거나_모르는_값이면_거부() {
+        // 옛 manifest(출처 없음)가 조용히 book으로 들어가지 않게
+        assertRejected("\"source\": \"extra\",\n", "", "단어 2");
+        assertRejected("\"source\": \"extra\"", "\"source\": null", "단어 2");
+        assertRejected("\"source\": \"extra\"", "\"source\": \"lesson\"", "단어 2");
     }
 
     @Test

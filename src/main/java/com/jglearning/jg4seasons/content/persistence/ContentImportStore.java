@@ -34,6 +34,7 @@ public class ContentImportStore {
             Long passageId,
             int sortOrder,
             String english,
+            String source,
             String korean,
             String pos,
             String exampleEn,
@@ -228,14 +229,15 @@ public class ContentImportStore {
 
     public List<WordRow> words(long lessonId) {
         return jdbc.query(
-                "select id, passage_id, sort_order, english, korean, pos, example_en, example_ko, moe_level, track_id,"
-                        + " example_track_id from word where lesson_id = :lesson",
+                "select id, passage_id, sort_order, english, source, korean, pos, example_en, example_ko, moe_level,"
+                        + " track_id, example_track_id from word where lesson_id = :lesson",
                 Map.of("lesson", lessonId),
                 (rs, i) -> new WordRow(
                         rs.getLong("id"),
                         rs.getObject("passage_id", Long.class),
                         rs.getInt("sort_order"),
                         rs.getString("english"),
+                        rs.getString("source"),
                         rs.getString("korean"),
                         rs.getString("pos"),
                         rs.getString("example_en"),
@@ -250,17 +252,20 @@ public class ContentImportStore {
             long lessonId,
             int sortOrder,
             String english,
+            String source,
             String korean,
             String pos,
             String exampleEn,
             String exampleKo) {
         return insert(
-                "insert into word (lesson_id, passage_id, sort_order, english, korean, pos, example_en, example_ko)"
-                        + " values (:lesson, null, :sortOrder, :english, :korean, :pos, :exampleEn, :exampleKo)",
+                "insert into word (lesson_id, passage_id, sort_order, english, source, korean, pos, example_en,"
+                        + " example_ko) values (:lesson, null, :sortOrder, :english, :source, :korean, :pos, :exampleEn,"
+                        + " :exampleKo)",
                 params(
                         "lesson", lessonId,
                         "sortOrder", sortOrder,
                         "english", english,
+                        "source", source,
                         "korean", korean,
                         "pos", pos,
                         "exampleEn", exampleEn,
@@ -271,6 +276,7 @@ public class ContentImportStore {
     public void updateWord(
             long id,
             String english,
+            String source,
             String korean,
             String pos,
             String exampleEn,
@@ -278,12 +284,13 @@ public class ContentImportStore {
             Long trackId,
             Long exampleTrackId) {
         jdbc.update(
-                "update word set passage_id = null, moe_level = null, english = :english, korean = :korean, pos = :pos,"
-                        + " example_en = :exampleEn, example_ko = :exampleKo, track_id = :track,"
+                "update word set passage_id = null, moe_level = null, english = :english, source = :source, korean = :korean,"
+                        + " pos = :pos, example_en = :exampleEn, example_ko = :exampleKo, track_id = :track,"
                         + " example_track_id = :exampleTrack where id = :id",
                 params(
                         "id", id,
                         "english", english,
+                        "source", source,
                         "korean", korean,
                         "pos", pos,
                         "exampleEn", exampleEn,
