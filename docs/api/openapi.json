@@ -1514,7 +1514,7 @@
           },
           "season" : {
             "type" : "string",
-            "enum" : [ "겨울", "봄", "여름", "가을" ]
+            "enum" : [ "겨울", "봄", "여름", "가을", "새봄" ]
           }
         },
         "required" : [ "code", "season" ]
@@ -1758,7 +1758,7 @@
           },
           "season" : {
             "type" : "string",
-            "enum" : [ "겨울", "봄", "여름", "가을" ]
+            "enum" : [ "겨울", "봄", "여름", "가을", "새봄" ]
           },
           "startDate" : {
             "type" : "string",
@@ -2761,7 +2761,7 @@
           },
           "season" : {
             "type" : "string",
-            "enum" : [ "겨울", "봄", "여름", "가을" ]
+            "enum" : [ "겨울", "봄", "여름", "가을", "새봄" ]
           }
         },
         "required" : [ "code", "label", "season" ]
@@ -3427,7 +3427,7 @@
           },
           "season" : {
             "type" : "string",
-            "enum" : [ "겨울", "봄", "여름", "가을" ]
+            "enum" : [ "겨울", "봄", "여름", "가을", "새봄" ]
           }
         },
         "required" : [ "code", "label", "season" ]

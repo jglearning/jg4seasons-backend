@@ -41,6 +41,17 @@ class BookDirectoryTest {
     }
 
     @Test
+    void 블랙_권의_시즌은_새봄() {
+        // 블랙은 겨울 Book 1이 아니라 예비고1 "새봄 블랙"(12월에 겨울 세트와 함께 개강)
+        TestData data = new TestData(jdbc);
+
+        BookSummary black = books.summaryOf(data.bookId("K-B1"));
+
+        assertThat(black.season()).isEqualTo("새봄");
+        assertThat(black.label()).isEqualTo("Book 1");
+    }
+
+    @Test
     void 권_코드로_1회차부터_24회차_id를_찾는다() {
         long bookId = new TestData(jdbc).bookId("L2-B1");
 

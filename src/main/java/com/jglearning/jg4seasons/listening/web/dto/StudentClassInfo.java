@@ -31,7 +31,7 @@ public record StudentClassInfo(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"겨울", "봄", "여름", "가을"})
+                    allowableValues = {"겨울", "봄", "여름", "가을", "새봄"})
             String season,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "Book 1", description = "머리글 표시 이름")
