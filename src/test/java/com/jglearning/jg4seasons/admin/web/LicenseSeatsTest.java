@@ -207,19 +207,34 @@ class LicenseSeatsTest {
     }
 
     @Test
-    void 한도를_낮춰도_기존_학생은_그대로이고_새_등록만_막는다() {
+    void 한도보다_많아져도_기존_학생은_같은_권_반끼리_옮기고_새_등록만_막는다() {
+        // 한도를 낮춰 지금 학생(2명)이 한도(1)보다 많은 상태
         license("L2-B1", 1);
-        member(classA, "하나");
+        long moving = member(classA, "하나");
         member(classA, "둘");
 
-        assertThat(mvc.get()
-                        .uri("/api/v1/admin/classes/" + classA + "/students")
-                        .cookie(cookies.access(adminId, UserRole.ADMIN, academyId))
-                        .exchange())
-                .bodyJson()
-                .extractingPath("$.items.length()")
-                .isEqualTo(2);
+        assertThat(move(moving, classB)).as("자리가 늘지 않는 이동").hasStatusOk();
         assertSeatsFull(register(classA, "셋"));
+    }
+
+    @Test
+    void 만료된_권_반에_이미_있는_학생이_다른_반에서_나가기만_하는_이동은_된다() {
+        expiredLicense("L2-B1");
+        long student = member(classA, "두 반");
+        data.enroll(classB, student);
+
+        assertThat(move(student, classB)).hasStatusOk();
+    }
+
+    @Test
+    void 만료된_권이어도_이미_그_반에만_있으면_ALREADY_IN_CLASS() {
+        expiredLicense("L2-B1");
+        long student = member(classA, "한 반");
+
+        MvcTestResult result = move(student, classA);
+
+        assertThat(result).hasStatus(409);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("ALREADY_IN_CLASS");
     }
 
     @Test
