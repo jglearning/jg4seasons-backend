@@ -68,14 +68,10 @@ public class TeacherDetailService {
         TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
         TeacherClass clazz = scoped.clazz();
         StudentRoster roster = scope.roster(scoped);
-        if (!roster.students().contains(studentId)) {
-            throw new ApiException(CommonErrorCode.NOT_FOUND, "학생을 찾을 수 없어요");
-        }
-        AcademyStudents one = roster.students().only(studentId);
-        StudentAccount account = roster.accounts().stream()
-                .filter(a -> a.id() == studentId)
-                .findFirst()
-                .orElseThrow();
+        StudentRoster mine =
+                roster.only(studentId).orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "학생을 찾을 수 없어요"));
+        AcademyStudents one = mine.students();
+        StudentAccount account = mine.accounts().get(0);
 
         Map<Long, LessonSummary> summaries = scope.lessonsOf(scoped);
         List<ClassLesson> open = clazz.lessons().stream()

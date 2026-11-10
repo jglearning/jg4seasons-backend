@@ -24,6 +24,10 @@ public final class AcademyStudents {
         return new AcademyStudents(academyId, List.copyOf(new LinkedHashSet<>(ids)));
     }
 
+    /**
+     * 어느 학원 기준으로 확인한 묶음인가. 지금은 요청 하나가 학원 하나라 범위 판정에 쓰지 않는다(범위는 "auth가 확인했다"는 것 자체) — 로그·식별용. 연계 학원이 생기면
+     * (반드시 생긴다 — 00_onboarding O-13) 한 묶음에 여러 학원 학생이 올 수 있어 학생별 학원 또는 학원별 묶음으로 바뀔 자리다. 바뀌는 곳은 이 타입과 만드는 auth뿐
+     */
     public long academyId() {
         return academyId;
     }
