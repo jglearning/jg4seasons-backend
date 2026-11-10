@@ -11,7 +11,14 @@ public record StudentClassInfo(
         String name,
 
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Level level,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Book book) {
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Book book,
+
+        @Schema(
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                allowableValues = {"before_start", "active", "expired"},
+                description = "그 반 권의 사용 상태(ADR 0031). before_start = 사용 시작 전, expired = 사용 기간이 끝났거나 사용권 없음."
+                        + " active가 아니면 그 반 회차를 열 때 403 LICENSE_INACTIVE. 사용권을 적용하지 않는 학원은 항상 active")
+        String licenseStatus) {
 
     @Schema(name = "StudentClassLevel")
     public record Level(

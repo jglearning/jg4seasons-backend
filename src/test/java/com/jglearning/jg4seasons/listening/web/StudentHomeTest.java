@@ -129,6 +129,35 @@ class StudentHomeTest {
     }
 
     @Test
+    void 사용권을_적용하지_않는_학원_반은_licenseStatus_active() {
+        assertThat(home()).bodyJson().extractingPath("$.class.licenseStatus").isEqualTo("active");
+    }
+
+    // 상태마다 테스트를 나눈다: 한 테스트 = 한 트랜잭션이라 첫 요청에서 읽은 학원·사용권이 영속성 컨텍스트에 남는다
+    @Test
+    void 사용권을_적용하는_학원에_사용권이_없으면_expired() {
+        data.enforceLicenses(academyId);
+
+        assertThat(home()).bodyJson().extractingPath("$.class.licenseStatus").isEqualTo("expired");
+    }
+
+    @Test
+    void 사용_시작_전이면_before_start() {
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L2-B1", DAY5.plusDays(1), DAY5.plusDays(60), 30);
+
+        assertThat(home()).bodyJson().extractingPath("$.class.licenseStatus").isEqualTo("before_start");
+    }
+
+    @Test
+    void 사용_시작일_당일이면_active() {
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L2-B1", DAY5, DAY5.plusDays(60), 30);
+
+        assertThat(home()).bodyJson().extractingPath("$.class.licenseStatus").isEqualTo("active");
+    }
+
+    @Test
     void 밀린_수업은_미참여와_멈춤_오래된_순() {
         var json = assertThat(home()).bodyJson();
 
