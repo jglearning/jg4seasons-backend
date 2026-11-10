@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.teacher;
 import com.jglearning.jg4seasons.auth.api.LoginAlerts;
 import com.jglearning.jg4seasons.auth.api.StudentAccount;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
+import com.jglearning.jg4seasons.clazz.api.SessionStatus;
 import com.jglearning.jg4seasons.clazz.api.TeacherClass;
 import com.jglearning.jg4seasons.content.api.BookDirectory;
 import com.jglearning.jg4seasons.content.api.BookSummary;
@@ -104,7 +105,9 @@ public class TeacherClassService {
                             lesson.seq(),
                             new MatrixLesson(summary.code(), summary.number(), summary.title()),
                             lesson.scheduledDate(),
-                            clazz.doneLessonIds().contains(lesson.lessonId()) ? "done" : "scheduled",
+                            clazz.doneLessonIds().contains(lesson.lessonId())
+                                    ? SessionStatus.DONE.value()
+                                    : SessionStatus.SCHEDULED.value(),
                             lesson.lessonId() == todayLessonId,
                             lesson.open());
                 })
