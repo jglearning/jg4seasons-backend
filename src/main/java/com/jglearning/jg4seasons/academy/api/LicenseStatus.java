@@ -24,11 +24,18 @@ public enum LicenseStatus {
 
     /** 학생 학습(회차 상세·단어·학습 결과·청취 기록): ACTIVE만 */
     public boolean allowsLearning() {
-        return this == ACTIVE;
+        // 상태를 더하면(유예 기간 등) 컴파일러가 이 결정을 요구하도록 모두 나열한다
+        return switch (this) {
+            case ACTIVE -> true;
+            case BEFORE_START, EXPIRED -> false;
+        };
     }
 
     /** 개강 준비(새 반·진도표 편집·그 권 반으로 등록·이동): BEFORE_START·ACTIVE */
     public boolean allowsPreparation() {
-        return this != EXPIRED;
+        return switch (this) {
+            case BEFORE_START, ACTIVE -> true;
+            case EXPIRED -> false;
+        };
     }
 }
