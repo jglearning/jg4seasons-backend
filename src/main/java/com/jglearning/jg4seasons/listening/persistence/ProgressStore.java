@@ -115,23 +115,19 @@ public class ProgressStore {
                         + " from track_progress where student_id in (:studentIds) and track_id in (:trackIds)",
                 new MapSqlParameterSource("studentIds", studentIds).addValue("trackIds", trackIds),
                 rs -> {
-                    BigDecimal coverage = rs.getBigDecimal("coverage");
-                    long trackId = rs.getLong("track_id");
-                    if (coverage == null || coverage.signum() < 0 || coverage.compareTo(BigDecimal.ONE) > 0) {
-                        throw new IllegalStateException("청취율은 0~1이어야 한다: track " + trackId + " " + coverage);
-                    }
+                    // 값 범위(coverage 0~1, 음수 아님)는 TrackProgressSummary가 막는다
                     rows.computeIfAbsent(rs.getLong("student_id"), id -> new HashMap<>())
                             .put(
-                                    trackId,
+                                    rs.getLong("track_id"),
                                     new TrackProgressSummary(
-                                            coverage,
+                                            rs.getBigDecimal("coverage"),
                                             rs.getObject("completed_at") != null,
                                             rs.getLong("total_play_ms"),
                                             rs.getInt("session_count"),
                                             rs.getObject("last_played_at", LocalDateTime.class)
                                                     .toInstant(ZoneOffset.UTC)));
                 });
-        return Collections.unmodifiableMap(rows);
+        return deepUnmodifiable(rows);
     }
 
     /** 여러 학생 × 여러 회차(교사 화면). 학생 id → 회차 id → 진도, 진도 행이 있는 것만. completed_at은 UTC로 읽는다 */
@@ -156,6 +152,12 @@ public class ProgressStore {
                                             rs.getInt("required_total"),
                                             completedAt == null ? null : completedAt.toInstant(ZoneOffset.UTC)));
                 });
-        return Collections.unmodifiableMap(rows);
+        return deepUnmodifiable(rows);
+    }
+
+    /** 학생 id → (id → 값) 맵을 안쪽까지 수정할 수 없게 */
+    private static <V> Map<Long, Map<Long, V>> deepUnmodifiable(Map<Long, Map<Long, V>> rows) {
+        return rows.entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> Map.copyOf(e.getValue())));
     }
 }

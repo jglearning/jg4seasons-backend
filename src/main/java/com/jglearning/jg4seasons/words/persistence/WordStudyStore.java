@@ -5,10 +5,10 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -49,7 +49,8 @@ public class WordStudyStore {
                                             rs.getInt("recall_best"),
                                             rs.getInt("spell_best")));
                 });
-        return Collections.unmodifiableMap(rows);
+        return rows.entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> Map.copyOf(e.getValue())));
     }
 
     public Optional<Integer> memKnown(long studentId, long lessonId) {
