@@ -20,4 +20,7 @@ public interface LessonCatalog {
 
     /** 권의 회차 전부, number 순. 없는 권이면 빈 목록 */
     List<LessonSummary> lessonsOfBook(long bookId);
+
+    /** 회차 단어 전부, 교재 순서(sort_order). 없으면 빈 목록. 트랙이 단어·예문 트랙이 아니거나 길이가 0 이하면 데이터 오류라 IllegalStateException */
+    List<LessonWord> words(long lessonId);
 }

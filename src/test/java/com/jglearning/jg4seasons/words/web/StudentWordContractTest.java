@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 2.4 단어·2.5 학습 결과 계약(구현 전 501). 검증(400)과 접근 규칙(401·403)은 지금도 동작한다. */
+/** 2.4 단어·2.5 학습 결과의 검증(400)과 역할·쿠키 규칙(401·403). 2.4 동작은 StudentWordsTest, 2.5는 구현 전 501. */
 @IntegrationTest
 @Transactional
 class StudentWordContractTest {
@@ -72,15 +72,11 @@ class StudentWordContractTest {
     }
 
     @Test
-    void 학생의_올바른_요청은_501_NOT_IMPLEMENTED() {
-        MvcTestResult words =
-                mvc.get().uri(WORDS).cookie(as(studentId, UserRole.STUDENT)).exchange();
+    void 학습_결과_저장은_아직_501_NOT_IMPLEMENTED() {
         MvcTestResult saved = study("{\"cardsViewed\":57,\"memKnown\":40}");
 
-        for (MvcTestResult result : new MvcTestResult[] {words, saved}) {
-            assertThat(result).hasStatus(501);
-            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_IMPLEMENTED");
-        }
+        assertThat(saved).hasStatus(501);
+        assertThat(saved).bodyJson().extractingPath("$.code").isEqualTo("NOT_IMPLEMENTED");
     }
 
     @Test

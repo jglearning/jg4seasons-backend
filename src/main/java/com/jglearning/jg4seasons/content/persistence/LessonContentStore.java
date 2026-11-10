@@ -175,6 +175,52 @@ public class LessonContentStore {
                 bookId);
     }
 
+    /** 단어 + 단어·예문 트랙(없으면 track 칸이 NULL) */
+    public record WordRow(
+            long id,
+            int sortOrder,
+            String source,
+            String english,
+            String korean,
+            String pos,
+            String exampleEn,
+            String exampleKo,
+            Long trackId,
+            String trackKind,
+            String trackKey,
+            Integer trackMs,
+            Long exampleTrackId,
+            String exampleKind,
+            String exampleKey,
+            Integer exampleMs) {}
+
+    public List<WordRow> words(long lessonId) {
+        return jdbc.query(
+                "select w.id, w.sort_order, w.source, w.english, w.korean, w.pos, w.example_en, w.example_ko,"
+                        + " t.id t_id, t.kind t_kind, t.file_key t_key, t.duration_ms t_ms,"
+                        + " e.id e_id, e.kind e_kind, e.file_key e_key, e.duration_ms e_ms"
+                        + " from word w left join track t on t.id = w.track_id left join track e on e.id = w.example_track_id"
+                        + " where w.lesson_id = ? order by w.sort_order",
+                (rs, i) -> new WordRow(
+                        rs.getLong("id"),
+                        rs.getInt("sort_order"),
+                        rs.getString("source"),
+                        rs.getString("english"),
+                        rs.getString("korean"),
+                        rs.getString("pos"),
+                        rs.getString("example_en"),
+                        rs.getString("example_ko"),
+                        rs.getObject("t_id", Long.class),
+                        rs.getString("t_kind"),
+                        rs.getString("t_key"),
+                        rs.getObject("t_ms", Integer.class),
+                        rs.getObject("e_id", Long.class),
+                        rs.getString("e_kind"),
+                        rs.getString("e_key"),
+                        rs.getObject("e_ms", Integer.class)),
+                lessonId);
+    }
+
     public int wordCount(long lessonId) {
         Integer count = jdbc.queryForObject("select count(*) from word where lesson_id = ?", Integer.class, lessonId);
         return count == null ? 0 : count;

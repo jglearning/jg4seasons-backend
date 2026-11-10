@@ -183,6 +183,59 @@ public final class TestData {
         }
     }
 
+    /**
+     * 실제 자료 모양의 단어 하나(ADR 0027·0029): 지문 연결 없음. withAudio면 단어·예문 트랙(`w{nn}:us_w`, 900·2400ms)과 예문 해석이 있고, 아니면 셋 다
+     * NULL(어휘책에만 있는 단어). 지어낸 단어만 쓴다
+     */
+    public void word(String lessonCode, int sortOrder, String english, String source, String pos, boolean withAudio) {
+        long lessonId = lessonId(lessonCode);
+        Long trackId = null;
+        Long exampleTrackId = null;
+        if (withAudio) {
+            String no = String.format("%02d", sortOrder);
+            trackId = wordTrack(
+                    lessonId, "word", "w" + no + ":us_w", lessonCode + "/" + lessonCode + "_w" + no + "_us_w.mp3", 900);
+            exampleTrackId = wordTrack(
+                    lessonId,
+                    "word_example",
+                    "w" + no + ":us_w",
+                    lessonCode + "/" + lessonCode + "_w" + no + "_ex_us_w.mp3",
+                    2400);
+        }
+        jdbc.update(
+                "insert into word (lesson_id, passage_id, sort_order, english, source, korean, pos, example_en,"
+                        + " example_ko, track_id, example_track_id) values (?, null, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                lessonId,
+                sortOrder,
+                english,
+                source,
+                english + " 뜻",
+                pos,
+                "A made-up line with " + english + ".",
+                withAudio ? "지어낸 예문 " + sortOrder : null,
+                trackId,
+                exampleTrackId);
+    }
+
+    private long wordTrack(long lessonId, String kind, String variant, String path, int durationMs) {
+        KeyHolder key = new GeneratedKeyHolder();
+        jdbc.update(
+                connection -> {
+                    PreparedStatement ps = connection.prepareStatement(
+                            "insert into track (lesson_id, passage_id, kind, variant, file_key, duration_ms, sort_order)"
+                                    + " values (?, null, ?, ?, ?, ?, 0)",
+                            Statement.RETURN_GENERATED_KEYS);
+                    ps.setLong(1, lessonId);
+                    ps.setString(2, kind);
+                    ps.setString(3, variant);
+                    ps.setString(4, "audio/" + path);
+                    ps.setInt(5, durationMs);
+                    return ps;
+                },
+                key);
+        return Objects.requireNonNull(key.getKey()).longValue();
+    }
+
     public void leave(long classId, long studentId) {
         jdbc.update(
                 "update enrollment set left_at = ? where class_id = ? and student_id = ?",
