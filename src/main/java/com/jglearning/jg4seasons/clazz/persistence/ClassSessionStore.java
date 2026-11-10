@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 반 진도표(class_session) 읽기·쓰기. 이 테이블에는 academy_id가 없어, 반을 학원 범위로 확인한 뒤에만 부른다(ClassManagementService).
+ * 반 진도표(class_session) 읽기·쓰기. 이 테이블에는 academy_id가 없어, 반을 학원 범위로 확인한 뒤에만 부른다(ClassManagementService·ClassSchedulesService 등).
  */
 @Component
 public class ClassSessionStore {
@@ -52,23 +52,25 @@ public class ClassSessionStore {
                 rs.getString("note"));
     }
 
-    /** 진도표를 바꿀 때 쓸 행. id null = 새 행 */
-    public record SessionWrite(
-            Long id, int seq, long lessonId, LocalDate scheduledDate, SessionStatus status, String note) {}
+    /** 진도표를 바꿀 때 쓸 행. id null = 새 행. seq는 replace가 목록 순서로 매긴다 */
+    public record SessionWrite(Long id, long lessonId, LocalDate scheduledDate, SessionStatus status, String note) {}
 
     /**
      * 반 진도표를 rows로 바꾼다(ADR 0030). 호출자가 반 행을 잠근 트랜잭션 안에서만. 유일 키 (class_id, seq)가 중간에 겹치지 않게 먼저 그 반의 seq를 음수로 비켜 두고
-     * 행마다 고친 뒤 새 행을 넣는다. rows는 그 반의 기존 행을 모두 포함해야 한다(빠진 행은 음수 seq로 남는다 — 호출자 버그)
+     * 행마다 고친 뒤 새 행을 넣는다. seq = 목록 순서(1부터, 빈틈 없음) — "경로 seq = 진도표 위치"라는 계약을 여기 한 곳에서 지킨다. rows는 그 반의 기존 행을 모두
+     * 포함해야 한다(빠진 행은 음수 seq로 남아 예외 — 호출자 버그)
      */
     public void replace(long classId, List<SessionWrite> rows) {
         jdbc.update("update class_session set seq = -seq where class_id = ?", classId);
-        for (SessionWrite row : rows) {
+        for (int i = 0; i < rows.size(); i++) {
+            SessionWrite row = rows.get(i);
+            int seq = i + 1;
             if (row.id() == null) {
                 jdbc.update(
                         "insert into class_session (class_id, seq, lesson_id, scheduled_date, status, note)"
                                 + " values (?, ?, ?, ?, ?, ?)",
                         classId,
-                        row.seq(),
+                        seq,
                         row.lessonId(),
                         row.scheduledDate(),
                         row.status().value(),
@@ -77,7 +79,7 @@ public class ClassSessionStore {
                 int updated = jdbc.update(
                         "update class_session set seq = ?, scheduled_date = ?, status = ?, note = ?"
                                 + " where id = ? and class_id = ?",
-                        row.seq(),
+                        seq,
                         row.scheduledDate(),
                         row.status().value(),
                         row.note(),

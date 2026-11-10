@@ -75,12 +75,12 @@ class ClassSchedulesService implements ClassSchedules {
                 .toList();
         List<ScheduleEdit.Row> result = edit.apply(rows, clazz.getWeekdays());
         if (!result.equals(rows)) {
-            List<SessionWrite> writes = new ArrayList<>(result.size());
-            for (int i = 0; i < result.size(); i++) {
-                ScheduleEdit.Row row = result.get(i);
-                writes.add(new SessionWrite(row.id(), i + 1, row.lessonId(), row.date(), row.status(), row.note()));
-            }
-            sessions.replace(clazz.getId(), writes);
+            sessions.replace(
+                    clazz.getId(),
+                    result.stream()
+                            .map(row ->
+                                    new SessionWrite(row.id(), row.lessonId(), row.date(), row.status(), row.note()))
+                            .toList());
         }
         List<ScheduleEntry> entries = new ArrayList<>(result.size());
         for (int i = 0; i < result.size(); i++) {
