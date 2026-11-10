@@ -151,6 +151,24 @@ class LicenseSeatsTest {
     }
 
     @Test
+    void 같은_권_두_반에_함께_속한_학생은_한_자리로_센다() {
+        license("L2-B1", 2);
+        long both = member(classA, "두 반");
+        data.enroll(classB, both);
+
+        assertThat(register(classA, "김하나")).hasStatus(201);
+    }
+
+    @Test
+    void 만료된_권_반에서_다른_권_반으로_이동은_된다() {
+        expiredLicense("L2-B1");
+        license("L2-B2", 30);
+        long student = member(classA, "옮김");
+
+        assertThat(move(student, classC)).hasStatusOk();
+    }
+
+    @Test
     void 같은_권_반끼리_이동은_자리를_더_쓰지_않는다() {
         license("L2-B1", 2);
         long student = member(classA, "이동");

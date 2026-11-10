@@ -234,7 +234,9 @@ class LicensePreparationTest {
     @Test
     void 다른_학원_반_진도표는_만료여도_404() {
         expired();
+        // 다른 학원도 사용권을 적용하고 사용권이 없다 — 판정이 범위 확인보다 앞서면 403이 나야 실패할 수 있다
         long other = data.academy("다른 학원");
+        data.enforceLicenses(other);
         long otherTeacher = data.staff(other, "다른 교사", "teacher");
 
         MvcTestResult result = send(
