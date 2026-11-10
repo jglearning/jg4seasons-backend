@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.clazz;
 
+import com.jglearning.jg4seasons.academy.api.BookLicenses;
 import com.jglearning.jg4seasons.clazz.api.ClassSchedules;
 import com.jglearning.jg4seasons.clazz.api.ScheduleChange;
 import com.jglearning.jg4seasons.clazz.api.ScheduleEntry;
@@ -21,10 +22,12 @@ class ClassSchedulesService implements ClassSchedules {
 
     private final ClassRepository classes;
     private final ClassSessionStore sessions;
+    private final BookLicenses licenses;
 
-    ClassSchedulesService(ClassRepository classes, ClassSessionStore sessions) {
+    ClassSchedulesService(ClassRepository classes, ClassSessionStore sessions, BookLicenses licenses) {
         this.classes = classes;
         this.sessions = sessions;
+        this.licenses = licenses;
     }
 
     @Override
@@ -43,6 +46,7 @@ class ClassSchedulesService implements ClassSchedules {
         return edit(
                 academyId,
                 classId,
+                today,
                 (rows, weekdays) -> ScheduleEdit.reschedule(
                         rows, seq, change.scheduledDate(), change.note(), change.shiftFollowing(), weekdays, today));
     }
@@ -54,6 +58,7 @@ class ClassSchedulesService implements ClassSchedules {
         return edit(
                 academyId,
                 classId,
+                today,
                 (rows, weekdays) -> ScheduleEdit.cancel(rows, seq, note, shiftFollowing, weekdays, today));
     }
 
@@ -63,12 +68,15 @@ class ClassSchedulesService implements ClassSchedules {
     }
 
     /**
-     * 같은 반 편집은 반 행 잠금으로 줄 세운다: 잠금(학원 범위, 없으면 404) → 진도표 잠금 읽기(최신 행 — 앞선 일반 읽기 스냅숏이 아니라) → 규칙 → 바뀌었으면 쓰기.
+     * 같은 반 편집은 반 행 잠금으로 줄 세운다: 잠금(학원 범위, 없으면 404) → 그 권 사용 기간(시작 전·기간 안이 아니면 403, 메모만 바꿔도 — ADR 0031) → 진도표 잠금 읽기(최신 행 — 앞선 일반 읽기 스냅숏이 아니라) → 규칙 → 바뀌었으면 쓰기.
      * 결과 목록의 순서가 새 seq
      */
-    private List<ScheduleEntry> edit(long academyId, long classId, Edit edit) {
+    private List<ScheduleEntry> edit(long academyId, long classId, LocalDate today, Edit edit) {
         Clazz clazz = classes.findByAcademyIdAndIdForUpdate(academyId, classId)
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "반을 찾을 수 없어요"));
+        if (!licenses.statusOf(academyId, clazz.getBookId(), today).allowsPreparation()) {
+            throw new ApiException(ClassErrorCode.LICENSE_INACTIVE, "사용 기간이 아니에요");
+        }
         List<ScheduleEdit.Row> rows = sessions.findByClassForUpdate(clazz.getId()).stream()
                 .map(row ->
                         new ScheduleEdit.Row(row.id(), row.lessonId(), row.scheduledDate(), row.status(), row.note()))

@@ -1,5 +1,7 @@
 package com.jglearning.jg4seasons.clazz;
 
+import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
+import com.jglearning.jg4seasons.academy.api.BookLicenses;
 import com.jglearning.jg4seasons.clazz.api.ClassChange;
 import com.jglearning.jg4seasons.clazz.api.ClassDetail;
 import com.jglearning.jg4seasons.clazz.api.ClassManagement;
@@ -29,6 +31,8 @@ class ClassManagementService implements ClassManagement {
     private final ClassSessionStore sessions;
     private final AccessCodeLookup accessCodes;
     private final AccessCodeGenerator codeGenerator;
+    private final AcademyDirectory academies;
+    private final BookLicenses licenses;
     private final Clock clock;
 
     ClassManagementService(
@@ -37,12 +41,16 @@ class ClassManagementService implements ClassManagement {
             ClassSessionStore sessions,
             AccessCodeLookup accessCodes,
             AccessCodeGenerator codeGenerator,
+            AcademyDirectory academies,
+            BookLicenses licenses,
             Clock clock) {
         this.classes = classes;
         this.enrollments = enrollments;
         this.sessions = sessions;
         this.accessCodes = accessCodes;
         this.codeGenerator = codeGenerator;
+        this.academies = academies;
+        this.licenses = licenses;
         this.clock = clock;
     }
 
@@ -54,6 +62,11 @@ class ClassManagementService implements ClassManagement {
         List<Long> lessonIds = newClass.lessons().lessonIdsByNumber();
         if (lessonIds.isEmpty()) {
             throw new IllegalArgumentException("회차 id가 없다");
+        }
+        // 입력 검사(400) 다음, 쓰기 전. 시작 전에는 개강 준비로 만들 수 있다(ADR 0031)
+        LocalDate today = LocalDate.now(clock.withZone(academies.zoneOf(academyId)));
+        if (!licenses.statusOf(academyId, newClass.lessons().bookId(), today).allowsPreparation()) {
+            throw new ApiException(ClassErrorCode.LICENSE_INACTIVE, "사용 기간이 아니에요");
         }
 
         Clazz clazz = classes.save(Clazz.create(
