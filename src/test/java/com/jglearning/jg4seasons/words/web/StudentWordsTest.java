@@ -10,6 +10,7 @@ import jakarta.servlet.http.Cookie;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -79,10 +80,12 @@ class StudentWordsTest {
 
     @Test
     void 교재_순서로_출처와_함께_준다() {
-        // 어휘책에만 있는 단어(음원·해석 없음) → 녹음 자료에도 있는 어휘책 단어 → 어휘책에 없는 회차 어휘
+        // 어휘책에만 있는 단어(음원·해석 없음) → 녹음 자료에도 있는 어휘책 단어 → 어휘책에 없는 회차 어휘.
+        // 넣는 순서를 섞어 정렬을 확인하고(넣은 순서 = PK 순서라 정렬이 빠져도 통과하지 않게), 다른 회차 단어가 섞이지 않는지 본다(리뷰 5)
+        data.word(TODAY_CODE, 3, "wander off", "extra", "phr", true);
+        data.word(TOMORROW_CODE, 1, "decoy", "book", "n", false);
         data.word(TODAY_CODE, 1, "glimmer", "book", "pron", false);
         data.word(TODAY_CODE, 2, "brisk", "book", "adj", true);
-        data.word(TODAY_CODE, 3, "wander off", "extra", "phr", true);
 
         MvcTestResult result = getAsStudent(TODAY_CODE);
 
@@ -167,5 +170,45 @@ class StudentWordsTest {
     @Test
     void 없는_회차는_404() {
         assertThat(getAsStudent("L9-B9-99")).hasStatus(404);
+    }
+
+    @Test
+    void 학원이_정지면_401() {
+        jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
+
+        assertThat(getAsStudent(TODAY_CODE)).hasStatus(401);
+    }
+
+    @Test
+    void 단어_음원이_단어_트랙이_아니면_500_고정_문구() {
+        // import가 막는 데이터 오류 — 읽을 때도 틀린 음원을 내보내지 않는다(리뷰 6)
+        Map<String, Long> passageTracks = data.lessonContent(TODAY_CODE, 1, 1, List.of("us_w"));
+        data.word(TODAY_CODE, 1, "brisk", "book", "adj", true);
+        jdbc.update(
+                "update word set track_id = ? where lesson_id = ? and sort_order = 1",
+                passageTracks.get("p1:us_w"),
+                data.lessonId(TODAY_CODE));
+
+        assertInternal(getAsStudent(TODAY_CODE));
+    }
+
+    @Test
+    void 단어_음원_길이가_0이면_500_고정_문구() {
+        data.word(TODAY_CODE, 1, "brisk", "book", "adj", true);
+        jdbc.update(
+                "update track set duration_ms = 0 where id = (select track_id from word where lesson_id = ? and sort_order = 1)",
+                data.lessonId(TODAY_CODE));
+
+        assertInternal(getAsStudent(TODAY_CODE));
+    }
+
+    private static void assertInternal(MvcTestResult result) {
+        assertThat(result).hasStatus(500);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("INTERNAL");
+        assertThat(result)
+                .bodyText()
+                .as("예외 메시지(word·track id)를 응답에 넣지 않는다")
+                .doesNotContain("track")
+                .doesNotContain("word ");
     }
 }

@@ -175,11 +175,14 @@ class WordStudySaveTest {
 
     @Test
     void 회차_단어_수보다_크면_400() {
-        MvcTestResult result = save("{\"spellCorrect\":11}");
+        // 칸마다 이름이 맞게 나오는지(리뷰 8)
+        for (String field : List.of("cardsViewed", "memKnown", "recallCorrect", "spellCorrect")) {
+            MvcTestResult result = save("{\"" + field + "\":11}");
 
-        assertThat(result).hasStatus(400);
-        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
-        assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("spellCorrect");
+            assertThat(result).as(field).hasStatus(400);
+            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
+            assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo(field);
+        }
         assertThat(jdbc.queryForObject(
                         "select count(*) from word_study where student_id = ?", Integer.class, studentId))
                 .as("거부하면 행을 만들지 않는다")
@@ -197,6 +200,41 @@ class WordStudySaveTest {
         MvcTestResult zero = save("L2-B1-07", "{\"cardsViewed\":0}", access);
         assertThat(zero).hasStatusOk();
         assertThat(zero).bodyJson().extractingPath("$.allViewed").isEqualTo(false);
+        // 두 번째 저장은 갱신 경로(SQL의 단어 수 > 0 조건)를 지난다(리뷰 7)
+        MvcTestResult again = save("L2-B1-07", "{\"cardsViewed\":0}", access);
+        assertThat(again).bodyJson().extractingPath("$.allViewed").isEqualTo(false);
+        assertThat(jdbc.queryForObject(
+                        "select all_viewed_at is null from word_study where student_id = ? and lesson_id = ?",
+                        Boolean.class,
+                        studentId,
+                        data.lessonId("L2-B1-07")))
+                .isTrue();
+    }
+
+    @Test
+    void 저장된_카드_수가_이미_단어_수면_다른_칸만_보내도_allViewed() {
+        // 다 본 시각이 비어 있는 옛 행(리뷰 7): 새 값만 보면 켜지지 않는다 — 저장값과 새 값 중 큰 값을 본다
+        jdbc.update(
+                "insert into word_study (student_id, lesson_id, cards_viewed, last_viewed_at) values (?, ?, ?, ?)",
+                studentId,
+                data.lessonId(TODAY_CODE),
+                WORDS,
+                LocalDateTime.of(2026, 11, 9, 3, 0));
+
+        MvcTestResult result = save("{\"memKnown\":1}");
+
+        assertThat(result).bodyJson().extractingPath("$.allViewed").isEqualTo(true);
+        assertThat(row()).containsEntry("all_viewed_at", LocalDateTime.of(2026, 11, 10, 3, 0));
+    }
+
+    @Test
+    void 정지_학원_학생은_401이고_행이_안_생긴다() {
+        jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
+
+        assertThat(save("{\"memKnown\":1}")).hasStatus(401);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from word_study where student_id = ?", Integer.class, studentId))
+                .isZero();
     }
 
     @Test
