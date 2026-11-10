@@ -61,10 +61,8 @@ public class TeacherClassService {
     }
 
     public TeacherClassListResponse classes(long academyId, long actorId) {
-        TeacherScope.ScopedClasses scoped = scope.activeClasses(academyId, actorId);
-        LocalDate today = scoped.today();
-        List<TeacherClassItem> items = scoped.classes().stream()
-                .map(clazz -> toItem(academyId, clazz, today))
+        List<TeacherClassItem> items = scope.activeClasses(academyId, actorId).stream()
+                .map(this::toItem)
                 .toList();
         return new TeacherClassListResponse(items);
     }
@@ -92,8 +90,8 @@ public class TeacherClassService {
                 .filter(ClassLesson::held)
                 .filter(lesson -> lesson.seq() >= from && lesson.seq() <= to)
                 .toList();
-        Map<Long, LessonSummary> lessons = scope.lessonsOf(clazz);
-        List<StudentAccount> rows = scope.roster(academyId, clazz).accounts();
+        Map<Long, LessonSummary> lessons = scope.lessonsOf(scoped);
+        List<StudentAccount> rows = scope.roster(scoped).accounts();
         Map<Long, Map<Long, LessonProgressSummary>> progressById = progress.progressOf(
                 rows.stream().map(StudentAccount::id).toList(),
                 clazz.lessons().stream().map(ClassLesson::lessonId).toList());
@@ -151,10 +149,11 @@ public class TeacherClassService {
                 cells);
     }
 
-    private TeacherClassItem toItem(long academyId, TeacherClass clazz, LocalDate today) {
-        List<Long> studentIds = scope.roster(academyId, clazz).accounts().stream()
-                .map(StudentAccount::id)
-                .toList();
+    private TeacherClassItem toItem(TeacherScope.ScopedClass scoped) {
+        TeacherClass clazz = scoped.clazz();
+        LocalDate today = scoped.today();
+        List<Long> studentIds =
+                scope.roster(scoped).accounts().stream().map(StudentAccount::id).toList();
         Map<Long, Map<Long, LessonProgressStatus>> statuses = statusesOf(clazz, studentIds);
         Board classBoard = LessonBoard.evaluate(clazz.lessons(), Map.of(), today); // 오늘 회차·다음 수업은 학생과 무관
         int overdueStudents = (int) studentIds.stream()
@@ -165,7 +164,7 @@ public class TeacherClassService {
         BookSummary book = books.summaryOf(clazz.bookId());
         TeacherClassCurrent current = classBoard
                 .today()
-                .map(lesson -> current(clazz, lesson, statuses, studentIds))
+                .map(lesson -> current(scoped, lesson, statuses, studentIds))
                 .orElse(null);
         TeacherClassNext next = classBoard
                 .next()
@@ -188,7 +187,7 @@ public class TeacherClassService {
     }
 
     private TeacherClassCurrent current(
-            TeacherClass clazz,
+            TeacherScope.ScopedClass scoped,
             ClassLesson lesson,
             Map<Long, Map<Long, LessonProgressStatus>> statuses,
             List<Long> studentIds) {
@@ -203,7 +202,7 @@ public class TeacherClassService {
                 inProgress++;
             }
         }
-        LessonSummary summary = TeacherScope.summaryOf(scope.lessonsOf(clazz), clazz, lesson);
+        LessonSummary summary = TeacherScope.summaryOf(scope.lessonsOf(scoped), scoped.clazz(), lesson);
         return new TeacherClassCurrent(
                 lesson.seq(),
                 new TeacherLessonRef(summary.code(), summary.title()),

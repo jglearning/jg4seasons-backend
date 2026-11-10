@@ -65,8 +65,9 @@ public class TeacherDetailService {
     }
 
     public StudentDetailResponse student(long academyId, long actorId, long classId, long studentId) {
-        TeacherClass clazz = scope.classOf(academyId, actorId, classId).clazz();
-        StudentRoster roster = scope.roster(academyId, clazz);
+        TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
+        TeacherClass clazz = scoped.clazz();
+        StudentRoster roster = scope.roster(scoped);
         if (!roster.students().contains(studentId)) {
             throw new ApiException(CommonErrorCode.NOT_FOUND, "학생을 찾을 수 없어요");
         }
@@ -76,7 +77,7 @@ public class TeacherDetailService {
                 .findFirst()
                 .orElseThrow();
 
-        Map<Long, LessonSummary> summaries = scope.lessonsOf(clazz);
+        Map<Long, LessonSummary> summaries = scope.lessonsOf(scoped);
         List<ClassLesson> open = clazz.lessons().stream()
                 .filter(ClassLesson::open)
                 .sorted(Comparator.comparingInt(ClassLesson::seq))
@@ -113,7 +114,8 @@ public class TeacherDetailService {
      * 명단 묶음으로만. 수업 전 회차도 보여 준다(수업 전 확인용). scheduledDate는 진도표에서 휴강이 아닌 수업일, 휴강 행만 있으면 null
      */
     public TeacherLessonDetailResponse lesson(long academyId, long actorId, long classId, String lessonCode) {
-        TeacherClass clazz = scope.classOf(academyId, actorId, classId).clazz();
+        TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
+        TeacherClass clazz = scoped.clazz();
         LessonContent content = catalog.findByCode(lessonCode)
                 .filter(c -> c.bookId() == clazz.bookId())
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요"));
@@ -122,7 +124,7 @@ public class TeacherDetailService {
                 .map(ClassLesson::scheduledDate)
                 .findFirst()
                 .orElse(null);
-        StudentRoster roster = scope.roster(academyId, clazz);
+        StudentRoster roster = scope.roster(scoped);
 
         List<TeacherLessonTrack> trackList = new ArrayList<>();
         for (LessonContent.Passage passage : content.passages()) {

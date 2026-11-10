@@ -55,24 +55,49 @@ class TeacherScope {
         this.clock = clock;
     }
 
-    /** 범위 안 반 하나와 그 학원의 오늘 */
-    record ScopedClass(TeacherClass clazz, LocalDate today) {}
+    /**
+     * 범위 확인(활성 교사 → 담당 반, 관리자는 학원 전체)을 거친 반 — 생성자가 private이라 TeacherScope만 만든다. 명단·회차(roster·lessonsOf)는 이것만 받아,
+     * 확인 없이 만든 TeacherClass로 같은 학원 다른 반 학생 명단을 얻는 길을 막는다. today = 그 학원 타임존 날짜
+     */
+    static final class ScopedClass {
+        private final long academyId;
+        private final TeacherClass clazz;
+        private final LocalDate today;
 
-    /** 범위 안 진행 중 반들과 그 학원의 오늘 */
-    record ScopedClasses(List<TeacherClass> classes, LocalDate today) {}
+        private ScopedClass(long academyId, TeacherClass clazz, LocalDate today) {
+            this.academyId = academyId;
+            this.clazz = clazz;
+            this.today = today;
+        }
+
+        long academyId() {
+            return academyId;
+        }
+
+        TeacherClass clazz() {
+            return clazz;
+        }
+
+        LocalDate today() {
+            return today;
+        }
+    }
 
     /** 진행 중 반, id 순(4.1). 순서: 활성 교사·관리자 확인(아니면 401) → 오늘(학원 타임존) → 범위(관리자 학원 전체, 교사 담당 반) */
-    ScopedClasses activeClasses(long academyId, long actorId) {
+    List<ScopedClass> activeClasses(long academyId, long actorId) {
         boolean wholeAcademy = wholeAcademy(academyId, actorId);
         LocalDate today = today(academyId);
-        return new ScopedClasses(teacherClasses.activeClasses(academyId, actorId, wholeAcademy, today), today);
+        return teacherClasses.activeClasses(academyId, actorId, wholeAcademy, today).stream()
+                .map(clazz -> new ScopedClass(academyId, clazz, today))
+                .toList();
     }
 
     /** 반 하나. 순서는 activeClasses와 같고, 범위 밖·없는 반은 404 */
     ScopedClass classOf(long academyId, long actorId, long classId) {
         boolean wholeAcademy = wholeAcademy(academyId, actorId);
         LocalDate today = today(academyId);
-        return new ScopedClass(teacherClasses.classOf(academyId, actorId, wholeAcademy, classId, today), today);
+        return new ScopedClass(
+                academyId, teacherClasses.classOf(academyId, actorId, wholeAcademy, classId, today), today);
     }
 
     /** 요청한 사람이 지금 활성 관리자면 true, 활성 교사면 false. 둘 다 아니면 401(DB의 지금 역할 — JWT 역할 아님) */
@@ -88,8 +113,9 @@ class TeacherScope {
      * 반의 현재 소속 중 그 학원 학생만(이름 순). enrollment에는 학원 칸이 없어 소속이 어긋나면 다른 학원 학생·교사 id가 섞일 수 있다 — 교사 화면의 숫자·행·진도
      * 조회는 모두 이 목록만 쓰고, 빠진 id는 WARN으로 남긴다(화면은 일관되게, 원인은 로그로)
      */
-    StudentRoster roster(long academyId, TeacherClass clazz) {
-        StudentRoster roster = students.roster(academyId, clazz.studentIds());
+    StudentRoster roster(ScopedClass scoped) {
+        TeacherClass clazz = scoped.clazz();
+        StudentRoster roster = students.roster(scoped.academyId(), clazz.studentIds());
         List<StudentAccount> found = roster.accounts();
         if (found.size() != clazz.studentIds().size()) {
             Set<Long> kept = found.stream().map(StudentAccount::id).collect(Collectors.toSet());
@@ -102,8 +128,8 @@ class TeacherScope {
     }
 
     /** 반 권의 회차, 회차 id → 요약 */
-    Map<Long, LessonSummary> lessonsOf(TeacherClass clazz) {
-        return catalog.lessonsOfBook(clazz.bookId()).stream()
+    Map<Long, LessonSummary> lessonsOf(ScopedClass scoped) {
+        return catalog.lessonsOfBook(scoped.clazz().bookId()).stream()
                 .collect(Collectors.toMap(LessonSummary::lessonId, Function.identity()));
     }
 
