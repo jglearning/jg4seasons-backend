@@ -7,7 +7,8 @@ package com.jglearning.jg4seasons.clazz.api;
 public interface StudentLessonGate {
 
     /**
-     * 어느 소속 반 진도표에도 없으면(다른 권·다른 학원·퇴원·끝난 반) 404 {@code NOT_FOUND}, 진도표에는 있지만 모두 수업일 전·휴강이면 423 {@code LESSON_LOCKED}.
+     * 어느 소속 반 진도표에도 없으면(다른 권·다른 학원·퇴원·끝난 반) 404 {@code NOT_FOUND}, 그 권의 사용 기간이 아니면(ADR 0031) 403
+     * {@code LICENSE_INACTIVE}, 진도표에는 있지만 모두 수업일 전·휴강이면 423 {@code LESSON_LOCKED} — 이 순서로 본다.
      * 오늘은 학원 타임존 날짜
      */
     void requireOpen(long academyId, long studentId, long bookId, long lessonId);
