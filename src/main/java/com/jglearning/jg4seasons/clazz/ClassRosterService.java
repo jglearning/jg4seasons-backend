@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.clazz;
 
+import com.jglearning.jg4seasons.academy.api.BookLicenses;
 import com.jglearning.jg4seasons.clazz.api.ActiveClassToday;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.ClassRef;
@@ -18,6 +19,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -37,16 +39,19 @@ class ClassRosterService implements ClassRoster {
     private final EnrollmentRepository enrollments;
     private final ClassTeacherStore classTeachers;
     private final StudentClasses studentClasses;
+    private final BookLicenses licenses;
 
     ClassRosterService(
             ClassRepository classes,
             EnrollmentRepository enrollments,
             ClassTeacherStore classTeachers,
-            StudentClasses studentClasses) {
+            StudentClasses studentClasses,
+            BookLicenses licenses) {
         this.classes = classes;
         this.enrollments = enrollments;
         this.classTeachers = classTeachers;
         this.studentClasses = studentClasses;
+        this.licenses = licenses;
     }
 
     @Override
@@ -58,7 +63,9 @@ class ClassRosterService implements ClassRoster {
 
     @Override
     public void enroll(long academyId, long classId, List<Long> studentIds, LocalDate on) {
-        requireActive(requireClass(academyId, classId));
+        Clazz clazz = requireClass(academyId, classId);
+        requireActive(clazz);
+        requireLicense(clazz, studentIds, on);
         for (Long studentId : studentIds) {
             enrollments.save(Enrollment.join(classId, studentId, on));
         }
@@ -92,7 +99,9 @@ class ClassRosterService implements ClassRoster {
 
     @Override
     public MoveResult move(long academyId, long studentId, long toClassId, LocalDate on) {
-        requireActive(requireClass(academyId, toClassId));
+        Clazz target = requireClass(academyId, toClassId);
+        requireActive(target);
+        requireLicense(target, List.of(studentId), on);
         List<Enrollment> current = currentInAcademy(academyId, studentId);
         List<Enrollment> leaving =
                 current.stream().filter(e -> e.getClassId() != toClassId).toList();
@@ -174,6 +183,28 @@ class ClassRosterService implements ClassRoster {
         // 다른 학원 반·없는 반 — 존재를 드러내지 않게 404(API 명세 §0.3)
         return classes.findByAcademyIdAndId(academyId, classId)
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "반을 찾을 수 없어요"));
+    }
+
+    /**
+     * 받는 반의 권 사용권(ADR 0031): 시작 전·기간 안이 아니면 403, (그 권 active 반의 현재 학생 ∪ 들어올 학생) 수가 한도를 넘으면 409. 합집합이라 같은 권 반끼리
+     * 이동은 자리를 더 쓰지 않는다. 등록·이동은 학원 잠금(lockForAdminWrite) 안에서만 불리므로 동시 등록도 한도를 넘지 않는다
+     */
+    private void requireLicense(Clazz clazz, List<Long> incoming, LocalDate on) {
+        long academyId = clazz.getAcademyId();
+        long bookId = clazz.getBookId();
+        if (!licenses.statusOf(academyId, bookId, on).allowsPreparation()) {
+            throw new ApiException(ClassErrorCode.LICENSE_INACTIVE, "사용 기간이 아니에요");
+        }
+        OptionalInt limit = licenses.seatLimit(academyId, bookId);
+        if (limit.isEmpty()) {
+            return;
+        }
+        Set<Long> seated =
+                new HashSet<>(enrollments.findCurrentStudentIdsOfBook(academyId, bookId, ClassStatus.ACTIVE));
+        seated.addAll(incoming);
+        if (seated.size() > limit.getAsInt()) {
+            throw new ApiException(ClassErrorCode.LICENSE_SEATS_FULL, "사용할 수 있는 학생 수를 넘었어요");
+        }
     }
 
     private static void requireActive(Clazz clazz) {
