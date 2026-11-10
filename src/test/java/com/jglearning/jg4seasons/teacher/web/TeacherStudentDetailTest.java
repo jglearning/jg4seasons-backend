@@ -95,6 +95,13 @@ class TeacherStudentDetailTest {
                 tracks.get("p1:us_w"),
                 "2026-11-09 10:00:00",
                 "2026-11-09 10:00:00");
+        // 둘째 지문 트랙에도 다른 값 — 첫 트랙만 보는 고장(순서·키 엇갈림)을 잡는다
+        jdbc.update(
+                "insert into track_progress (student_id, track_id, merged_ranges, covered_ms, coverage,"
+                        + " total_play_ms, session_count, last_played_at) values (?, ?, '[]', 0, 0.5000, 4000, 1, ?)",
+                studentId,
+                tracks.get("p2:us_m"),
+                "2026-11-09 11:00:00");
         jdbc.update(
                 "insert into lesson_progress (student_id, lesson_id, status, required_done, required_total)"
                         + " values (?, ?, 'in_progress', 1, 2)",
@@ -133,6 +140,11 @@ class TeacherStudentDetailTest {
         json.extractingPath("$.lessons[0].tracks[1].totalPlayMs").isEqualTo(0);
         json.extractingPath("$.lessons[0].tracks[1].sessionCount").isEqualTo(0);
         json.extractingPath("$.lessons[0].tracks[1].lastPlayedAt").isNull();
+        json.extractingPath("$.lessons[0].tracks[2].coverage").isEqualTo(0.0);
+        json.extractingPath("$.lessons[0].tracks[3].coverage").isEqualTo(0.5);
+        json.extractingPath("$.lessons[0].tracks[3].completed").isEqualTo(false);
+        json.extractingPath("$.lessons[0].tracks[3].totalPlayMs").isEqualTo(4000);
+        json.extractingPath("$.lessons[0].tracks[3].lastPlayedAt").isEqualTo("2026-11-09T11:00:00Z");
         json.extractingPath("$.lessons[0].words")
                 .isEqualTo(Map.of("total", 4, "cardsViewed", 3, "memKnown", 2, "recallBest", 1, "spellBest", 0));
         // 내용이 아직 없는 회차(지문 0)
@@ -142,6 +154,35 @@ class TeacherStudentDetailTest {
         json.extractingPath("$.lessons[1].requiredTotal").isEqualTo(0);
         json.extractingPath("$.lessons[1].words")
                 .isEqualTo(Map.of("total", 0, "cardsViewed", 0, "memKnown", 0, "recallBest", 0, "spellBest", 0));
+
+        // 같은 반 다른 학생(기록 없음): 위 학생의 값이 섞이지 않는다. 단어 기록이 없어도 total은 회차 단어 수
+        long other = data.student(academyId, "박학생");
+        data.enroll(classId, other);
+        var otherJson = assertThat(detail(other)).bodyJson();
+        otherJson.extractingPath("$.student.name").isEqualTo("박학생");
+        otherJson.extractingPath("$.lessons[0].status").isEqualTo("not_started");
+        otherJson.extractingPath("$.lessons[0].requiredDone").isEqualTo(0);
+        otherJson.extractingPath("$.lessons[0].requiredTotal").isEqualTo(2);
+        otherJson.extractingPath("$.lessons[0].tracks[*].coverage").isEqualTo(List.of(0.0, 0.0, 0.0, 0.0));
+        otherJson.extractingPath("$.lessons[0].tracks[0].lastPlayedAt").isNull();
+        otherJson
+                .extractingPath("$.lessons[0].words")
+                .isEqualTo(Map.of("total", 4, "cardsViewed", 0, "memKnown", 0, "recallBest", 0, "spellBest", 0));
+    }
+
+    @Test
+    void 필수_트랙은_레벨_완료_규칙을_따른다() {
+        // 지금 규칙은 네 목소리 모두 필수라 단언이 늘 참 — 규칙을 바꿔 판정이 실제로 쓰이는지 본다
+        data.lessonContent("L2-B1-01", 2, 1, List.of("us_w", "us_m"));
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"us_w\"]}]");
+
+        assertThat(detail(studentId))
+                .bodyJson()
+                .extractingPath("$.lessons[0].tracks[*].required")
+                .isEqualTo(List.of(true, false, true, false));
     }
 
     @Test

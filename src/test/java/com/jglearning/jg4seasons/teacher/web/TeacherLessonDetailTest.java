@@ -98,6 +98,13 @@ class TeacherLessonDetailTest {
                 p1UsW,
                 "2026-11-10 01:00:00",
                 "2026-11-10 01:00:00");
+        long p2UsM = tracks.get("p2:us_m");
+        jdbc.update(
+                "insert into track_progress (student_id, track_id, merged_ranges, covered_ms, coverage,"
+                        + " total_play_ms, session_count, last_played_at) values (?, ?, '[]', 0, 0.5000, 500, 1, ?)",
+                kim,
+                p2UsM,
+                "2026-11-10 02:00:00");
         jdbc.update(
                 "insert into lesson_progress (student_id, lesson_id, status, required_done, required_total)"
                         + " values (?, ?, 'in_progress', 1, 2)",
@@ -124,9 +131,26 @@ class TeacherLessonDetailTest {
         json.extractingPath("$.rows[0].student.id").isEqualTo((int) kim);
         json.extractingPath("$.rows[0].status").isEqualTo("in_progress");
         json.extractingPath("$.rows[0].byTrack")
-                .isEqualTo(Map.of(String.valueOf(p1UsW), Map.of("coverage", 0.94, "completed", true)));
+                .isEqualTo(Map.of(
+                        String.valueOf(p1UsW),
+                        Map.of("coverage", 0.94, "completed", true),
+                        String.valueOf(p2UsM),
+                        Map.of("coverage", 0.5, "completed", false)));
         json.extractingPath("$.rows[1].status").isEqualTo("not_started");
         json.extractingPath("$.rows[1].byTrack").isEqualTo(Map.of());
+    }
+
+    @Test
+    void 필수_트랙은_레벨_완료_규칙을_따른다() {
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"us_w\"]}]");
+
+        assertThat(lesson(CODE))
+                .bodyJson()
+                .extractingPath("$.tracks[*].required")
+                .isEqualTo(List.of(true, false, true, false));
     }
 
     @Test
