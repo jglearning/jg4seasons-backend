@@ -131,6 +131,25 @@ class ClassLessonsTest {
     }
 
     @Test
+    void 사용권을_적용하지_않는_학원_반은_licenseStatus_active() {
+        assertThat(lessons(classId))
+                .bodyJson()
+                .extractingPath("$.class.licenseStatus")
+                .isEqualTo("active");
+    }
+
+    @Test
+    void 사용_기간이_끝난_권의_반은_licenseStatus_expired() {
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L2-B1", DAY5.minusDays(60), DAY5.minusDays(1), 30);
+
+        assertThat(lessons(classId))
+                .bodyJson()
+                .extractingPath("$.class.licenseStatus")
+                .isEqualTo("expired");
+    }
+
+    @Test
     void 내가_속한_다른_반은_200() {
         long second = data.clazz(academyId, "L2-B1", "토요 반", TestData.uniqueAccessCode(), "active");
         data.enroll(second, studentId);

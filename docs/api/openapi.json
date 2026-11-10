@@ -2780,12 +2780,17 @@
           "level" : {
             "$ref" : "#/components/schemas/StudentClassLevel"
           },
+          "licenseStatus" : {
+            "type" : "string",
+            "description" : "그 반 권의 사용 상태(ADR 0031). before_start = 사용 시작 전, expired = 사용 기간이 끝났거나 사용권 없음. active가 아니면 그 반 회차를 열 때 403 LICENSE_INACTIVE. 사용권을 적용하지 않는 학원은 항상 active",
+            "enum" : [ "before_start", "active", "expired" ]
+          },
           "name" : {
             "type" : "string",
             "example" : "겨울 그린 A반"
           }
         },
-        "required" : [ "book", "id", "level", "name" ]
+        "required" : [ "book", "id", "level", "licenseStatus", "name" ]
       },
       "StudentClassLevel" : {
         "type" : "object",

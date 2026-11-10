@@ -15,7 +15,11 @@ public interface ClassRoster {
     /** 반의 현재 소속(left_at 없음) 학생 id, id 순 */
     List<Long> currentStudentIds(long academyId, long classId);
 
-    /** 학생들을 그 반에 넣는다(joined_at = on). 반이 active가 아니면 409 CLASS_NOT_ACTIVE */
+    /**
+     * 학생들을 그 반에 넣는다(joined_at = on). 반이 active가 아니면 409 CLASS_NOT_ACTIVE, 그 권이 시작 전·기간 안이 아니면 403 LICENSE_INACTIVE, 그 권
+     * 학생 수 한도를 넘으면 409 LICENSE_SEATS_FULL(ADR 0031 — 하나라도 넘으면 아무도 넣지 않는다). on = 학원 타임존 오늘: 가입일이자 사용권 판정일(지난 날짜
+     * 가입이 생기면 판정일을 따로 받는다)
+     */
     void enroll(long academyId, long classId, List<Long> studentIds, LocalDate on);
 
     /** 학생마다 지금 반 하나(그 학원 반 중 id가 가장 작은 것). 소속이 없으면 맵에 없다 */
@@ -26,7 +30,8 @@ public interface ClassRoster {
 
     /**
      * 이동: 대상 반 말고 지금 소속을 모두 끝내고(left_at = on), 대상 반에 없으면 넣는다(결정 H). 대상 반이 active가 아니면 409 CLASS_NOT_ACTIVE, 이미
-     * 그 반에만 있으면 409 ALREADY_IN_CLASS
+     * 그 반에만 있으면 409 ALREADY_IN_CLASS. 대상 반에 새로 들어갈 때만 그 권 사용권을 본다(403 LICENSE_INACTIVE·409 LICENSE_SEATS_FULL — 같은 권
+     * 반끼리는 자리가 늘지 않아 한도를 넘은 상태여도 된다). 이미 대상 반에도 있어 다른 반에서 나가기만 하면 사용권을 보지 않는다. on은 enroll과 같다
      */
     MoveResult move(long academyId, long studentId, long toClassId, LocalDate on);
 

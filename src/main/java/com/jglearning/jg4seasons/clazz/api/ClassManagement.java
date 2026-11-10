@@ -14,7 +14,8 @@ public interface ClassManagement {
 
     /**
      * 반을 만들고 개강일(포함)부터 수업 요일에 맞는 진도표(class_session, scheduled — 권의 회차 수만큼: 블랙 28, 그 밖 24회)와 가입 코드를 함께 만든다. 이름이 비었거나 50자 초과면 400
-     * VALIDATION(name), 요일이 잘못되면 400 VALIDATION(weekdays) — 둘 다 아무것도 만들지 않는다
+     * VALIDATION(name), 요일이 잘못되면 400 VALIDATION(weekdays), 그 권이 시작 전·기간 안이 아니면 403 LICENSE_INACTIVE(ADR 0031) — 모두 아무것도
+     * 만들지 않는다
      */
     ClassDetail create(long academyId, NewClass newClass);
 
@@ -23,7 +24,11 @@ public interface ClassManagement {
 
     ClassDetail find(long academyId, long classId);
 
-    /** 반 행을 잠그고 바꾼다. 빈 칸은 그대로. active가 아니면 그 반 가입 코드로 입장할 수 없다 */
+    /**
+     * 반 행을 잠그고 바꾼다. 빈 칸은 그대로. active가 아니면 그 반 가입 코드로 입장할 수 없다. 끝난 반을 active로 되살리면 등록과 같은 사용권 확인(ADR 0031):
+     * 시작 전·기간 안이 아니면 403 LICENSE_INACTIVE, 그 반 학생이 들어와 권 학생 수 한도를 넘으면 409 LICENSE_SEATS_FULL — 둘 다 아무것도 바꾸지 않는다.
+     * 학원 잠금 안에서 부른다
+     */
     ClassDetail change(long academyId, long classId, ClassChange change);
 
     /** 새 가입 코드와 발급 시각. 이미 입장한 학생의 로그인은 그대로 둔다(옛 코드로 새 입장만 막힘) */

@@ -37,16 +37,19 @@ class ClassRosterService implements ClassRoster {
     private final EnrollmentRepository enrollments;
     private final ClassTeacherStore classTeachers;
     private final StudentClasses studentClasses;
+    private final LicenseGuard license;
 
     ClassRosterService(
             ClassRepository classes,
             EnrollmentRepository enrollments,
             ClassTeacherStore classTeachers,
-            StudentClasses studentClasses) {
+            StudentClasses studentClasses,
+            LicenseGuard license) {
         this.classes = classes;
         this.enrollments = enrollments;
         this.classTeachers = classTeachers;
         this.studentClasses = studentClasses;
+        this.license = license;
     }
 
     @Override
@@ -58,7 +61,10 @@ class ClassRosterService implements ClassRoster {
 
     @Override
     public void enroll(long academyId, long classId, List<Long> studentIds, LocalDate on) {
-        requireActive(requireClass(academyId, classId));
+        Clazz clazz = requireClass(academyId, classId);
+        requireActive(clazz);
+        license.requirePreparation(academyId, clazz.getBookId(), on);
+        license.requireSeats(academyId, clazz.getBookId(), studentIds);
         for (Long studentId : studentIds) {
             enrollments.save(Enrollment.join(classId, studentId, on));
         }
@@ -92,13 +98,19 @@ class ClassRosterService implements ClassRoster {
 
     @Override
     public MoveResult move(long academyId, long studentId, long toClassId, LocalDate on) {
-        requireActive(requireClass(academyId, toClassId));
+        Clazz target = requireClass(academyId, toClassId);
+        requireActive(target);
         List<Enrollment> current = currentInAcademy(academyId, studentId);
         List<Enrollment> leaving =
                 current.stream().filter(e -> e.getClassId() != toClassId).toList();
         boolean alreadyThere = leaving.size() < current.size();
         if (alreadyThere && leaving.isEmpty()) {
             throw new ApiException(ClassErrorCode.ALREADY_IN_CLASS, "이미 그 반 학생이에요");
+        }
+        // 사용권은 대상 반에 새로 들어갈 때만 본다 — 다른 반에서 나가기만 하는 이동은 자리를 비우는 쪽이다(ADR 0031)
+        if (!alreadyThere) {
+            license.requirePreparation(academyId, target.getBookId(), on);
+            license.requireSeats(academyId, target.getBookId(), List.of(studentId));
         }
         leaving.forEach(e -> e.leave(on));
         if (!alreadyThere) {

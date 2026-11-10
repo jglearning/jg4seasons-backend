@@ -244,6 +244,22 @@ public final class TestData {
                 studentId);
     }
 
+    /** 학원이 교재 사용권을 적용하게 한다(연계 학원, ADR 0031). 기본은 적용 안 함(직영) */
+    public void enforceLicenses(long academyId) {
+        jdbc.update("update academy set license_enforced = true where id = ?", academyId);
+    }
+
+    /** 학원·권 사용권(시작일·종료일 포함, 학생 수) */
+    public long license(long academyId, String bookCode, LocalDate start, LocalDate end, int seats) {
+        return insert(
+                "insert into book_license (academy_id, book_id, start_date, end_date, seats) values (?, ?, ?, ?, ?)",
+                academyId,
+                bookId(bookCode),
+                start,
+                end,
+                seats);
+    }
+
     private long insert(String sql, Object... args) {
         KeyHolder keys = new GeneratedKeyHolder();
         jdbc.update(

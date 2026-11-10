@@ -1,6 +1,8 @@
 package com.jglearning.jg4seasons.listening;
 
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
+import com.jglearning.jg4seasons.academy.api.BookLicenses;
+import com.jglearning.jg4seasons.academy.api.LicenseStatus;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.StudentClass;
 import com.jglearning.jg4seasons.clazz.api.StudentClasses;
@@ -50,6 +52,7 @@ public class StudentHomeService {
     private final LessonCatalog catalog;
     private final ProgressStore progress;
     private final WordStudies wordStudies;
+    private final BookLicenses licenses;
     private final Clock clock;
 
     StudentHomeService(
@@ -59,6 +62,7 @@ public class StudentHomeService {
             LessonCatalog catalog,
             ProgressStore progress,
             WordStudies wordStudies,
+            BookLicenses licenses,
             Clock clock) {
         this.academies = academies;
         this.studentClasses = studentClasses;
@@ -66,14 +70,16 @@ public class StudentHomeService {
         this.catalog = catalog;
         this.progress = progress;
         this.wordStudies = wordStudies;
+        this.licenses = licenses;
         this.clock = clock;
     }
 
-    /** 한 반의 회차판: 반·권·권의 회차·진도·판정 결과 */
+    /** 한 반의 회차판: 반·권·권의 사용 상태·권의 회차·진도·판정 결과 */
     record ClassBoard(
             long studentId,
             StudentClass clazz,
             BookSummary book,
+            LicenseStatus license,
             Map<Long, LessonSummary> lessons,
             Map<Long, LessonProgressRow> progress,
             Board board) {}
@@ -220,6 +226,7 @@ public class StudentHomeService {
                 studentId,
                 clazz,
                 books.summaryOf(clazz.bookId()),
+                licenses.statusOf(academyId, clazz.bookId(), today),
                 lessons,
                 rows,
                 LessonBoard.evaluate(classLessons, statuses, today));
@@ -231,7 +238,8 @@ public class StudentHomeService {
                 board.clazz().classId(),
                 board.clazz().name(),
                 new StudentClassInfo.Level(book.levelCode(), book.levelNameKo(), book.levelColorHex()),
-                new StudentClassInfo.Book(book.bookCode(), book.season(), book.label()));
+                new StudentClassInfo.Book(book.bookCode(), book.season(), book.label()),
+                board.license().value());
     }
 
     /** 기록이 없으면 not_started·0·지문 수. 집계의 지문 수가 실제와 다르면 실제 수(2.3과 같음) */

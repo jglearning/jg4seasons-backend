@@ -81,7 +81,10 @@ public class StudentAdminService {
         return new StudentListResponse(items, items.size());
     }
 
-    /** 반이 없으면 404, active가 아니면 409 CLASS_NOT_ACTIVE — 둘 다 아무도 만들지 않는다(트랜잭션 롤백) */
+    /**
+     * 반이 없으면 404, active가 아니면 409 CLASS_NOT_ACTIVE, 사용 기간 밖 403 LICENSE_INACTIVE·학생 수 초과 409 LICENSE_SEATS_FULL(ADR 0031) — 모두
+     * 아무도 만들지 않는다(트랜잭션 롤백). 학원 잠금이 동시 등록을 줄 세워 학생 수 한도를 지킨다
+     */
     public StudentCreatedResponse create(long academyId, long actorId, long classId, StudentCreateRequest request) {
         academies.lockForAdminWrite(academyId);
         staff.requireActiveAdmin(academyId, actorId);

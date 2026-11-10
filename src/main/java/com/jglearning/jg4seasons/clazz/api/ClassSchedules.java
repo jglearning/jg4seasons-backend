@@ -5,7 +5,8 @@ import java.util.List;
 
 /**
  * 교사 진도표(4.5~4.7, ADR 0030). 다른 모듈(teacher)이 쓴다. 반은 학원 범위로 찾는다(다른 학원·없는 반 404). 교사 담당 여부는 호출자가 먼저 확인한다 —
- * teacher에서는 범위 확인을 거친 반만 받는 TeacherScope만 부른다.
+ * teacher에서는 범위 확인을 거친 반만 받는 TeacherScope만 부른다. 편집(4.6·4.7)은 반의 권이 시작 전·기간 안이 아니면 403 LICENSE_INACTIVE(메모만
+ * 바꿔도, ADR 0031) — 조회는 막지 않는다.
  */
 public interface ClassSchedules {
 

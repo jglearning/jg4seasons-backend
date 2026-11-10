@@ -28,6 +28,10 @@ public class Academy {
     @Column(columnDefinition = "json")
     private String settings;
 
+    /** 교재 사용권 적용 여부(ADR 0031). false = 모든 권 무제한(직영) */
+    @Column(name = "license_enforced", nullable = false)
+    private boolean licenseEnforced;
+
     protected Academy() {}
 
     /** 운영 학원(active). 첫 학원 부트스트랩(InitialAcademyInitializer)만 쓴다 — 학원 등록 화면은 1차 범위 밖 */
@@ -42,6 +46,10 @@ public class Academy {
 
     String getSettings() {
         return settings;
+    }
+
+    boolean isLicenseEnforced() {
+        return licenseEnforced;
     }
 
     public boolean isActive() {

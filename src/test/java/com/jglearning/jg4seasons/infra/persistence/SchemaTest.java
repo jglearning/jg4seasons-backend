@@ -36,6 +36,7 @@ class SchemaTest {
             "class_teacher",
             "enrollment",
             "class_session",
+            "book_license",
             // 학습 기록
             "listening_session",
             "listening_segment",
@@ -67,6 +68,7 @@ class SchemaTest {
             List.of("auth_identity", "provider,identifier"),
             List.of("class", "access_code"),
             List.of("class_session", "class_id,seq"),
+            List.of("book_license", "academy_id,book_id"),
             List.of("listening_session", "client_session_id"),
             List.of("refresh_token", "token_hash"));
 
@@ -81,8 +83,8 @@ class SchemaTest {
     }
 
     @Test
-    void 테이블은_ERD의_1차_26개다() {
-        assertThat(FIRST_RELEASE_TABLES).hasSize(26);
+    void 테이블은_ERD의_1차_27개다() {
+        assertThat(FIRST_RELEASE_TABLES).hasSize(27);
         assertThat(tables()).containsExactlyInAnyOrderElementsOf(FIRST_RELEASE_TABLES);
     }
 
