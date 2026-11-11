@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
-/** 역할 계층(03 §0.1): superadmin > admin > teacher, student는 별도. @RolesAllowed("TEACHER")는 admin도 통과. */
+/** 역할 계층(03 §0.1, ADR 0032): admin > teacher, student·superadmin(운영자)은 계층 밖. @RolesAllowed("TEACHER")는 admin도 통과. */
 @IntegrationTest
 class RoleHierarchyTest {
 
@@ -42,8 +42,9 @@ class RoleHierarchyTest {
     }
 
     @Test
-    void 시스템_관리자는_관리자_전용도_부른다() {
-        assertThat(status(ADMIN_ONLY, UserRole.SUPERADMIN)).isEqualTo(200);
+    void 운영자는_계층_밖이라_관리자_전용도_교사_전용도_못_부른다() {
+        assertThat(status(ADMIN_ONLY, UserRole.SUPERADMIN)).isEqualTo(403);
+        assertThat(status(TEACHER_ONLY, UserRole.SUPERADMIN)).isEqualTo(403);
     }
 
     @Test
