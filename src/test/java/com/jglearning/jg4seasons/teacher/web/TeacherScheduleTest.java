@@ -297,10 +297,13 @@ class TeacherScheduleTest {
 
     @Test
     void 날짜를_바꾸면_응답과_DB에_반영된다() {
-        assertThat(update(3, "{\"scheduledDate\":\"2026-11-13\"}"))
+        MvcTestResult moved = update(3, "{\"scheduledDate\":\"2026-11-13\"}");
+        assertThat(moved).bodyJson().extractingPath("$.items[2].scheduledDate").isEqualTo("2026-11-13");
+        assertThat(moved)
                 .bodyJson()
-                .extractingPath("$.items[2].scheduledDate")
-                .isEqualTo("2026-11-13");
+                .extractingPath("$.items[*].status")
+                .as("4.6 응답도 지난 행 done")
+                .isEqualTo(List.of("done", "scheduled", "scheduled"));
 
         assertThat(update(2, "{\"scheduledDate\":\"2026-11-11\",\"shiftFollowing\":true}"))
                 .hasStatusOk();

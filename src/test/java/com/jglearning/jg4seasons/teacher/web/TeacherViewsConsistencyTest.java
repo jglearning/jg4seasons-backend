@@ -161,4 +161,23 @@ class TeacherViewsConsistencyTest {
             assertThat(get("/students/" + studentId)).as("학생 " + studentId).hasStatus(404);
         }
     }
+
+    @Test
+    void 매트릭스와_진도표의_회차_상태가_같다() throws Exception {
+        String matrix = body(get("/matrix"));
+        String schedule = body(get("/sessions"));
+        List<String> codes = JsonPath.read(matrix, "$.sessions[*].lesson.code");
+        List<String> statuses = JsonPath.read(matrix, "$.sessions[*].status");
+
+        assertThat(codes).as("휴강 행만 있는 2회차는 열 없음").containsExactly("L2-B1-01", "L2-B1-03", "L2-B1-04");
+        assertThat(statuses)
+                .as("지난 회차만 done — 둘 다 scheduled라 우연히 같은 것이 아님")
+                .containsExactly("done", "scheduled", "scheduled");
+        // 4.5: 같은 회차의 휴강 아닌 행 상태 = 4.2 열 상태
+        for (int i = 0; i < codes.size(); i++) {
+            List<String> rows = JsonPath.read(
+                    schedule, "$.items[?(@.lesson.code == '" + codes.get(i) + "' && @.status != 'cancelled')].status");
+            assertThat(rows).as("회차 " + codes.get(i)).containsExactly(statuses.get(i));
+        }
+    }
 }
