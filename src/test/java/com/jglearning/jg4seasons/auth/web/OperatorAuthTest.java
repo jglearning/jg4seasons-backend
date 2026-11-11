@@ -143,6 +143,17 @@ class OperatorAuthTest {
     }
 
     @Test
+    void 학원이_붙은_superadmin_토큰의_me는_401() {
+        long academyId = data.academy("데이터 오류 학원");
+        long broken = data.staff(academyId, "관리자", "admin");
+        jdbc.update("update `user` set role = 'superadmin' where id = ?", broken);
+
+        assertThat(mvc.get().uri("/api/v1/me").cookie(cookies.access(broken, UserRole.SUPERADMIN, academyId)))
+                .as("운영자도 학원 계정도 아니다(리뷰 #47-1)")
+                .hasStatus(401);
+    }
+
+    @Test
     void 비활성_운영자는_로그인_401() {
         jdbc.update("update `user` set status = 'inactive' where id = ?", operatorId);
 

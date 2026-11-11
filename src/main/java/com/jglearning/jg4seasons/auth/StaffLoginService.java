@@ -108,7 +108,7 @@ public class StaffLoginService {
 
         AuthUser user = staff.get();
         identity.recordSuccess(now);
-        if (user.academyId() == null) {
+        if (user.isOperator()) {
             // 운영자는 학원 범위 리포지토리로 찾을 수 없다(ADR 0032)
             preAuthUsers.recordOperatorLogin(user.id(), now);
         } else {

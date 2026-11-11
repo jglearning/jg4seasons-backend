@@ -39,6 +39,8 @@ public class MeService {
         }
         User user = users.findByAcademyIdAndId(academyId, userId)
                 .filter(User::isActive)
+                // 학원이 붙은 superadmin(데이터 오류)은 운영자도 학원 계정도 아니다 — 로그인·refresh와 같은 기준
+                .filter(found -> found.getRole() != UserRole.SUPERADMIN)
                 .filter(found -> academies.isActive(academyId))
                 .orElseThrow(() -> new ApiException(CommonErrorCode.UNAUTHORIZED));
         return toResponse(user, academyId);

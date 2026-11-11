@@ -13,9 +13,10 @@ import org.springframework.stereotype.Component;
  * 학원을 모르는 상태에서 사용자 id로 활성 사용자를 읽는다. 학원 조건 없이 사용자를 읽고 쓰는 유일한 곳이다(운영자 — 학원 없음 — 의 존재 확인·마지막 로그인
  * 포함).
  *
- * <p>쓰는 곳은 둘이다. refresh: 쿠키는 난수뿐이라 학원을 알 수 없고, 사용자 id는 쿠키 해시로 찾은 refresh_token 행에서 온다. 교사 로그인:
- * 로그인 아이디는 전체 학원에서 고유(UNIQUE(provider, identifier))라 아이디로 찾은 auth_identity 행에서 온다. 어느 쪽도 요청이 다른 사용자를
- * 고를 방법이 없다. 돌려준 academyId로 access(JWT aca)를 만들고, 이후 조회는 그 학원 범위로 한다. 학원 범위 리포지토리 규칙을 우회하는 곳이라
+ * <p>쓰는 곳: refresh — 쿠키는 난수뿐이라 학원을 알 수 없고, 사용자 id는 쿠키 해시로 찾은 refresh_token 행에서 온다. 교직원 로그인 — 로그인
+ * 아이디는 전체 학원에서 고유(UNIQUE(provider, identifier))라 아이디로 찾은 auth_identity 행에서 온다. 운영자(ADR 0032) — 내 정보·활성 운영자
+ * 확인은 JWT sub(학원 없음), 마지막 로그인은 로그인이 찾은 사용자, 부트스트랩은 존재 확인만. 어느 쪽도 요청이 다른 사용자를 고를 방법이 없다. 돌려준
+ * academyId로 access(JWT aca)를 만들고, 이후 조회는 그 학원 범위로 한다. 학원 범위 리포지토리 규칙을 우회하는 곳이라
  * persistence 패키지의 이 한 곳으로 한정한다.
  */
 @Component

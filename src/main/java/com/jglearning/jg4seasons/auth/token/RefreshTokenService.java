@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.auth.token;
 
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import com.jglearning.jg4seasons.auth.AuthProperties;
+import com.jglearning.jg4seasons.auth.UserRole;
 import com.jglearning.jg4seasons.auth.persistence.AuthUser;
 import com.jglearning.jg4seasons.auth.persistence.PreAuthUserLookup;
 import java.time.Clock;
@@ -100,10 +101,13 @@ public class RefreshTokenService {
     }
 
     private Optional<AuthUser> activeOwner(long userId) {
-        // 학원 계정은 학원이 정지 아님, 학원 없는 계정은 운영자만(ADR 0032). 회전 전에 걸러 부수효과 없이 거부
+        // 운영자(superadmin + 학원 없음) 또는 학원 계정(superadmin 아님 + 학원 정지 아님) — 로그인과 같은 기준(ADR 0032). 둘 다 아닌 행(학원이 붙은
+        // superadmin 등 데이터 오류)은 회전 전에 걸러 부수효과 없이 거부
         return users.findActiveUser(userId)
-                .filter(owner ->
-                        owner.isOperator() || (owner.academyId() != null && academies.isActive(owner.academyId())));
+                .filter(owner -> owner.isOperator()
+                        || (owner.role() != UserRole.SUPERADMIN
+                                && owner.academyId() != null
+                                && academies.isActive(owner.academyId())));
     }
 
     private static String truncate(String userAgent) {
