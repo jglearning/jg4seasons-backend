@@ -243,14 +243,31 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    void 학원이_없는_사용자의_refresh는_회전하지_않고_Rejected() {
-        // 1차는 학생만 refresh한다. 학원 없는 사용자(시스템 관리자)는 회전한 뒤 거부하면 아무도 안 가진 새 토큰이 남는다
-        jdbc.update("insert into `user` (academy_id, role, name, status) values (null, 'superadmin', '시스템', 'active')");
-        long adminId = jdbc.queryForObject("select max(id) from `user`", Long.class);
-        String plain = refreshTokens.create(adminId, null);
+    void 운영자는_학원_없이_refresh한다() {
+        long operatorId = new TestData(jdbc).operator("운영자");
+        String plain = refreshTokens.create(operatorId, null);
+
+        assertThat(refreshTokens.rotate(plain)).isInstanceOf(Rotated.class);
+    }
+
+    @Test
+    void 학원이_붙은_superadmin_행의_refresh는_회전하지_않고_Rejected() {
+        // 데이터 오류(관리자 행을 손으로 superadmin으로 바꾼 경우 등) — 로그인과 같은 기준으로 막는다(리뷰 #47-1)
+        jdbc.update("update `user` set role = 'superadmin' where id = ?", studentId);
+        String plain = refreshTokens.create(studentId, null);
 
         assertThat(refreshTokens.rotate(plain)).isInstanceOf(Rejected.class);
-        assertThat(jdbc.queryForObject("select count(*) from refresh_token where user_id = ?", Integer.class, adminId))
+    }
+
+    @Test
+    void 학원_칸이_빈_운영자_아닌_사용자의_refresh는_회전하지_않고_Rejected() {
+        // 회전한 뒤 거부하면 아무도 안 가진 새 토큰이 남는다 — 회전 전에 거른다
+        jdbc.update("update `user` set academy_id = null where id = ?", studentId);
+        String plain = refreshTokens.create(studentId, null);
+
+        assertThat(refreshTokens.rotate(plain)).isInstanceOf(Rejected.class);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from refresh_token where user_id = ?", Integer.class, studentId))
                 .as("새 토큰을 만들지 않음")
                 .isEqualTo(1);
     }

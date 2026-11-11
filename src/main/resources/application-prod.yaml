@@ -28,6 +28,12 @@ jg4seasons:
     admin-login-id: ${INITIAL_ADMIN_LOGIN_ID:}
     admin-password: ${INITIAL_ADMIN_PASSWORD:}
     admin-name: ${INITIAL_ADMIN_NAME:}
+  # 운영자 계정(ADR 0032). 운영자가 한 명도 없을 때만 읽는다 — 값이 없으면 WARN만 남기고 서버는 뜬다(학원들은 그대로 돈다).
+  # 반쪽이거나 형식이 틀리면 서버가 뜨지 않는다. 운영자가 생긴 뒤에는 읽지 않는다
+  initial-operator:
+    login-id: ${INITIAL_OPERATOR_LOGIN_ID:}
+    password: ${INITIAL_OPERATOR_PASSWORD:}
+    name: ${INITIAL_OPERATOR_NAME:}
 
 springdoc:
   api-docs:

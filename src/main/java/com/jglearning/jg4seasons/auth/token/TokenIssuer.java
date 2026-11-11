@@ -20,8 +20,8 @@ public class TokenIssuer {
         this.refreshTokens = refreshTokens;
     }
 
-    /** 로그인: 새 refresh를 저장하고 묶음을 만든다 */
-    public IssuedTokens issue(long userId, UserRole role, long academyId, String userAgent) {
+    /** 로그인: 새 refresh를 저장하고 묶음을 만든다. academyId는 운영자면 null(JWT aca 없음) */
+    public IssuedTokens issue(long userId, UserRole role, Long academyId, String userAgent) {
         Duration ttl = SessionTtl.refreshFor(role);
         return new IssuedTokens(
                 jwtIssuer.issueAccess(userId, role, academyId),

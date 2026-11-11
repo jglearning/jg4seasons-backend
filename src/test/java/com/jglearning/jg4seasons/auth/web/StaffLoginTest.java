@@ -228,14 +228,14 @@ class StaffLoginTest {
     }
 
     @Test
-    void 시스템_관리자는_비밀번호_수단이_있어도_staff_로그인을_못_한다() {
-        jdbc.update("insert into `user` (academy_id, role, name, status) values (null, 'superadmin', '시스템', 'active')");
-        long superId = jdbc.queryForObject("select max(id) from `user`", Long.class);
+    void 운영자는_같은_staff_로그인으로_들어오고_학원은_null() {
+        long superId = data.operator("운영자");
         identities.save(AuthIdentity.password(superId, "super" + superId, encoder.encode(PASSWORD), clock.instant()));
 
-        assertThat(login("super" + superId, PASSWORD))
-                .as("1차는 학원 없는 사용자 로그인 없음")
-                .hasStatus(401);
+        MvcTestResult result = login("super" + superId, PASSWORD);
+
+        assertThat(result).as("ADR 0032 — 운영자 로그인(자세한 것은 OperatorAuthTest)").hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.user.academyId").isNull();
     }
 
     @Test

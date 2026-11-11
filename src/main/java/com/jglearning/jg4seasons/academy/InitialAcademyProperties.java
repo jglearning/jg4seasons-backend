@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.academy;
 
+import com.jglearning.jg4seasons.academy.api.AcademyRegistry;
 import com.jglearning.jg4seasons.auth.api.StaffAccounts;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -37,12 +38,12 @@ record InitialAcademyProperties(
     /** 교사 계정 이름 규칙과 같다(StaffAccounts) */
     static final int MAX_ADMIN_NAME = 30;
     /** academy.slug VARCHAR(30). 소문자·숫자·-, 영숫자로 시작 */
-    private static final Pattern SLUG = Pattern.compile("^[a-z0-9][a-z0-9-]{1,29}$");
+    private static final Pattern SLUG = Pattern.compile(AcademyRegistry.SLUG_REGEXP);
     /**
      * 시험 데이터(trial)가 데모 학원으로 보는 slug(DevSeed.ACADEMY_SLUG — infra는 이 모듈에서 참조할 수 없어 같은 값을 둔다). 첫 학원이 이 slug면 데모
      * 데이터가 빠지고 공개 개인 코드가 이 학원 학생에게 붙는다
      */
-    private static final String RESERVED_TRIAL_SLUG = "demo";
+    private static final String RESERVED_TRIAL_SLUG = AcademyRegistry.RESERVED_SLUG;
 
     private static final Pattern LOGIN_ID = Pattern.compile(StaffAccounts.LOGIN_ID_REQUEST_REGEXP);
 

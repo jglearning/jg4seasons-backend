@@ -111,6 +111,16 @@ class InitialAcademyCreationTest {
         public Optional<Long> lockById(Long id) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public Academy saveAndFlush(Academy academy) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<Academy> findAllByOrderByIdAsc() {
+            throw new UnsupportedOperationException();
+        }
     }
 
     record Created(long academyId, NewStaff staff) {}

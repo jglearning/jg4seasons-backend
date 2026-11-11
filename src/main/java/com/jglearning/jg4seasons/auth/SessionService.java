@@ -42,7 +42,7 @@ public class SessionService {
         if (presented == null || presented.isBlank()) {
             return new RefreshResult.Rejected();
         }
-        // 소유자(활성 사용자 + 학원 있음 + 정지 아님)는 RefreshTokenService가 회전 전에 확인한다
+        // 소유자(활성 사용자 + 운영자이거나 학원 정지 아닌 학원 계정)는 RefreshTokenService가 회전 전에 확인한다
         RefreshOutcome outcome = refreshTokens.rotate(presented);
         if (outcome instanceof RefreshOutcome.Rotated rotated) {
             IssuedTokens tokens =
@@ -67,6 +67,8 @@ public class SessionService {
                 owner.id(),
                 owner.name(),
                 owner.role().value(),
-                new MeResponse.AcademyRef(owner.academyId(), academies.nameOf(owner.academyId())));
+                owner.academyId() == null
+                        ? null
+                        : new MeResponse.AcademyRef(owner.academyId(), academies.nameOf(owner.academyId())));
     }
 }

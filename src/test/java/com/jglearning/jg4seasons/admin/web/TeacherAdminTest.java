@@ -222,9 +222,9 @@ class TeacherAdminTest {
 
     @Test
     void 학원이_없는_토큰으로는_교사_API를_못_쓴다() {
-        // 역할 계층으로 superadmin은 ADMIN을 통과하지만, 학원 범위 API는 JWT aca가 있어야 한다
+        // 운영자(superadmin)는 역할 계층 밖이라 관리자 API 권한 검사에서 막힌다(ADR 0032)
         assertThat(mvc.get().uri(URL).cookie(cookies.access(adminId, UserRole.SUPERADMIN, null)))
-                .hasStatus(401);
+                .hasStatus(403);
     }
 
     @Test

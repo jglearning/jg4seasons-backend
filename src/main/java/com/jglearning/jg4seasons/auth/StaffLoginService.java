@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 1.4 교사·관리자 로그인(아이디 + 비밀번호).
  *
  * <p>순서: IP 한도(모든 시도, 1분 10회) → 아이디 정리 → 비밀번호 수단을 행 잠금으로 읽음(같은 계정 동시 실패가 5회를 넘지 못하게). 없으면 더미 해시와 비교(응답 시간을 맞춰 아이디 존재를
- * 드러내지 않음) → 401 · 사용자(활성, teacher·admin, 학원 있고 정지 아님) · 잠겼으면 423 · 비밀번호 틀림 → 실패 1회(5번째면 423) · 맞으면
+ * 드러내지 않음) → 401 · 사용자(활성, teacher·admin이면 학원 있고 정지 아님, 또는 학원 없는 운영자 — ADR 0032) · 잠겼으면 423 · 비밀번호 틀림 → 실패 1회(5번째면 423) · 맞으면
  * 실패 0, 토큰 발급.
  *
  * <p>틀린 비밀번호의 실패 횟수는 401·423을 던져도 남아야 한다 → ApiException에는 롤백하지 않는다(이 서비스가 쓰는 것은 실패 횟수·잠금·로그인 시각뿐).
@@ -79,8 +79,10 @@ public class StaffLoginService {
         Instant now = clock.instant();
         Optional<AuthUser> staff = preAuthUsers
                 .findActiveUser(identity.getUserId())
-                .filter(user -> STAFF.contains(user.role()))
-                .filter(user -> user.academyId() != null && academies.isActive(user.academyId()));
+                .filter(user -> user.isOperator()
+                        || (STAFF.contains(user.role())
+                                && user.academyId() != null
+                                && academies.isActive(user.academyId())));
         if (identity.lockedAt(now)) {
             throw locked(identity.lockedUntil());
         }
@@ -106,10 +108,15 @@ public class StaffLoginService {
 
         AuthUser user = staff.get();
         identity.recordSuccess(now);
-        // 바로 위에서 같은 id의 활성 사용자를 읽었으니 반드시 있다 — 없으면 조용히 넘어가지 않고 드러나게
-        users.findByAcademyIdAndId(user.academyId(), user.id())
-                .orElseThrow(() -> new IllegalStateException("staff user vanished userId=" + user.id()))
-                .recordLogin(now);
+        if (user.isOperator()) {
+            // 운영자는 학원 범위 리포지토리로 찾을 수 없다(ADR 0032)
+            preAuthUsers.recordOperatorLogin(user.id(), now);
+        } else {
+            // 바로 위에서 같은 id의 활성 사용자를 읽었으니 반드시 있다 — 없으면 조용히 넘어가지 않고 드러나게
+            users.findByAcademyIdAndId(user.academyId(), user.id())
+                    .orElseThrow(() -> new IllegalStateException("staff user vanished userId=" + user.id()))
+                    .recordLogin(now);
+        }
         IssuedTokens tokens = tokenIssuer.issue(user.id(), user.role(), user.academyId(), userAgent);
         return new LoginResult(
                 new StaffLoginResponse(new StaffLoginResponse.UserInfo(

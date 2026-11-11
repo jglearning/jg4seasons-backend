@@ -80,14 +80,13 @@ public class SecurityConfig {
     }
 
     /**
-     * 역할 계층(API 명세 §0.1): superadmin > admin > teacher. student는 별도. @RolesAllowed("TEACHER")면 admin·superadmin도 통과. static —
+     * 역할 계층(API 명세 §0.1, ADR 0032): admin > teacher. student·superadmin(운영자 — 학원 없음)은 계층 밖이라 학원 API를 통과하지 않는다.
+     * @RolesAllowed("TEACHER")면 admin도 통과. static —
      * 메서드 보안 설정보다 먼저 만들어지게
      */
     @Bean
     static RoleHierarchy roleHierarchy() {
         return RoleHierarchyImpl.withDefaultRolePrefix()
-                .role("SUPERADMIN")
-                .implies("ADMIN")
                 .role("ADMIN")
                 .implies("TEACHER")
                 .build();

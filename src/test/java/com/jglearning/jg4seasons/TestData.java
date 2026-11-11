@@ -81,6 +81,12 @@ public final class TestData {
                 name);
     }
 
+    /** 운영자(superadmin, 학원 없음 — ADR 0032) */
+    public long operator(String name) {
+        return insert(
+                "insert into `user` (academy_id, role, name, status) values (null, 'superadmin', ?, 'active')", name);
+    }
+
     public void assignTeacher(long classId, long teacherId) {
         jdbc.update("insert into class_teacher (class_id, user_id) values (?, ?)", classId, teacherId);
     }

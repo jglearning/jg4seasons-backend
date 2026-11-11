@@ -58,6 +58,15 @@ public class User implements AcademyScoped {
         return user;
     }
 
+    /** 운영자(학원 없음, ADR 0032). 설정값 부트스트랩만 만든다 */
+    static User operator(String name) {
+        User user = new User();
+        user.role = UserRole.SUPERADMIN;
+        user.name = name;
+        user.status = UserStatus.ACTIVE;
+        return user;
+    }
+
     /** 학생(관리자 명단 등록). 값은 StudentAccountService가 정리해 넘긴다 */
     static User student(long academyId, String name, String school, String grade) {
         User user = new User();

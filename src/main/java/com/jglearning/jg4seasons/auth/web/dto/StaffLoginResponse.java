@@ -17,9 +17,12 @@ public record StaffLoginResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"teacher", "admin"})
+                    allowableValues = {"teacher", "admin", "superadmin"})
             String role,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-            long academyId) {}
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    nullable = true,
+                    description = "운영자(superadmin)는 null — 학원에 속하지 않는다")
+            Long academyId) {}
 }

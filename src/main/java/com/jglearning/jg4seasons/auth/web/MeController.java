@@ -20,10 +20,10 @@ public class MeController {
         this.meService = meService;
     }
 
-    @Operation(summary = "내 정보", description = "access 쿠키가 없거나 만료면 401 UNAUTHORIZED")
-    @RolesAllowed({"STUDENT", "TEACHER"}) // TEACHER는 역할 계층으로 admin·superadmin 포함(superadmin은 학원이 없어 401)
+    @Operation(summary = "내 정보", description = "access 쿠키가 없거나 만료면 401 UNAUTHORIZED. 운영자는 academy null")
+    @RolesAllowed({"STUDENT", "TEACHER", "SUPERADMIN"}) // TEACHER는 역할 계층으로 admin 포함. 운영자는 계층 밖(ADR 0032)
     @GetMapping("/api/v1/me")
     public MeResponse me(@AuthenticationPrincipal Jwt jwt) {
-        return meService.me(Principals.userId(jwt), Principals.academyId(jwt));
+        return meService.me(Principals.userId(jwt), Principals.academyIdOrNull(jwt));
     }
 }

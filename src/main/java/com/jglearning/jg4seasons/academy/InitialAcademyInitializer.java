@@ -4,6 +4,7 @@ import com.jglearning.jg4seasons.auth.api.NewStaff;
 import com.jglearning.jg4seasons.auth.api.StaffAccount;
 import com.jglearning.jg4seasons.auth.api.StaffAccounts;
 import com.jglearning.jg4seasons.auth.api.StaffRole;
+import java.time.ZoneId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -26,7 +27,7 @@ class InitialAcademyInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(InitialAcademyInitializer.class);
 
-    static final String SETTINGS = "{\"timezone\":\"Asia/Seoul\"}";
+    static final ZoneId TIMEZONE = ZoneId.of("Asia/Seoul");
 
     private final AcademyRepository academies;
     private final StaffAccounts staffAccounts;
@@ -58,7 +59,8 @@ class InitialAcademyInitializer implements ApplicationRunner {
     }
 
     void create(InitialAcademy initial) {
-        Academy academy = academies.save(Academy.create(initial.academyName(), initial.academySlug(), SETTINGS));
+        Academy academy =
+                academies.save(Academy.register(initial.academyName(), initial.academySlug(), TIMEZONE, false));
         StaffAccount admin = staffAccounts.create(
                 academy.getId(),
                 new NewStaff(initial.adminName(), initial.adminLoginId(), initial.adminPassword(), StaffRole.ADMIN));

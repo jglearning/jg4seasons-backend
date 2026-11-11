@@ -9,7 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 
-/** 학원·권 사용권(ADR 0031). 학원·권마다 한 줄. 이번에는 읽기만 한다 — 지정·변경은 운영자 API(후속). */
+/** 학원·권 사용권(ADR 0031). 학원·권마다 한 줄 — 운영자가 만들고 고친다(7.4, 줄이기 허용·삭제 없음). */
 @Entity
 @Table(name = "book_license")
 class BookLicense implements AcademyScoped {
@@ -37,6 +37,28 @@ class BookLicense implements AcademyScoped {
     private int seats;
 
     protected BookLicense() {}
+
+    static BookLicense create(long academyId, long bookId, LocalDate startDate, LocalDate endDate, int seats) {
+        BookLicense license = new BookLicense();
+        license.academyId = academyId;
+        license.bookId = bookId;
+        license.change(startDate, endDate, seats);
+        return license;
+    }
+
+    void change(LocalDate startDate, LocalDate endDate, int seats) {
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.seats = seats;
+    }
+
+    Long getId() {
+        return id;
+    }
+
+    long getBookId() {
+        return bookId;
+    }
 
     @Override
     public Long getAcademyId() {
