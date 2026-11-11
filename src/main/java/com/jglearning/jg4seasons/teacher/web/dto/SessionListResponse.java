@@ -21,7 +21,8 @@ public record SessionListResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"scheduled", "done", "cancelled"})
+                    allowableValues = {"scheduled", "done", "cancelled"},
+                    description = "done = 수업 날짜가 오늘(학원 날짜) 이전이고 휴강이 아님(응답 때 계산, 오늘 수업은 scheduled). cancelled = 휴강")
             String status,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)

@@ -151,10 +151,55 @@ class TeacherScheduleTest {
                 .bodyJson()
                 .extractingPath("$.items")
                 .isEqualTo(List.of(
-                        item(1, "L2-B1-01", "2026-11-05", "scheduled", null),
+                        item(1, "L2-B1-01", "2026-11-05", "done", null),
                         item(2, "L2-B1-02", "2026-11-10", "cancelled", "내신 휴강"),
                         item(3, "L2-B1-03", "2026-11-12", "scheduled", null),
                         item(4, "L2-B1-02", "2026-11-17", "scheduled", null)));
+    }
+
+    // 응답 상태: done = 학원 날짜로 오늘 이전(응답 때 계산, DB에 쓰지 않음 — 이슈 #45)
+
+    @Test
+    void 지난_수업은_done_오늘_수업은_scheduled() {
+        assertThat(sessions())
+                .bodyJson()
+                .extractingPath("$.items[*].status")
+                .isEqualTo(List.of("done", "scheduled", "scheduled"));
+        assertThat(rows())
+                .as("DB는 그대로")
+                .containsExactly(
+                        "1 L2-B1-01 2026-11-05 scheduled null",
+                        "2 L2-B1-02 2026-11-10 scheduled null",
+                        "3 L2-B1-03 2026-11-12 scheduled null");
+    }
+
+    @Test
+    void 지난_휴강은_cancelled() {
+        jdbc.update("update class_session set status = 'cancelled' where class_id = ? and seq = 1", classId);
+
+        assertThat(sessions())
+                .bodyJson()
+                .extractingPath("$.items[*].status")
+                .isEqualTo(List.of("cancelled", "scheduled", "scheduled"));
+    }
+
+    @Test
+    void done_판정은_학원_날짜_자정이_기준() {
+        // KST 11-11 00:10 = UTC 11-10 15:10. 학원 날짜로는 11-10 행이 어제 — UTC 날짜로 판정하면 오늘이라 scheduled가 된다
+        clock.set(Instant.parse("2026-11-10T15:10:00Z"));
+
+        assertThat(sessions())
+                .bodyJson()
+                .extractingPath("$.items[*].status")
+                .isEqualTo(List.of("done", "done", "scheduled"));
+    }
+
+    @Test
+    void 편집_응답의_done은_DB에_쓰지_않는다() {
+        MvcTestResult result = cancel(3, "{\"shiftFollowing\":true}");
+
+        assertThat(result).bodyJson().extractingPath("$.items[0].status").isEqualTo("done");
+        assertThat(rows()).first().isEqualTo("1 L2-B1-01 2026-11-05 scheduled null");
     }
 
     // 4.7 휴강
@@ -172,7 +217,7 @@ class TeacherScheduleTest {
                 .bodyJson()
                 .extractingPath("$.items")
                 .isEqualTo(List.of(
-                        item(1, "L2-B1-01", "2026-11-05", "scheduled", null),
+                        item(1, "L2-B1-01", "2026-11-05", "done", null),
                         item(2, "L2-B1-02", "2026-11-10", "cancelled", "체험학습"),
                         item(3, "L2-B1-02", "2026-11-12", "scheduled", null),
                         item(4, "L2-B1-03", "2026-11-17", "scheduled", null)));

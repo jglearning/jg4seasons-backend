@@ -6,12 +6,13 @@ import java.util.List;
 /**
  * 교사 진도표(4.5~4.7, ADR 0030). 다른 모듈(teacher)이 쓴다. 반은 학원 범위로 찾는다(다른 학원·없는 반 404). 교사 담당 여부는 호출자가 먼저 확인한다 —
  * teacher에서는 범위 확인을 거친 반만 받는 TeacherScope만 부른다. 편집(4.6·4.7)은 반의 권이 시작 전·기간 안이 아니면 403 LICENSE_INACTIVE(메모만
- * 바꿔도, ADR 0031) — 조회는 막지 않는다.
+ * 바꿔도, ADR 0031) — 조회는 막지 않는다. 응답 행의 상태는 today(학원 날짜)로 계산한다: 휴강 cancelled, 오늘 이전 done, 그 밖 scheduled(DB에는 쓰지
+ * 않음 — 이슈 #45).
  */
 public interface ClassSchedules {
 
-    /** 진도표 전체, seq 순(휴강 행 포함) */
-    List<ScheduleEntry> schedule(long academyId, long classId);
+    /** 진도표 전체, seq 순(휴강 행 포함). today = 학원 날짜 */
+    List<ScheduleEntry> schedule(long academyId, long classId, LocalDate today);
 
     /**
      * 한 행의 날짜·메모 변경(4.6). today = 학원 날짜. 없는 seq 404, 지난 행 날짜 변경 409 SESSION_PAST, 순서 위반·휴강 행 날짜 변경 400. 같은 반 편집은 반 행
