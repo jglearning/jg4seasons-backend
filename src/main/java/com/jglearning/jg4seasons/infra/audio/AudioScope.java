@@ -17,7 +17,10 @@ public sealed interface AudioScope {
         return All.INSTANCE;
     }
 
-    /** 권 코드(예: L2-B1). 정책 JSON·와일드카드에 그대로 들어가므로 대문자·숫자를 대시로 이은 형식만 받는다 */
+    /**
+     * 권 코드(예: L2-B1, K-B1 — 기준 데이터의 {@code <레벨>-B<시즌>}). 정책 JSON·와일드카드에 그대로 들어가므로 그 형식만 받는다: 레벨만(L2 → L2-* = 네 권)이나 회차
+     * 코드(L2-B1-05 → 아무 음원도 맞지 않음)가 들어오면 범위가 "권 하나"가 아니게 된다
+     */
     static AudioScope book(String bookCode) {
         return new Book(bookCode);
     }
@@ -36,12 +39,12 @@ public sealed interface AudioScope {
 
     record Book(String code) implements AudioScope {
 
-        private static final Pattern CODE = Pattern.compile("^[A-Z0-9]+(-[A-Z0-9]+)*$");
+        private static final Pattern CODE = Pattern.compile("^[A-Z0-9]+-B[0-9]+$");
 
         public Book {
             // 메시지에 값을 넣지 않는다 — 형식이 틀린 값은 데이터 오류이고, 따옴표 등이 로그를 어지럽힌다
             if (code == null || !CODE.matcher(code).matches()) {
-                throw new IllegalArgumentException("음원 범위의 권 코드는 대문자·숫자를 대시로 이은 형식이어야 한다");
+                throw new IllegalArgumentException("음원 범위의 권 코드는 <레벨>-B<번호> 형식이어야 한다");
             }
         }
     }

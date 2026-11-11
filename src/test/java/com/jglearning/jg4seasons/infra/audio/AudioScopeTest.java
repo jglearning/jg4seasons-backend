@@ -18,7 +18,26 @@ class AudioScopeTest {
 
     @ParameterizedTest
     @ValueSource(
-            strings = {"", " ", "L2\"B1", "L2/B1", "L2-*", "L2-B?", "l2-b1", "L2-", "-B1", "L2--B1", "L2 B1", "L2\\B1"})
+            strings = {
+                "",
+                " ",
+                "L2\"B1",
+                "L2/B1",
+                "L2-*",
+                "L2-B?",
+                "l2-b1",
+                "L2-",
+                "-B1",
+                "L2--B1",
+                "L2 B1",
+                "L2\\B1",
+                // 권 코드(<레벨>-B<n>)가 아니면 범위가 여러 권(L2 → L2-*)이거나 아무것도 맞지 않는다(회차 코드 → L2-B1-05-*)
+                "L2",
+                "L2-B1-05",
+                "L2-BX",
+                "B1",
+                "L2-C1"
+            })
     void 권_코드_형식이_아니면_거부한다(String code) {
         assertThatThrownBy(() -> AudioScope.book(code))
                 .isInstanceOf(IllegalArgumentException.class)
