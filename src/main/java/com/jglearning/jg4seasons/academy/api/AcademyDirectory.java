@@ -9,6 +9,9 @@ public interface AcademyDirectory {
     /** 학원 이름. 학원은 사용자·반의 FK라 반드시 있다 — 없으면 IllegalStateException */
     String nameOf(long academyId);
 
+    /** 교재 사용권 적용 여부(false = 직영, 모든 권 무제한 — ADR 0031). 없는 학원은 데이터 오류라 IllegalStateException */
+    boolean licenseEnforced(long academyId);
+
     /** 학원이 있고 정지(suspended)가 아니다. 학생 입장·세션 갱신 전에 확인한다 */
     boolean isActive(long academyId);
 

@@ -38,8 +38,47 @@ class CloudFrontCookieSignerTest {
     }
 
     @Test
+    void 전체_범위면_정책_Resource는_설정값_그대로() {
+        String value = signer.cookies(Instant.ofEpochSecond(1762770000L), AudioScope.all())
+                .get("CloudFront-Policy");
+
+        assertThat(new String(decode(value), StandardCharsets.UTF_8))
+                .isEqualTo(CloudFrontCookieSigner.policy(RESOURCE, 1762770000L));
+    }
+
+    @Test
+    void 권_범위면_정책_Resource는_권_코드_대시_별표() {
+        String value = signer.cookies(Instant.ofEpochSecond(1762770000L), AudioScope.book("L2-B1"))
+                .get("CloudFront-Policy");
+
+        assertThat(new String(decode(value), StandardCharsets.UTF_8))
+                .isEqualTo(CloudFrontCookieSigner.policy("https://site.test/audio/L2-B1-*", 1762770000L));
+    }
+
+    @Test
+    void 권_범위_서명도_그_정책으로_검증된다() throws Exception {
+        String value = signer.cookies(Instant.ofEpochSecond(1762770000L), AudioScope.book("K-B1"))
+                .get("CloudFront-Signature");
+        byte[] policy = CloudFrontCookieSigner.policy("https://site.test/audio/K-B1-*", 1762770000L)
+                .getBytes(StandardCharsets.UTF_8);
+
+        assertThat(verify(keys.getPublic(), policy, decode(value))).isTrue();
+    }
+
+    @Test
+    void 설정_주소가_audio_별표로_끝나지_않으면_만들지_않는다() {
+        // 끝 *를 떼고 권 패턴을 붙이므로, 형식이 다르면 …/audioL2-B1-* 같은 깨진 주소를 예외 없이 서명하게 된다
+        for (String resource :
+                new String[] {"https://site.test/audio/", "https://site.test/other/*", "https://site.test/*"}) {
+            assertThatThrownBy(() -> new CloudFrontCookieSigner("KTESTKEYID", keys.getPrivate(), resource))
+                    .as(resource)
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Test
     void 쿠키_셋을_이_순서로() {
-        Map<String, String> cookies = signer.cookies(Instant.ofEpochSecond(1762770000L));
+        Map<String, String> cookies = signer.cookies(Instant.ofEpochSecond(1762770000L), AudioScope.all());
 
         assertThat(cookies).containsOnlyKeys("CloudFront-Policy", "CloudFront-Signature", "CloudFront-Key-Pair-Id");
         assertThat(cookies.keySet())
@@ -49,7 +88,8 @@ class CloudFrontCookieSignerTest {
 
     @Test
     void 정책_쿠키는_정책의_URL_안전_base64() {
-        String value = signer.cookies(Instant.ofEpochSecond(1762770000L)).get("CloudFront-Policy");
+        String value = signer.cookies(Instant.ofEpochSecond(1762770000L), AudioScope.all())
+                .get("CloudFront-Policy");
 
         assertThat(value).doesNotContain("+", "=", "/");
         assertThat(new String(decode(value), StandardCharsets.UTF_8))
@@ -58,7 +98,8 @@ class CloudFrontCookieSignerTest {
 
     @Test
     void 서명은_공개_키로_검증된다() throws Exception {
-        String value = signer.cookies(Instant.ofEpochSecond(1762770000L)).get("CloudFront-Signature");
+        String value = signer.cookies(Instant.ofEpochSecond(1762770000L), AudioScope.all())
+                .get("CloudFront-Signature");
         byte[] policy = CloudFrontCookieSigner.policy(RESOURCE, 1762770000L).getBytes(StandardCharsets.UTF_8);
 
         assertThat(value).doesNotContain("+", "=", "/");
@@ -71,7 +112,8 @@ class CloudFrontCookieSignerTest {
 
     @Test
     void 만료는_epoch_초() {
-        String value = signer.cookies(Instant.ofEpochMilli(1762770000999L)).get("CloudFront-Policy");
+        String value = signer.cookies(Instant.ofEpochMilli(1762770000999L), AudioScope.all())
+                .get("CloudFront-Policy");
 
         assertThat(new String(decode(value), StandardCharsets.UTF_8)).contains("\"AWS:EpochTime\":1762770000}");
     }
