@@ -16,6 +16,7 @@ import com.jglearning.jg4seasons.system.web.dto.AcademyCreateRequest;
 import com.jglearning.jg4seasons.system.web.dto.AcademyCreatedResponse;
 import com.jglearning.jg4seasons.system.web.dto.AcademyListResponse;
 import com.jglearning.jg4seasons.system.web.dto.AcademyResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -32,6 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class SystemAcademyService {
 
     static final ZoneId DEFAULT_TIMEZONE = ZoneId.of("Asia/Seoul");
+
+    /** BCrypt는 72바이트 뒤를 버린다(교사 계정 규칙과 같음) */
+    static final int MAX_PASSWORD_BYTES = 72;
 
     private final Operators operators;
     private final AcademyRegistry academies;
@@ -55,6 +59,10 @@ public class SystemAcademyService {
 
     public AcademyCreatedResponse create(long actorId, AcademyCreateRequest request) {
         operators.requireActiveOperator(actorId);
+        // 글자 수는 DTO가, 바이트(BCrypt 72바이트 한도)는 여기서 — 계정 검사가 던지면 field가 password로 나가 이 요청의 칸(admin.password)과 어긋난다
+        if (request.admin().password().getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
+            throw ApiException.validation("admin.password", "비밀번호는 8자 이상, 72바이트 이하예요");
+        }
         AcademySummary academy = academies.create(new NewAcademy(
                 request.name(), request.slug(), timezone(request.timezone()), request.licenseEnforced()));
         AcademyCreateRequest.Admin admin = request.admin();

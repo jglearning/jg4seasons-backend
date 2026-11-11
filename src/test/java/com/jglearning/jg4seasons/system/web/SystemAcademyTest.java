@@ -186,6 +186,16 @@ class SystemAcademyTest {
     }
 
     @Test
+    void 관리자_비밀번호가_72바이트를_넘으면_admin_password로_400() {
+        // 한글 25자 = 25자(DTO 글자 수 통과)·75바이트 — 이 요청에서 그 칸의 경로는 admin.password(리뷰 #47-5)
+        String body = "{\"name\":\"연계 학원\",\"slug\":\"" + unique("bytes") + "\",\"licenseEnforced\":true,"
+                + "\"admin\":{\"loginId\":\"" + unique("padmin") + "\",\"password\":\"" + "가".repeat(25)
+                + "\",\"name\":\"관리자\"}}";
+
+        assertValidation(create(body), "admin.password");
+    }
+
+    @Test
     void 모르는_필드는_400() {
         assertThat(create(body(unique("x"), unique("padmin"), ",\"seats\":10"))).hasStatus(400);
     }
