@@ -48,7 +48,8 @@ public record MatrixResponse(
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"scheduled", "done"})
+                    allowableValues = {"scheduled", "done"},
+                    description = "done = 이 회차 수업 날짜가 오늘(학원 날짜) 이전(응답 때 계산, 진도표 4.5와 같은 기준). 휴강 행만 남은 회차는 열이 없다")
             String status,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "오늘 회차인가")

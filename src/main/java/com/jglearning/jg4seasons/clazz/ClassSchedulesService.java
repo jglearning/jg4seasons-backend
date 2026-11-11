@@ -5,7 +5,6 @@ import com.jglearning.jg4seasons.clazz.api.ClassSchedules;
 import com.jglearning.jg4seasons.clazz.api.ScheduleChange;
 import com.jglearning.jg4seasons.clazz.api.ScheduleEntry;
 import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore;
-import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore.SessionRow;
 import com.jglearning.jg4seasons.clazz.persistence.ClassSessionStore.SessionWrite;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
@@ -31,11 +30,16 @@ class ClassSchedulesService implements ClassSchedules {
     }
 
     @Override
-    public List<ScheduleEntry> schedule(long academyId, long classId) {
+    public List<ScheduleEntry> schedule(long academyId, long classId, LocalDate today) {
         Clazz clazz = classes.findByAcademyIdAndId(academyId, classId)
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "반을 찾을 수 없어요"));
         return sessions.findByClass(clazz.getId()).stream()
-                .map(ClassSchedulesService::entry)
+                .map(row -> new ScheduleEntry(
+                        row.seq(),
+                        row.lessonId(),
+                        row.scheduledDate(),
+                        SessionStatusRule.shown(row.status(), row.scheduledDate(), today),
+                        row.note()))
                 .toList();
     }
 
@@ -90,15 +94,17 @@ class ClassSchedulesService implements ClassSchedules {
                                     new SessionWrite(row.id(), row.lessonId(), row.date(), row.status(), row.note()))
                             .toList());
         }
+        // 응답 상태만 계산값 — 위 쓰기·비교는 저장 상태 그대로
         List<ScheduleEntry> entries = new ArrayList<>(result.size());
         for (int i = 0; i < result.size(); i++) {
             ScheduleEdit.Row row = result.get(i);
-            entries.add(new ScheduleEntry(i + 1, row.lessonId(), row.date(), row.status(), row.note()));
+            entries.add(new ScheduleEntry(
+                    i + 1,
+                    row.lessonId(),
+                    row.date(),
+                    SessionStatusRule.shown(row.status(), row.date(), today),
+                    row.note()));
         }
         return entries;
-    }
-
-    private static ScheduleEntry entry(SessionRow row) {
-        return new ScheduleEntry(row.seq(), row.lessonId(), row.scheduledDate(), row.status(), row.note());
     }
 }

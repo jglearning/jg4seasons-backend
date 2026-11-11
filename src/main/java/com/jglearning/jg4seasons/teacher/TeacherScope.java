@@ -137,7 +137,7 @@ class TeacherScope {
      * 반 진도표(4.5). 진도표 api(ClassSchedules)는 범위 확인을 거친 반으로만 부르도록 여기서만 쓴다 — clazz는 학원 범위만 보고 담당 여부는 모른다
      */
     List<ScheduleEntry> schedule(ScopedClass scoped) {
-        return schedules.schedule(scoped.academyId(), scoped.clazz().classId());
+        return schedules.schedule(scoped.academyId(), scoped.clazz().classId(), scoped.today());
     }
 
     /** 진도표 한 행 변경(4.6). today = 범위 확인 때 구한 학원 날짜 */
