@@ -12,7 +12,11 @@ public record MeResponse(
                 allowableValues = {"student", "teacher", "admin", "superadmin"})
         String role,
 
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AcademyRef academy) {
+        @Schema(
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                nullable = true,
+                description = "운영자(superadmin)는 null — 학원에 속하지 않는다")
+        AcademyRef academy) {
 
     public record AcademyRef(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)

@@ -21,7 +21,12 @@ public final class Principals {
         }
     }
 
-    /** 학원이 없는 토큰(시스템 관리자)은 학원 범위 API를 부를 수 없다 → 401 */
+    /** 학원 값. 없으면(운영자 토큰) null — 학원 없는 계정도 받는 곳(내 정보)만 쓴다. 학원 범위 API는 academyId */
+    public static Long academyIdOrNull(Jwt jwt) {
+        return jwt.getClaim(ACADEMY_CLAIM) instanceof Number academyId ? academyId.longValue() : null;
+    }
+
+    /** 학원이 없는 토큰(운영자)은 학원 범위 API를 부를 수 없다 → 401(역할 계층에서도 막힌다 — ADR 0032) */
     public static long academyId(Jwt jwt) {
         if (jwt.getClaim(ACADEMY_CLAIM) instanceof Number academyId) {
             return academyId.longValue();

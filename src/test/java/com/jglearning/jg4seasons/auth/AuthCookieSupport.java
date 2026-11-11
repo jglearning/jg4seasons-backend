@@ -25,6 +25,11 @@ public class AuthCookieSupport {
         return access(userId, UserRole.STUDENT, academyId);
     }
 
+    /** 운영자 access — aca 없음(ADR 0032) */
+    public Cookie operatorAccess(long userId) {
+        return access(userId, UserRole.SUPERADMIN, null);
+    }
+
     public static Cookie csrf() {
         return new Cookie("csrf", CSRF_VALUE);
     }

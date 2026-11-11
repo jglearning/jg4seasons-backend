@@ -851,7 +851,7 @@
     },
     "/api/v1/me" : {
       "get" : {
-        "description" : "access 쿠키가 없거나 만료면 401 UNAUTHORIZED",
+        "description" : "access 쿠키가 없거나 만료면 401 UNAUTHORIZED. 운영자는 academy null",
         "operationId" : "me",
         "responses" : {
           "200" : {
@@ -2488,7 +2488,12 @@
         "type" : "object",
         "properties" : {
           "academy" : {
-            "$ref" : "#/components/schemas/AcademyRef"
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/AcademyRef"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "운영자(superadmin)는 null — 학원에 속하지 않는다"
           },
           "id" : {
             "type" : "integer",
@@ -2733,8 +2738,9 @@
         "type" : "object",
         "properties" : {
           "academyId" : {
-            "type" : "integer",
-            "format" : "int64"
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "운영자(superadmin)는 null — 학원에 속하지 않는다"
           },
           "id" : {
             "type" : "integer",
@@ -2745,7 +2751,7 @@
           },
           "role" : {
             "type" : "string",
-            "enum" : [ "teacher", "admin" ]
+            "enum" : [ "teacher", "admin", "superadmin" ]
           }
         },
         "required" : [ "academyId", "id", "name", "role" ]

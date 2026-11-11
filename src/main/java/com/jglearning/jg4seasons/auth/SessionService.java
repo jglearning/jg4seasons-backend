@@ -67,6 +67,8 @@ public class SessionService {
                 owner.id(),
                 owner.name(),
                 owner.role().value(),
-                new MeResponse.AcademyRef(owner.academyId(), academies.nameOf(owner.academyId())));
+                owner.academyId() == null
+                        ? null
+                        : new MeResponse.AcademyRef(owner.academyId(), academies.nameOf(owner.academyId())));
     }
 }
