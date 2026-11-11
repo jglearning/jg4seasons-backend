@@ -13,6 +13,26 @@ class LicenseRuleTest {
     static final LocalDate END = LocalDate.of(2026, 12, 31);
 
     @Test
+    void 기간_안이면_남은_일수는_종료일까지_포함해서_센다() {
+        assertThat(LicenseRule.daysLeft(LicenseStatus.ACTIVE, END, END))
+                .as("마지막 날")
+                .isEqualTo(1);
+        assertThat(LicenseRule.daysLeft(LicenseStatus.ACTIVE, END, END.minusDays(2)))
+                .isEqualTo(3);
+    }
+
+    @Test
+    void 기간_밖이거나_사용권_없이_적용_안_함이면_남은_일수가_없다() {
+        assertThat(LicenseRule.daysLeft(LicenseStatus.BEFORE_START, END, START.minusDays(1)))
+                .isNull();
+        assertThat(LicenseRule.daysLeft(LicenseStatus.EXPIRED, END, END.plusDays(1)))
+                .isNull();
+        assertThat(LicenseRule.daysLeft(LicenseStatus.ACTIVE, null, START))
+                .as("적용 안 함·줄 없음")
+                .isNull();
+    }
+
+    @Test
     void 적용하지_않으면_사용권이_없어도_ACTIVE() {
         assertThat(LicenseRule.status(false, null, null, START)).isEqualTo(LicenseStatus.ACTIVE);
     }
