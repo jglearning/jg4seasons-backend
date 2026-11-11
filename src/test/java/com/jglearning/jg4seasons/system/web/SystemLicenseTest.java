@@ -210,6 +210,56 @@ class SystemLicenseTest {
     }
 
     @Test
+    void 오늘은_학원_타임존_날짜로_센다() {
+        // UTC 12-09 16:00 = 서울 12-10 01:00 — UTC 날짜로 세면 오늘이 12-09, 마지막 날 남은 일수가 2(리뷰 #47-2)
+        clock.set(Instant.parse("2026-12-09T16:00:00Z"));
+        put("L2-B1", "2026-12-01", "2026-12-10", 30);
+
+        MvcTestResult result = detail(academyId);
+
+        assertThat(result).bodyJson().extractingPath("$.today").isEqualTo("2026-12-10");
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.licenses[0].daysLeft")
+                .asNumber()
+                .isEqualTo(1);
+        assertThat(result).bodyJson().extractingPath("$.licenses[0].status").isEqualTo("active");
+    }
+
+    @Test
+    void 사용권을_적용하지_않는_학원도_지정되고_늘_active() {
+        long direct = data.academy("직영");
+
+        MvcTestResult result = put(
+                cookies.operatorAccess(operatorId),
+                direct,
+                "L2-B1",
+                "{\"startDate\":\"2026-11-01\",\"endDate\":\"2026-11-30\",\"seats\":5}");
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.status").as("지난 기간이어도").isEqualTo("active");
+        assertThat(result).bodyJson().extractingPath("$.daysLeft").isNull();
+        MvcTestResult shown = detail(direct);
+        assertThat(shown).bodyJson().extractingPath("$.academy.licenseEnforced").isEqualTo(false);
+        assertThat(shown)
+                .bodyJson()
+                .extractingPath("$.licenses.length()")
+                .asNumber()
+                .isEqualTo(1);
+    }
+
+    @Test
+    void 정지된_학원도_상세와_사용권_지정이_된다() {
+        jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
+
+        assertThat(put("L2-B1", "2026-12-01", "2026-12-31", 30)).hasStatusOk();
+        assertThat(detail(academyId))
+                .bodyJson()
+                .extractingPath("$.academy.status")
+                .isEqualTo("suspended");
+    }
+
+    @Test
     void 종료일이_시작일보다_앞이면_400() {
         assertValidation(put("L2-B1", "2026-12-10", "2026-12-09", 30), "endDate");
     }

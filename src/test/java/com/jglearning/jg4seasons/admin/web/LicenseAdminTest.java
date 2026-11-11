@@ -103,6 +103,22 @@ class LicenseAdminTest {
     }
 
     @Test
+    void 오늘은_학원_타임존_날짜로_센다() {
+        // UTC 12-09 16:00 = 서울 12-10 01:00(리뷰 #47-2)
+        clock.set(Instant.parse("2026-12-09T16:00:00Z"));
+        data.license(academyId, "L2-B1", LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 10), 20);
+
+        MvcTestResult result = licenses(admin());
+
+        assertThat(result).bodyJson().extractingPath("$.today").isEqualTo("2026-12-10");
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.items[0].daysLeft")
+                .asNumber()
+                .isEqualTo(1);
+    }
+
+    @Test
     void 사용권을_적용하지_않는_학원은_licenseEnforced_false() {
         long direct = data.academy("직영");
         long directAdmin = data.staff(direct, "직영 관리자", "admin");

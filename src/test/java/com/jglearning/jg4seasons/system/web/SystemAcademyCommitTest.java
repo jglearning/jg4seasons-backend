@@ -5,7 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.AuthCookieSupport;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,8 +74,65 @@ class SystemAcademyCommitTest {
                 .exchange();
     }
 
+    private static List<MvcTestResult> together(Callable<MvcTestResult> first, Callable<MvcTestResult> second)
+            throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<MvcTestResult>> futures = new ArrayList<>();
+            for (Callable<MvcTestResult> call : List.of(first, second)) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return call.call();
+                }));
+            }
+            start.countDown();
+            List<MvcTestResult> results = new ArrayList<>();
+            for (Future<MvcTestResult> future : futures) {
+                results.add(future.get(30, TimeUnit.SECONDS));
+            }
+            return results;
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
     private Integer count(String sql, Object... args) {
         return jdbc.queryForObject(sql, Integer.class, args);
+    }
+
+    @Test
+    void 같은_주소로_동시에_만들면_하나만_201_나머지는_409() throws Exception {
+        // 폼 두 번 제출 — 둘 다 미리 조회를 지나면 유일 키 위반을 409로 바꾸는 경로를 탄다(리뷰 #47-4)
+        for (int round = 0; round < 5; round++) {
+            String slug = "commit-race" + round + "-" + suffix;
+            String first = "race-a" + round + "-" + suffix;
+            String second = "race-b" + round + "-" + suffix;
+
+            List<MvcTestResult> results = together(() -> create(slug, first), () -> create(slug, second));
+
+            String as = "회차 " + round;
+            assertThat(results.stream().map(r -> r.getResponse().getStatus()))
+                    .as(as)
+                    .containsExactlyInAnyOrder(201, 409);
+            MvcTestResult conflict = results.stream()
+                    .filter(r -> r.getResponse().getStatus() == 409)
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(conflict).bodyJson().extractingPath("$.code").isEqualTo("ACADEMY_SLUG_TAKEN");
+            assertThat(count("select count(*) from academy where slug = ?", slug))
+                    .as(as)
+                    .isEqualTo(1);
+            assertThat(count("select count(*) from auth_identity where identifier in (?, ?)", first, second))
+                    .as(as + " 진 쪽 관리자는 남지 않음")
+                    .isEqualTo(1);
+            assertThat(count(
+                            "select count(*) from audit_log l join academy a on a.id = l.academy_id"
+                                    + " where a.slug = ? and l.action = 'ACADEMY_CREATE'",
+                            slug))
+                    .as(as)
+                    .isEqualTo(1);
+        }
     }
 
     @Test
