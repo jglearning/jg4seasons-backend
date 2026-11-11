@@ -38,6 +38,15 @@ class InitialOperatorPropertiesTest {
     }
 
     @Test
+    void 이름만_있으면_반쪽으로_멈춘다() {
+        // 넣은 값이 왜 무시됐는지 모르게 "설정 없음"으로 넘어가지 않는다(리뷰 #47-11)
+        assertThatThrownBy(() -> new InitialOperatorProperties(null, null, "운영자").resolve())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("login-id")
+                .hasMessageContaining("password");
+    }
+
+    @Test
     void 비밀번호가_10자보다_짧으면_멈추고_값은_싣지_않는다() {
         assertThatThrownBy(() -> new InitialOperatorProperties("ops", "short-pw", null).resolve())
                 .isInstanceOf(IllegalStateException.class)

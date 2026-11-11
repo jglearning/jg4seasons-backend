@@ -38,6 +38,10 @@ record InitialOperatorProperties(String loginId, String password, String name) {
             missing.add("password");
         }
         if (missing.size() == 2) {
+            if (!isBlank(name)) {
+                // 이름만 있으면 넣으려던 계정이 조용히 빠진다 — 반쪽으로 본다
+                throw new IllegalStateException("운영자 설정(" + PREFIX + ")에 빠진 값이 있다: " + String.join(", ", missing));
+            }
             return Optional.empty();
         }
         if (!missing.isEmpty()) {
@@ -58,6 +62,11 @@ record InitialOperatorProperties(String loginId, String password, String name) {
             throw invalid("name", "1~" + MAX_NAME + "자");
         }
         return Optional.of(new InitialOperator(normalized, password, operatorName));
+    }
+
+    /** 하나라도 값이 있나(운영자가 이미 있어 쓰지 않을 때 그 사실을 남기려고) */
+    boolean anyValue() {
+        return !isBlank(loginId) || !isBlank(password) || !isBlank(name);
     }
 
     private static IllegalStateException invalid(String key, String rule) {

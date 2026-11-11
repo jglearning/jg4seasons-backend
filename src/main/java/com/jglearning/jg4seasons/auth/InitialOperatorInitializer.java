@@ -41,7 +41,14 @@ class InitialOperatorInitializer implements ApplicationRunner {
 
     void createIfNoOperator() {
         if (users.anyOperator()) {
-            log.debug("운영자가 이미 있어 만들지 않는다");
+            // 운영자 관리 화면이 없다 — 비활성 운영자만 남으면 시스템 API를 아무도 못 쓴다. 만들지는 않고 드러나게만(DB status 확인)
+            if (!users.anyActiveOperator()) {
+                log.warn("운영자 행은 있지만 활성 운영자가 없다 — user.status 확인 필요(설정값으로 새로 만들지 않는다)");
+            }
+            if (properties.anyValue()) {
+                // 비밀번호 재설정으로 오해하지 않게. 값은 남기지 않는다
+                log.info("운영자가 이미 있어 {} 설정값을 쓰지 않았다(비밀번호 재설정 아님)", InitialOperatorProperties.PREFIX);
+            }
             return;
         }
         properties

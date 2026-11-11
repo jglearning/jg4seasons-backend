@@ -47,6 +47,13 @@ public class PreAuthUserLookup {
                 "select exists(select 1 from `user` where role = 'superadmin' and academy_id is null)", Boolean.class));
     }
 
+    /** 활성 운영자가 한 명이라도 있는지 — 부트스트랩이 비활성 운영자만 남은 상태를 드러내려고 */
+    public boolean anyActiveOperator() {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "select exists(select 1 from `user` where role = 'superadmin' and academy_id is null and status = 'active')",
+                Boolean.class));
+    }
+
     /** 운영자 마지막 로그인 시각. 학원 범위 리포지토리로는 학원 없는 행을 찾을 수 없어 여기서 쓴다 */
     public void recordOperatorLogin(long userId, Instant at) {
         int updated = jdbc.update(

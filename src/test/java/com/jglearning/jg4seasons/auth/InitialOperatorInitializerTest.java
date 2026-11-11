@@ -94,6 +94,27 @@ class InitialOperatorInitializerTest {
                 .isZero();
     }
 
+    // 운영자 관리 화면이 없어 비활성 운영자만 남으면 시스템 API를 아무도 못 쓴다 — 조용히 넘어가지 않게(리뷰 #47-11)
+    @Test
+    void 비활성_운영자만_있으면_WARN을_남긴다(CapturedOutput output) {
+        long operatorId = new TestData(jdbc).operator("멈춘 운영자");
+        jdbc.update("update `user` set status = 'inactive' where id = ?", operatorId);
+
+        initializer(new InitialOperatorProperties(null, null, null)).createIfNoOperator();
+
+        assertThat(output).contains("활성 운영자가 없다");
+    }
+
+    // 운영자가 있는데 설정값을 바꿔도 비밀번호 재설정이 아니다 — 무시한 사실은 남기고 값은 남기지 않는다
+    @Test
+    void 운영자가_있는데_설정값이_있으면_쓰지_않았다고_남긴다(CapturedOutput output) {
+        new TestData(jdbc).operator("이미 있는 운영자");
+
+        initializer(new InitialOperatorProperties(unique(), PASSWORD, null)).createIfNoOperator();
+
+        assertThat(output).contains("설정값을 쓰지 않았다").doesNotContain(PASSWORD);
+    }
+
     // 운영자가 있으면 설정값을 읽지 않는다 — 파라미터를 지워도(반쪽이 돼도) 서버가 뜬다
     @Test
     void 운영자가_있으면_설정이_반쪽이어도_검사하지_않는다() {
