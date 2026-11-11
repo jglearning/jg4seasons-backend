@@ -10,7 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 학원을 모르는 상태에서 사용자 id로 활성 사용자를 읽는다. 학원 조건 없이 사용자를 읽고 쓰는 유일한 곳이다(운영자 — 학원 없음 — 의 마지막 로그인
+ * 학원을 모르는 상태에서 사용자 id로 활성 사용자를 읽는다. 학원 조건 없이 사용자를 읽고 쓰는 유일한 곳이다(운영자 — 학원 없음 — 의 존재 확인·마지막 로그인
  * 포함).
  *
  * <p>쓰는 곳은 둘이다. refresh: 쿠키는 난수뿐이라 학원을 알 수 없고, 사용자 id는 쿠키 해시로 찾은 refresh_token 행에서 온다. 교사 로그인:
@@ -38,6 +38,12 @@ public class PreAuthUserLookup {
                         rs.getString("name")),
                 userId);
         return rows.stream().findFirst();
+    }
+
+    /** 운영자(superadmin, 학원 없음)가 한 명이라도 있는지(상태 무관) — 운영자 부트스트랩(ADR 0032) */
+    public boolean anyOperator() {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "select exists(select 1 from `user` where role = 'superadmin' and academy_id is null)", Boolean.class));
     }
 
     /** 운영자 마지막 로그인 시각. 학원 범위 리포지토리로는 학원 없는 행을 찾을 수 없어 여기서 쓴다 */

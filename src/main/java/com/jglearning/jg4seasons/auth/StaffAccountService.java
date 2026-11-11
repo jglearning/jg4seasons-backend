@@ -117,6 +117,20 @@ class StaffAccountService implements StaffAccounts {
         return toAccount(user);
     }
 
+    /**
+     * 운영자 계정(학원 없음, ADR 0032) — 설정값 부트스트랩만 부른다. 아이디·비밀번호 규칙과 아이디 중복 처리는 교사 계정과 같다. 만든 사용자 id
+     */
+    long createOperator(String rawLoginId, String password, String name) {
+        String loginId = loginId(rawLoginId);
+        String hash = hash(password);
+        if (identities.existsByProviderAndIdentifier(AuthProvider.PASSWORD, loginId)) {
+            throw loginIdTaken();
+        }
+        User user = users.save(User.operator(name(name)));
+        identities.saveAndFlush(AuthIdentity.password(user.getId(), loginId, hash, clock.instant()));
+        return user.getId();
+    }
+
     @Override
     public StaffAccount change(long academyId, long actorId, long staffId, StaffChange change) {
         // 행 잠금: 같은 교사에 대한 변경(이 트랜잭션 안의 담당 반 교체 포함)이 동시에 오면 줄을 선다
