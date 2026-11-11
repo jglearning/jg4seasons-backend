@@ -9,6 +9,8 @@ import com.jglearning.jg4seasons.infra.audio.AudioScope;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @Transactional(readOnly = true)
 public class AudioScopes {
+
+    private static final Logger log = LoggerFactory.getLogger(AudioScopes.class);
 
     private final AcademyDirectory academies;
     private final StudentClasses studentClasses;
@@ -55,6 +59,17 @@ public class AudioScopes {
                 .filter(bookId -> licenses.statusOf(academyId, bookId, today).allowsLearning())
                 .map(bookId -> books.summaryOf(bookId).bookCode())
                 .toList();
-        return AudioScopeRule.of(role, true, activeBooks);
+        AudioScope scope = AudioScopeRule.of(role, true, activeBooks);
+        // 연계 학원 학생만: "음원이 안 나와요" 문의 때 받은 범위를 찾는다(CloudFront 403은 서버 로그가 없다). 권 코드는 개인정보가 아니다
+        log.info("음원 범위: userId={} academyId={} scope={} activeBooks={}", userId, academyId, label(scope), activeBooks);
+        return scope;
+    }
+
+    private static String label(AudioScope scope) {
+        return switch (scope) {
+            case AudioScope.All all -> "all";
+            case AudioScope.Book book -> "book:" + book.code();
+            case AudioScope.None none -> "none";
+        };
     }
 }

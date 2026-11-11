@@ -11,13 +11,17 @@ import java.time.LocalDate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 로그인·refresh 때 음원 범위를 정하는 조회(ADR 0031 결정 6): 학원 사용권 적용 여부 · 현재 반의 권 · 학원 날짜 기준 사용권 상태 */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class AudioScopesTest {
 
     /** 2026-11-15 12:00 KST */
@@ -169,5 +173,37 @@ class AudioScopesTest {
         long operator = data.operator("운영자");
 
         assertThat(scopes.of(operator, UserRole.SUPERADMIN, null)).isEqualTo(AudioScope.none());
+    }
+
+    /** "음원이 안 나와요" 문의 때 그 학생이 받은 범위를 서버 로그로 찾는다(CloudFront 403은 서버 로그가 없다) */
+    @Test
+    void 연계_학원_학생의_범위를_INFO로_남긴다(CapturedOutput output) {
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L2-B1", LocalDate.of(2026, 11, 1), LocalDate.of(2026, 12, 31), 30);
+        enrolledIn("L2-B1");
+
+        studentScope();
+
+        assertThat(output.getOut())
+                .contains("음원 범위: userId=" + studentId + " academyId=" + academyId + " scope=book:L2-B1");
+    }
+
+    @Test
+    void 연계_학원_학생이_범위가_없으면_none으로_남긴다(CapturedOutput output) {
+        data.enforceLicenses(academyId);
+        enrolledIn("L2-B1");
+
+        studentScope();
+
+        assertThat(output.getOut()).contains("음원 범위: userId=" + studentId + " academyId=" + academyId + " scope=none");
+    }
+
+    @Test
+    void 직영_학원_학생은_남기지_않는다(CapturedOutput output) {
+        enrolledIn("L2-B1");
+
+        studentScope();
+
+        assertThat(output.getOut()).doesNotContain("음원 범위: userId=" + studentId + " ");
     }
 }
