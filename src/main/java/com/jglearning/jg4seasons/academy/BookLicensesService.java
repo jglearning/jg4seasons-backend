@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -59,8 +60,12 @@ class BookLicensesService implements BookLicenses {
                 .toList();
     }
 
+    /**
+     * 학원 행 잠금으로 같은 학원의 지정을 줄 세우고, 사용권 줄은 잠금 읽기로 읽는다 — 호출자가 앞서 일반 읽기로 스냅숏을 잡았어도 먼저 커밋된 줄을 본다(동시 첫
+     * 지정이 둘 다 "없음"을 보고 넣어 유일 키 위반이 나지 않게). 호출자 트랜잭션 안에서만(감사 기록과 함께 롤백)
+     */
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public LicenseWrite setLicense(
             long academyId, long bookId, LocalDate startDate, LocalDate endDate, int seats, LocalDate today) {
         if (endDate.isBefore(startDate)) {
@@ -69,11 +74,11 @@ class BookLicensesService implements BookLicenses {
         if (seats < 0 || seats > MAX_SEATS) {
             throw ApiException.validation("seats", "학생 수는 0~" + MAX_SEATS + "명이에요");
         }
-        Academy academy = academies
-                .findById(academyId)
-                .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "학원을 찾을 수 없어요"));
-        boolean enforced = academy.isLicenseEnforced();
-        Optional<BookLicense> found = licenses.findByAcademyIdAndBookId(academyId, bookId);
+        if (academies.lockById(academyId).isEmpty()) {
+            throw new ApiException(CommonErrorCode.NOT_FOUND, "학원을 찾을 수 없어요");
+        }
+        boolean enforced = enforced(academyId);
+        Optional<BookLicense> found = licenses.findByAcademyIdAndBookIdForUpdate(academyId, bookId);
         LicenseRow before = found.map(license -> row(enforced, license, today)).orElse(null);
         BookLicense license = found.orElseGet(() -> BookLicense.create(academyId, bookId, startDate, endDate, seats));
         license.change(startDate, endDate, seats);
