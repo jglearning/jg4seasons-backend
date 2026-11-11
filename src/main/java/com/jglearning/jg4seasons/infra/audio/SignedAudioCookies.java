@@ -20,10 +20,10 @@ final class SignedAudioCookies implements AudioCookies {
 
     @Override
     public Map<String, String> issue(AudioScope scope) {
-        if (scope instanceof AudioScope.None) {
-            return Map.of();
-        }
-        return signer.cookies(clock.instant().plus(ttl), scope);
+        return switch (scope) {
+            case AudioScope.None none -> Map.of();
+            case AudioScope.Signed signed -> signer.cookies(clock.instant().plus(ttl), signed);
+        };
     }
 
     @Override

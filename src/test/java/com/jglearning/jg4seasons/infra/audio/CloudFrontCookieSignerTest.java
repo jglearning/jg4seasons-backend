@@ -66,9 +66,14 @@ class CloudFrontCookieSignerTest {
     }
 
     @Test
-    void 없음_범위는_서명하지_않는다() {
-        assertThatThrownBy(() -> signer.cookies(Instant.ofEpochSecond(1762770000L), AudioScope.none()))
-                .isInstanceOf(IllegalArgumentException.class);
+    void 설정_주소가_audio_별표로_끝나지_않으면_만들지_않는다() {
+        // 끝 *를 떼고 권 패턴을 붙이므로, 형식이 다르면 …/audioL2-B1-* 같은 깨진 주소를 예외 없이 서명하게 된다
+        for (String resource :
+                new String[] {"https://site.test/audio/", "https://site.test/other/*", "https://site.test/*"}) {
+            assertThatThrownBy(() -> new CloudFrontCookieSigner("KTESTKEYID", keys.getPrivate(), resource))
+                    .as(resource)
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Test

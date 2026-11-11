@@ -10,10 +10,12 @@ import java.util.regex.Pattern;
  *   <li>{@link Book}: 그 권의 음원만. 회차 폴더가 권 코드로 시작하므로 {@code /audio/<권 코드>-*}
  *   <li>{@link None}: 음원 쿠키를 주지 않는다
  * </ul>
+ *
+ * <p>서명기는 {@link Signed}(전체·권)만 받는다 — none을 서명하는 실수는 컴파일되지 않는다.
  */
 public sealed interface AudioScope {
 
-    static AudioScope all() {
+    static Signed all() {
         return All.INSTANCE;
     }
 
@@ -21,7 +23,7 @@ public sealed interface AudioScope {
      * 권 코드(예: L2-B1, K-B1 — 기준 데이터의 {@code <레벨>-B<시즌>}). 정책 JSON·와일드카드에 그대로 들어가므로 그 형식만 받는다: 레벨만(L2 → L2-* = 네 권)이나 회차
      * 코드(L2-B1-05 → 아무 음원도 맞지 않음)가 들어오면 범위가 "권 하나"가 아니게 된다
      */
-    static AudioScope book(String bookCode) {
+    static Signed book(String bookCode) {
         return new Book(bookCode);
     }
 
@@ -29,7 +31,10 @@ public sealed interface AudioScope {
         return None.INSTANCE;
     }
 
-    enum All implements AudioScope {
+    /** 서명할 범위(전체·권). none은 여기 들지 않는다 */
+    sealed interface Signed extends AudioScope {}
+
+    enum All implements Signed {
         INSTANCE
     }
 
@@ -37,7 +42,7 @@ public sealed interface AudioScope {
         INSTANCE
     }
 
-    record Book(String code) implements AudioScope {
+    record Book(String code) implements Signed {
 
         private static final Pattern CODE = Pattern.compile("^[A-Z0-9]+-B[0-9]+$");
 

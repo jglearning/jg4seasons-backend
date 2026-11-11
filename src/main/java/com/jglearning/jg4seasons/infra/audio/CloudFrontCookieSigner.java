@@ -31,19 +31,25 @@ final class CloudFrontCookieSigner {
 
     private final String keyPairId;
     private final PrivateKey privateKey;
-    private final String resource;
+    private static final String AUDIO_ALL = "/audio/*";
 
+    private final String resource;
+    /** resource에서 끝 *를 뗀 것(https://<호스트>/audio/) — 권 범위는 여기에 <권 코드>-* */
+    private final String audioPrefix;
+
+    /** resource는 https://<호스트>/audio/* — 아니면 IllegalArgumentException(권 범위가 깨진 주소가 되어 CloudFront가 로그 없이 403) */
     CloudFrontCookieSigner(String keyPairId, PrivateKey privateKey, String resource) {
+        if (resource == null || !resource.endsWith(AUDIO_ALL)) {
+            throw new IllegalArgumentException("음원 서명 Resource는 /audio/*로 끝나야 한다");
+        }
         this.keyPairId = keyPairId;
         this.privateKey = privateKey;
         this.resource = resource;
+        this.audioPrefix = resource.substring(0, resource.length() - 1);
     }
 
-    /**
-     * 쿠키 이름 → 값, Policy·Signature·Key-Pair-Id 순서. 만료는 epoch 초(밀리초는 버림). 범위가 none이면 IllegalArgumentException(서명할 것이 없다 —
-     * 쿠키를 주지 않는 것은 {@link SignedAudioCookies}가 정한다)
-     */
-    Map<String, String> cookies(Instant expires, AudioScope scope) {
+    /** 쿠키 이름 → 값, Policy·Signature·Key-Pair-Id 순서. 만료는 epoch 초(밀리초는 버림) */
+    Map<String, String> cookies(Instant expires, AudioScope.Signed scope) {
         String policy = policy(resourceOf(scope), expires.getEpochSecond());
         Map<String, String> cookies = new LinkedHashMap<>();
         cookies.put(POLICY, urlSafe(Base64.getEncoder().encodeToString(policy.getBytes(StandardCharsets.UTF_8))));
@@ -63,12 +69,11 @@ final class CloudFrontCookieSigner {
         }
     }
 
-    /** all → 설정값(https://<호스트>/audio/*) 그대로, book → 끝 *를 뗀 뒤 <권 코드>-* */
-    private String resourceOf(AudioScope scope) {
+    /** all → 설정값(https://<호스트>/audio/*) 그대로, book → https://<호스트>/audio/<권 코드>-* */
+    private String resourceOf(AudioScope.Signed scope) {
         return switch (scope) {
             case AudioScope.All all -> resource;
-            case AudioScope.Book book -> resource.substring(0, resource.length() - 1) + book.code() + "-*";
-            case AudioScope.None none -> throw new IllegalArgumentException("음원 범위 none은 서명하지 않는다");
+            case AudioScope.Book book -> audioPrefix + book.code() + "-*";
         };
     }
 
