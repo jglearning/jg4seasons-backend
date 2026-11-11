@@ -376,6 +376,36 @@
         "tags" : [ "dashboard-controller" ]
       }
     },
+    "/api/v1/admin/licenses" : {
+      "get" : {
+        "description" : "자기 학원의 권별 사용 기간·상태·남은 일수·학생 수(사용/한도). 사용권 줄이 있는 권만, 레벨·권 순. today·daysLeft는 학원 타임존 날짜 기준",
+        "operationId" : "licenses",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LicenseListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "교재 사용권 보기",
+        "tags" : [ "license-admin-controller" ]
+      }
+    },
     "/api/v1/admin/students/search" : {
       "post" : {
         "description" : "학원 전체(퇴원 포함), 이름 부분 일치(앞뒤 공백 무시, %·_는 글자 그대로), 이름 순, 최대 50명. class는 지금 반(여럿이면 id가 가장 작은 반), 없으면 null. 이름은 본문으로만. X-CSRF 필요",
@@ -1757,6 +1787,57 @@
         },
         "required" : [ "academy", "licenses", "today" ]
       },
+      "AcademyLicenseBookRef" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "season" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "label", "season" ]
+      },
+      "AcademyLicenseItem" : {
+        "type" : "object",
+        "properties" : {
+          "book" : {
+            "$ref" : "#/components/schemas/AcademyLicenseBookRef"
+          },
+          "daysLeft" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "active일 때 종료일 − 오늘 + 1(마지막 날 1), 그 밖 null"
+          },
+          "endDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seats" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "학생 수 한도"
+          },
+          "startDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "before_start", "active", "expired" ]
+          },
+          "usedSeats" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "그 권 진행 중 반에 지금 소속된 서로 다른 학생 수. 한도를 넘으면 그 권 반으로 새 등록·이동이 409"
+          }
+        },
+        "required" : [ "book", "daysLeft", "endDate", "seats", "startDate", "status", "usedSeats" ]
+      },
       "AcademyListResponse" : {
         "type" : "object",
         "properties" : {
@@ -2693,6 +2774,28 @@
           }
         },
         "required" : [ "book", "daysLeft", "endDate", "seats", "startDate", "status", "usedSeats" ]
+      },
+      "LicenseListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "description" : "사용권 줄이 있는 권만, 레벨·권 순",
+            "items" : {
+              "$ref" : "#/components/schemas/AcademyLicenseItem"
+            }
+          },
+          "licenseEnforced" : {
+            "type" : "boolean",
+            "description" : "교재 사용권 적용 여부. false = 직영(모든 권 무제한)"
+          },
+          "today" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "학원 타임존의 오늘"
+          }
+        },
+        "required" : [ "items", "licenseEnforced", "today" ]
       },
       "LicenseSetRequest" : {
         "type" : "object",
