@@ -130,6 +130,37 @@ class TeacherClassesTest {
     }
 
     @Test
+    void 저장값이_scheduled여도_지난_대표_행은_done() {
+        data.session(mine, 1, "L2-B1-01", TODAY.minusDays(2), "scheduled");
+        data.session(mine, 2, "L2-B1-02", TODAY, "scheduled");
+        data.session(mine, 3, "L2-B1-03", TODAY.plusDays(2), "scheduled");
+
+        TeacherClass found = teacherClasses.classOf(academyId, teacherId, false, mine, TODAY);
+
+        assertThat(found.doneLessonIds()).containsExactly(data.lessonId("L2-B1-01"));
+    }
+
+    @Test
+    void 휴강으로_옮긴_회차는_새_행_날짜로() {
+        data.session(mine, 1, "L2-B1-01", TODAY.minusDays(2), "cancelled");
+        data.session(mine, 2, "L2-B1-01", TODAY, "scheduled"); // 휴강으로 옮긴 행
+
+        TeacherClass found = teacherClasses.classOf(academyId, teacherId, false, mine, TODAY);
+
+        assertThat(found.doneLessonIds()).as("지난 휴강 행이 아니라 오늘로 옮긴 행 기준").isEmpty();
+    }
+
+    @Test
+    void 휴강_행만_남은_지난_회차는_done이_아니다() {
+        data.session(mine, 1, "L2-B1-01", TODAY.minusDays(4), "scheduled");
+        data.session(mine, 2, "L2-B1-02", TODAY.minusDays(2), "cancelled"); // 밀지 않은 휴강 — 건너뛴 회차
+
+        TeacherClass found = teacherClasses.classOf(academyId, teacherId, false, mine, TODAY);
+
+        assertThat(found.doneLessonIds()).containsExactly(data.lessonId("L2-B1-01"));
+    }
+
+    @Test
     void 떠난_학생은_studentIds에_없다() {
         long stay = data.student(academyId, "남음");
         long left = data.student(academyId, "떠남");

@@ -5,7 +5,8 @@ import java.util.Set;
 
 /**
  * 교사 화면(4.1·4.2)이 보는 반. lessons는 StudentClasses.lessons와 같은 접기(회차마다 하나, seq 순). doneLessonIds는 대표 행(ClassLesson.seq의
- * 행)의 상태가 done인 회차. studentIds는 현재 소속(left_at 없음), id 순.
+ * 행)이 휴강이 아니고 수업 날짜가 오늘(학원 날짜) 이전인 회차 — 저장값이 아니라 날짜로(진도표 4.5와 같은 판정, 이슈 #45). studentIds는 현재 소속(left_at
+ * 없음), id 순.
  */
 public record TeacherClass(
         long classId,

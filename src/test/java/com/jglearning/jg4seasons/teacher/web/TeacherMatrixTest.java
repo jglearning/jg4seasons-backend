@@ -311,9 +311,20 @@ class TeacherMatrixTest {
     }
 
     @Test
-    void status는_done이면_done_아니면_scheduled() throws Exception {
-        data.session(classId, 1, code(1), TODAY.minusDays(2), "done");
+    void status는_학원_날짜로_지난_회차만_done() throws Exception {
+        data.session(classId, 1, code(1), TODAY.minusDays(2), "scheduled");
         data.session(classId, 2, code(2), TODAY, "scheduled");
+        data.session(classId, 3, code(3), TODAY.plusDays(2), "scheduled");
+
+        assertThat((List<String>) read(matrix(), "$.sessions[*].status"))
+                .containsExactly("done", "scheduled", "scheduled");
+    }
+
+    @Test
+    void done_판정은_학원_날짜_자정이_기준() throws Exception {
+        clock.set(Instant.parse("2026-11-10T15:10:00Z")); // KST 11/11 00:10 — UTC 날짜로는 11/10 행이 오늘
+        data.session(classId, 1, code(1), LocalDate.of(2026, 11, 10), "scheduled");
+        data.session(classId, 2, code(2), LocalDate.of(2026, 11, 11), "scheduled");
 
         assertThat((List<String>) read(matrix(), "$.sessions[*].status")).containsExactly("done", "scheduled");
     }

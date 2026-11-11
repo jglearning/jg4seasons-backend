@@ -76,9 +76,9 @@ class TeacherClassesService implements TeacherClasses {
                         clazz.getName(),
                         clazz.isAllowFutureLessons()),
                 today);
-        // 대표 행 = 접은 회차의 seq 행
+        // 대표 행 = 접은 회차의 seq 행. done은 저장값이 아니라 날짜로(진도표 4.5와 같은 판정)
         Set<Integer> doneSeqs = sessions.findByClass(clazz.getId()).stream()
-                .filter(row -> row.status() == SessionStatus.DONE)
+                .filter(row -> SessionStatusRule.shown(row.status(), row.scheduledDate(), today) == SessionStatus.DONE)
                 .map(SessionRow::seq)
                 .collect(Collectors.toSet());
         Set<Long> doneLessonIds = lessons.stream()
