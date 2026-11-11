@@ -18,9 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 class BookLicensesService implements BookLicenses {
 
-    /** 학생 수 상한 — 입력 실수(자릿수) 방지 */
-    static final int MAX_SEATS = 10_000;
-
     private final AcademyRepository academies;
     private final BookLicenseRepository licenses;
 
@@ -71,8 +68,8 @@ class BookLicensesService implements BookLicenses {
         if (endDate.isBefore(startDate)) {
             throw ApiException.validation("endDate", "종료일은 시작일과 같거나 뒤여야 해요");
         }
-        if (seats < 0 || seats > MAX_SEATS) {
-            throw ApiException.validation("seats", "학생 수는 0~" + MAX_SEATS + "명이에요");
+        if (seats < 0 || seats > BookLicenses.MAX_SEATS) {
+            throw ApiException.validation("seats", BookLicenses.SEATS_MESSAGE);
         }
         if (academies.lockById(academyId).isEmpty()) {
             throw new ApiException(CommonErrorCode.NOT_FOUND, "학원을 찾을 수 없어요");
@@ -94,7 +91,7 @@ class BookLicensesService implements BookLicenses {
                 license.getEndDate(),
                 license.getSeats(),
                 status,
-                LicenseRule.daysLeft(status, enforced ? license.getEndDate() : null, today));
+                LicenseRule.daysLeft(enforced, status, license.getEndDate(), today));
     }
 
     /** 학원은 사용자·반의 FK라 반드시 있다 — 없으면 데이터 오류 */

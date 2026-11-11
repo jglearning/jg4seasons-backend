@@ -56,7 +56,7 @@ public class SystemAcademyService {
     public AcademyCreatedResponse create(long actorId, AcademyCreateRequest request) {
         operators.requireActiveOperator(actorId);
         AcademySummary academy = academies.create(new NewAcademy(
-                request.name().strip(), request.slug(), timezone(request.timezone()), request.licenseEnforced()));
+                request.name(), request.slug(), timezone(request.timezone()), request.licenseEnforced()));
         AcademyCreateRequest.Admin admin = request.admin();
         StaffAccount account = staffAccounts.create(
                 academy.id(), new NewStaff(admin.name(), admin.loginId(), admin.password(), StaffRole.ADMIN));

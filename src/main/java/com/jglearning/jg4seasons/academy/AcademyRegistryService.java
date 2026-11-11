@@ -9,6 +9,7 @@ import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -27,7 +28,7 @@ class AcademyRegistryService implements AcademyRegistry {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public AcademySummary create(NewAcademy academy) {
         if (AcademyRegistry.RESERVED_SLUG.equals(academy.slug())) {
             throw ApiException.validation("slug", "demo는 쓸 수 없는 학원 주소예요");

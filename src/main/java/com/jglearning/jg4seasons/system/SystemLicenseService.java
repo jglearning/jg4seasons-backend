@@ -76,8 +76,8 @@ public class SystemLicenseService {
     }
 
     /**
-     * 학원 행 잠금을 가장 먼저 — 같은 학원·권의 첫 지정이 동시에 오면 둘 다 "줄 없음"을 보고 넣어 유일 키 위반이 난다. 잠금이 첫 읽기보다 앞서야 잠금 뒤의 읽기가
-     * 먼저 커밋된 줄을 본다(REPEATABLE READ 스냅샷). 학원이 없으면 잠금은 아무것도 하지 않고 아래에서 404
+     * 학원 관리 쓰기는 학원 행 잠금으로 줄 세운다(다른 관리 쓰기와 같은 규칙, 가장 먼저). 사용권 줄 자체의 동시 지정은 BookLicenses.setLicense가 스스로
+     * 지킨다(학원 잠금 + 잠금 읽기). 학원이 없으면 잠금은 아무것도 하지 않고 아래에서 404
      */
     public LicenseItem setLicense(long actorId, long academyId, String bookCode, LicenseSetRequest request) {
         academies.lockForAdminWrite(academyId);

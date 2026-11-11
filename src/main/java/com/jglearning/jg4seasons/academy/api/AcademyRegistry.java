@@ -14,8 +14,8 @@ public interface AcademyRegistry {
     String RESERVED_SLUG = "demo";
 
     /**
-     * 학원(active)을 만든다. slug가 있으면 409 ACADEMY_SLUG_TAKEN(동시 요청 포함), demo면 400 VALIDATION(slug). 호출한 트랜잭션 안에서 —
-     * 뒤이은 관리자 만들기가 실패하면 학원도 남지 않는다
+     * 학원(active)을 만든다. slug가 있으면 409 ACADEMY_SLUG_TAKEN(동시 요청 포함), demo면 400 VALIDATION(slug). 호출한 트랜잭션 안에서만
+     * (MANDATORY) — 뒤이은 관리자 만들기가 실패하면 학원도 남지 않는다
      */
     AcademySummary create(NewAcademy academy);
 
