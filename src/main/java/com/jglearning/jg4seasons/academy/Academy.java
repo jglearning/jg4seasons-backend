@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import java.time.ZoneId;
 
 /** 학원(테넌트 자체). 학원 범위 데이터가 아니라 AcademyScoped가 아니다. 입장·내 정보에 필요한 칸만 매핑한다. */
 @Entity
@@ -34,13 +35,17 @@ public class Academy {
 
     protected Academy() {}
 
-    /** 운영 학원(active). 첫 학원 부트스트랩(InitialAcademyInitializer)만 쓴다 — 학원 등록 화면은 1차 범위 밖 */
-    static Academy create(String name, String slug, String settings) {
+    /**
+     * 운영 학원(active). 첫 학원 부트스트랩(InitialAcademyInitializer — 직영이라 사용권 적용 안 함)과 운영자 학원 만들기(AcademyRegistry)가 쓴다.
+     * settings는 타임존 하나({"timezone": …})
+     */
+    static Academy register(String name, String slug, ZoneId timezone, boolean licenseEnforced) {
         Academy academy = new Academy();
         academy.name = name;
         academy.slug = slug;
         academy.status = "active";
-        academy.settings = settings;
+        academy.settings = "{\"timezone\":\"" + timezone.getId() + "\"}";
+        academy.licenseEnforced = licenseEnforced;
         return academy;
     }
 
@@ -50,6 +55,11 @@ public class Academy {
 
     boolean isLicenseEnforced() {
         return licenseEnforced;
+    }
+
+    /** active · suspended */
+    String getStatus() {
+        return status;
     }
 
     public boolean isActive() {

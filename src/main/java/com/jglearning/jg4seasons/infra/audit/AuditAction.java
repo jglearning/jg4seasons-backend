@@ -9,5 +9,7 @@ public enum AuditAction {
     /** 학생 반 이동 */
     STUDENT_MOVE,
     /** 학생 퇴원(비활성화) */
-    STUDENT_DEACTIVATE
+    STUDENT_DEACTIVATE,
+    /** 운영자 학원 만들기(첫 관리자 포함, SYS-07) */
+    ACADEMY_CREATE
 }
