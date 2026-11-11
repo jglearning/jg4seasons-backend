@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.auth.token;
 
 import com.jglearning.jg4seasons.auth.AuthProperties;
 import com.jglearning.jg4seasons.infra.audio.AudioCookies;
+import com.jglearning.jg4seasons.infra.audio.AudioScope;
 import com.jglearning.jg4seasons.infra.audio.NoAudioCookies;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -56,7 +57,8 @@ public class AuthCookies {
                 cookie(ACCESS, tokens.access(), ACCESS_PATH, SessionTtl.ACCESS, true),
                 cookie(REFRESH, tokens.refresh(), REFRESH_PATH, tokens.refreshTtl(), true),
                 cookie(CSRF, tokens.csrf(), CSRF_PATH, tokens.refreshTtl(), false)));
-        audio.issue().forEach((name, value) -> cookies.add(cookie(name, value, AUDIO_PATH, audio.ttl(), true)));
+        audio.issue(AudioScope.all())
+                .forEach((name, value) -> cookies.add(cookie(name, value, AUDIO_PATH, audio.ttl(), true)));
         return List.copyOf(cookies);
     }
 

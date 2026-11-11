@@ -45,7 +45,7 @@ class AudioConfigTest {
                 new AudioSigningProperties(true, "KCONFIG1", key, "https://site.test/audio/*", Duration.ofHours(3));
 
         AudioCookies cookies = new AudioConfig().audioCookies(signing, clock);
-        Map<String, String> issued = cookies.issue();
+        Map<String, String> issued = cookies.issue(AudioScope.all());
 
         assertThat(cookies.ttl()).isEqualTo(Duration.ofHours(3));
         assertThat(issued).containsEntry("CloudFront-Key-Pair-Id", "KCONFIG1");
@@ -58,6 +58,20 @@ class AudioConfigTest {
         verifier.initVerify(keys.getPublic());
         verifier.update(policy.getBytes(StandardCharsets.UTF_8));
         assertThat(verifier.verify(decode(issued.get("CloudFront-Signature")))).isTrue();
+    }
+
+    @Test
+    void 권_범위는_설정_호스트의_권_패턴으로_서명한다() {
+        String key = Base64.getEncoder().encodeToString(keys.getPrivate().getEncoded());
+        AudioSigningProperties signing =
+                new AudioSigningProperties(true, "KCONFIG1", key, "https://site.test/audio/*", Duration.ofHours(2));
+
+        AudioCookies cookies = new AudioConfig().audioCookies(signing, clock);
+
+        String policy = new String(
+                decode(cookies.issue(AudioScope.book("L2-B1")).get("CloudFront-Policy")), StandardCharsets.UTF_8);
+        assertThat(policy).contains("\"Resource\":\"https://site.test/audio/L2-B1-*\"");
+        assertThat(cookies.issue(AudioScope.none())).isEmpty();
     }
 
     @Test

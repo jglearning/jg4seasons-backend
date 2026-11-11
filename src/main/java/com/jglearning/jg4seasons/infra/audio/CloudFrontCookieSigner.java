@@ -39,9 +39,12 @@ final class CloudFrontCookieSigner {
         this.resource = resource;
     }
 
-    /** 쿠키 이름 → 값, Policy·Signature·Key-Pair-Id 순서. 만료는 epoch 초(밀리초는 버림) */
-    Map<String, String> cookies(Instant expires) {
-        String policy = policy(resource, expires.getEpochSecond());
+    /**
+     * 쿠키 이름 → 값, Policy·Signature·Key-Pair-Id 순서. 만료는 epoch 초(밀리초는 버림). 범위가 none이면 IllegalArgumentException(서명할 것이 없다 —
+     * 쿠키를 주지 않는 것은 {@link SignedAudioCookies}가 정한다)
+     */
+    Map<String, String> cookies(Instant expires, AudioScope scope) {
+        String policy = policy(resourceOf(scope), expires.getEpochSecond());
         Map<String, String> cookies = new LinkedHashMap<>();
         cookies.put(POLICY, urlSafe(Base64.getEncoder().encodeToString(policy.getBytes(StandardCharsets.UTF_8))));
         cookies.put(SIGNATURE, urlSafe(Base64.getEncoder().encodeToString(sign(policy))));
@@ -58,6 +61,15 @@ final class CloudFrontCookieSigner {
             throw new IllegalArgumentException(
                     "jg4seasons.audio.signing.private-key를 읽지 못했다(한 줄 base64 PKCS#8 DER RSA 키여야 한다)");
         }
+    }
+
+    /** all → 설정값(https://<호스트>/audio/*) 그대로, book → 끝 *를 뗀 뒤 <권 코드>-* */
+    private String resourceOf(AudioScope scope) {
+        return switch (scope) {
+            case AudioScope.All all -> resource;
+            case AudioScope.Book book -> resource.substring(0, resource.length() - 1) + book.code() + "-*";
+            case AudioScope.None none -> throw new IllegalArgumentException("음원 범위 none은 서명하지 않는다");
+        };
     }
 
     static String policy(String resource, long epochSeconds) {

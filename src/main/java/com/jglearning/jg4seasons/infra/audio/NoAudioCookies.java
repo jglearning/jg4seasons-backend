@@ -9,7 +9,7 @@ public enum NoAudioCookies implements AudioCookies {
     INSTANCE;
 
     @Override
-    public Map<String, String> issue() {
+    public Map<String, String> issue(AudioScope scope) {
         return Map.of();
     }
 

@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.auth.token;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.infra.audio.AudioCookies;
+import com.jglearning.jg4seasons.infra.audio.AudioScope;
 import com.jglearning.jg4seasons.infra.audio.NoAudioCookies;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -77,7 +78,7 @@ class AuthCookiesTest {
     /** 서명 켜짐을 흉내 낸다(값은 서명기가 정하므로 여기서는 이름·값만) */
     static final AudioCookies SIGNED = new AudioCookies() {
         @Override
-        public Map<String, String> issue() {
+        public Map<String, String> issue(AudioScope scope) {
             Map<String, String> cookies = new LinkedHashMap<>();
             cookies.put("CloudFront-Policy", "p");
             cookies.put("CloudFront-Signature", "s");

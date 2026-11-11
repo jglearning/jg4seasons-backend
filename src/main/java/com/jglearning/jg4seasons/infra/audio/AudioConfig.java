@@ -28,7 +28,7 @@ class AudioConfig {
                 signing.keyPairId(), CloudFrontCookieSigner.parsePrivateKey(signing.privateKey()), signing.resource());
         SignedAudioCookies cookies = new SignedAudioCookies(signer, clock, signing.ttl());
         try {
-            cookies.issue()
+            cookies.issue(AudioScope.all())
                     .forEach((name, value) -> ResponseCookie.from(name, value).build());
         } catch (RuntimeException e) {
             // 메시지에 쿠키 값·키 조각을 넣지 않는다
