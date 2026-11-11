@@ -1149,6 +1149,101 @@
         "tags" : [ "system-academy-controller" ]
       }
     },
+    "/api/v1/system/academies/{id}" : {
+      "get" : {
+        "description" : "사용권 줄이 있는 권만, 레벨·권 순. today·daysLeft는 그 학원 타임존 날짜 기준. 없는 학원 404",
+        "operationId" : "getAcademy",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AcademyDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "학원 상세·사용권 현황",
+        "tags" : [ "system-academy-controller" ]
+      }
+    },
+    "/api/v1/system/academies/{id}/licenses/{bookCode}" : {
+      "put" : {
+        "description" : "학원·권마다 한 줄 — 없으면 만들고 있으면 고친다(줄이기 허용, 한도를 낮춰도 기존 학생은 그대로). 삭제는 없다(종료일을 앞당긴다). 종료일 < 시작일 400(endDate), 학원·권 없음 404. 감사 기록 LICENSE_SET. X-CSRF 필요",
+        "operationId" : "setLicense",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "in" : "path",
+          "name" : "bookCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LicenseSetRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LicenseItem"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "교재 사용권 지정·변경",
+        "tags" : [ "system-academy-controller" ]
+      }
+    },
     "/api/v1/teacher/classes" : {
       "get" : {
         "description" : "진행 중(active) 반, id 순 — 교사는 담당 반, 관리자는 학원 전체. 오늘 회차(학원 날짜, 학생 화면과 같은 규칙)와 그 회차의 완료·진행 중·시작 전 학생 수(현재 소속), 밀린 수업이 있는 학생 수, 다음 수업, 로그인 경고(최근 1시간 반 전체 개인 코드 실패 20회 이상 — since는 그중 가장 오래된 실패 시각)",
@@ -1640,6 +1735,27 @@
           }
         },
         "required" : [ "admin", "id", "licenseEnforced", "name", "slug", "status", "timezone" ]
+      },
+      "AcademyDetailResponse" : {
+        "type" : "object",
+        "properties" : {
+          "academy" : {
+            "$ref" : "#/components/schemas/AcademyResponse"
+          },
+          "licenses" : {
+            "type" : "array",
+            "description" : "사용권 줄이 있는 권만, 레벨·권 순",
+            "items" : {
+              "$ref" : "#/components/schemas/LicenseItem"
+            }
+          },
+          "today" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "그 학원 타임존의 오늘"
+          }
+        },
+        "required" : [ "academy", "licenses", "today" ]
       },
       "AcademyListResponse" : {
         "type" : "object",
@@ -2523,6 +2639,82 @@
           }
         },
         "required" : [ "code", "colorHex", "nameKo" ]
+      },
+      "LicenseBookRef" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string",
+            "description" : "예: Book 1"
+          },
+          "season" : {
+            "type" : "string",
+            "description" : "겨울·봄·여름·가을(블랙은 새봄)"
+          }
+        },
+        "required" : [ "code", "label", "season" ]
+      },
+      "LicenseItem" : {
+        "type" : "object",
+        "properties" : {
+          "book" : {
+            "$ref" : "#/components/schemas/LicenseBookRef"
+          },
+          "daysLeft" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "active일 때 종료일 − 오늘 + 1(마지막 날 1). 그 밖·적용 안 하는 학원은 null"
+          },
+          "endDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "seats" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "학생 수 한도"
+          },
+          "startDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "학원 날짜 기준. licenseEnforced가 false인 학원은 늘 active",
+            "enum" : [ "before_start", "active", "expired" ]
+          },
+          "usedSeats" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "그 권 진행 중 반에 지금 소속된 서로 다른 학생 수(등록·이동 409와 같은 숫자). 한도를 낮추면 seats보다 클 수 있다"
+          }
+        },
+        "required" : [ "book", "daysLeft", "endDate", "seats", "startDate", "status", "usedSeats" ]
+      },
+      "LicenseSetRequest" : {
+        "type" : "object",
+        "properties" : {
+          "endDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "시작일과 같거나 뒤"
+          },
+          "seats" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "학생 수 한도(산 교재 부수) 0~10000",
+            "maximum" : 10000,
+            "minimum" : 0
+          },
+          "startDate" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        },
+        "required" : [ "endDate", "seats", "startDate" ]
       },
       "LoginAlert" : {
         "type" : "object",

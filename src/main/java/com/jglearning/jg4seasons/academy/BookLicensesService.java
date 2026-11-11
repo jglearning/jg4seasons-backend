@@ -3,6 +3,9 @@ package com.jglearning.jg4seasons.academy;
 import com.jglearning.jg4seasons.academy.api.BookLicenses;
 import com.jglearning.jg4seasons.academy.api.LicenseRow;
 import com.jglearning.jg4seasons.academy.api.LicenseStatus;
+import com.jglearning.jg4seasons.academy.api.LicenseWrite;
+import com.jglearning.jg4seasons.infra.web.error.ApiException;
+import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 class BookLicensesService implements BookLicenses {
+
+    /** 학생 수 상한 — 입력 실수(자릿수) 방지 */
+    static final int MAX_SEATS = 10_000;
 
     private final AcademyRepository academies;
     private final BookLicenseRepository licenses;
@@ -51,6 +57,28 @@ class BookLicensesService implements BookLicenses {
         return licenses.findByAcademyIdOrderByBookIdAsc(academyId).stream()
                 .map(license -> row(enforced, license, today))
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public LicenseWrite setLicense(
+            long academyId, long bookId, LocalDate startDate, LocalDate endDate, int seats, LocalDate today) {
+        if (endDate.isBefore(startDate)) {
+            throw ApiException.validation("endDate", "종료일은 시작일과 같거나 뒤여야 해요");
+        }
+        if (seats < 0 || seats > MAX_SEATS) {
+            throw ApiException.validation("seats", "학생 수는 0~" + MAX_SEATS + "명이에요");
+        }
+        Academy academy = academies
+                .findById(academyId)
+                .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "학원을 찾을 수 없어요"));
+        boolean enforced = academy.isLicenseEnforced();
+        Optional<BookLicense> found = licenses.findByAcademyIdAndBookId(academyId, bookId);
+        LicenseRow before = found.map(license -> row(enforced, license, today)).orElse(null);
+        BookLicense license = found.orElseGet(() -> BookLicense.create(academyId, bookId, startDate, endDate, seats));
+        license.change(startDate, endDate, seats);
+        BookLicense saved = licenses.saveAndFlush(license);
+        return new LicenseWrite(saved.getId(), before, row(enforced, saved, today));
     }
 
     private static LicenseRow row(boolean enforced, BookLicense license, LocalDate today) {

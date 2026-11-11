@@ -6,7 +6,8 @@ import java.util.Locale;
 public enum AuditTarget {
     CLASS,
     STUDENT,
-    ACADEMY;
+    ACADEMY,
+    BOOK_LICENSE;
 
     /** DB 값(소문자, 로캘 무관) */
     public String value() {

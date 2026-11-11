@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 감사 로그(audit_log) 기록기: 개인 코드·가입 코드 재발급, 학생 이동·퇴원, 운영자 학원 만들기. 호출한 작업과 같은 트랜잭션에서만 쓴다(MANDATORY) — 작업이 롤백되면 감사 행도
+ * 감사 로그(audit_log) 기록기: 개인 코드·가입 코드 재발급, 학생 이동·퇴원, 운영자 학원 만들기·사용권 지정. 호출한 작업과 같은 트랜잭션에서만 쓴다(MANDATORY) — 작업이 롤백되면 감사 행도
  * 남지 않고, 감사 저장이 실패하면 작업도 롤백된다. detail에 개인 코드·가입 코드 같은 비밀 값을 넣지 않는다.
  */
 @Component

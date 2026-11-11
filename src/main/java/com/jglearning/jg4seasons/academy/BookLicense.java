@@ -38,6 +38,24 @@ class BookLicense implements AcademyScoped {
 
     protected BookLicense() {}
 
+    static BookLicense create(long academyId, long bookId, LocalDate startDate, LocalDate endDate, int seats) {
+        BookLicense license = new BookLicense();
+        license.academyId = academyId;
+        license.bookId = bookId;
+        license.change(startDate, endDate, seats);
+        return license;
+    }
+
+    void change(LocalDate startDate, LocalDate endDate, int seats) {
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.seats = seats;
+    }
+
+    Long getId() {
+        return id;
+    }
+
     long getBookId() {
         return bookId;
     }

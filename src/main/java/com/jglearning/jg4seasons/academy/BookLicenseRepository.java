@@ -9,4 +9,6 @@ interface BookLicenseRepository extends AcademyScopedRepository<BookLicense, Lon
     Optional<BookLicense> findByAcademyIdAndBookId(long academyId, long bookId);
 
     List<BookLicense> findByAcademyIdOrderByBookIdAsc(long academyId);
+
+    BookLicense saveAndFlush(BookLicense license);
 }
