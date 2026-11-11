@@ -51,14 +51,18 @@ public class AuthCookies {
         this.audio = audio;
     }
 
-    /** 로그인·refresh: 인증 쿠키 3개 + (서명을 켰으면) 음원 쿠키 3개 */
+    /** 로그인·refresh: 인증 쿠키 3개 + (서명을 켰으면) 묶음의 범위로 음원 쿠키 3개. 범위가 없음이면 음원 쿠키 3개를 만료 */
     public List<ResponseCookie> issue(IssuedTokens tokens) {
         List<ResponseCookie> cookies = new ArrayList<>(List.of(
                 cookie(ACCESS, tokens.access(), ACCESS_PATH, SessionTtl.ACCESS, true),
                 cookie(REFRESH, tokens.refresh(), REFRESH_PATH, tokens.refreshTtl(), true),
                 cookie(CSRF, tokens.csrf(), CSRF_PATH, tokens.refreshTtl(), false)));
-        audio.issue(AudioScope.all())
+        audio.issue(tokens.audioScope())
                 .forEach((name, value) -> cookies.add(cookie(name, value, AUDIO_PATH, audio.ttl(), true)));
+        if (tokens.audioScope() instanceof AudioScope.None) {
+            // 범위가 없으면 앞서 받은 넓은 쿠키(예: 사용권이 끝나기 전 것)가 기한까지 남지 않게 지운다
+            audio.names().forEach(name -> cookies.add(cookie(name, "", AUDIO_PATH, Duration.ZERO, true)));
+        }
         return List.copyOf(cookies);
     }
 

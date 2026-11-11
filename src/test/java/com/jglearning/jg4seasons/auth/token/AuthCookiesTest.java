@@ -19,7 +19,7 @@ import org.springframework.http.ResponseCookie;
 class AuthCookiesTest {
 
     static final IssuedTokens TOKENS =
-            new IssuedTokens("jwt-value", "refresh-value", "csrf-value", Duration.ofDays(90));
+            new IssuedTokens("jwt-value", "refresh-value", "csrf-value", Duration.ofDays(90), AudioScope.all());
 
     static Map<String, ResponseCookie> byName(List<ResponseCookie> cookies) {
         return cookies.stream().collect(Collectors.toMap(ResponseCookie::getName, Function.identity()));
@@ -75,12 +75,15 @@ class AuthCookiesTest {
         });
     }
 
-    /** 서명 켜짐을 흉내 낸다(값은 서명기가 정하므로 여기서는 이름·값만) */
+    /** 서명 켜짐을 흉내 낸다(값은 서명기가 정하므로 여기서는 이름·값만). 정책 값에 받은 범위를 적는다. none이면 서명기처럼 빈 맵 */
     static final AudioCookies SIGNED = new AudioCookies() {
         @Override
         public Map<String, String> issue(AudioScope scope) {
+            if (scope instanceof AudioScope.None) {
+                return Map.of();
+            }
             Map<String, String> cookies = new LinkedHashMap<>();
-            cookies.put("CloudFront-Policy", "p");
+            cookies.put("CloudFront-Policy", scope.toString());
             cookies.put("CloudFront-Signature", "s");
             cookies.put("CloudFront-Key-Pair-Id", "k");
             return cookies;
@@ -138,5 +141,39 @@ class AuthCookiesTest {
             assertThat(expired.get(name).getMaxAge()).isEqualTo(Duration.ZERO);
             assertThat(expired.get(name).getValue()).isEmpty();
         }
+    }
+
+    private static IssuedTokens tokens(AudioScope scope) {
+        return new IssuedTokens("jwt-value", "refresh-value", "csrf-value", Duration.ofDays(90), scope);
+    }
+
+    @Test
+    void 토큰_묶음의_음원_범위로_서명한다() {
+        Map<String, ResponseCookie> cookies =
+                byName(new AuthCookies(true, SIGNED).issue(tokens(AudioScope.book("L2-B1"))));
+
+        assertThat(cookies.get("CloudFront-Policy").getValue())
+                .isEqualTo(AudioScope.book("L2-B1").toString());
+        assertThat(cookies.get("CloudFront-Policy").getMaxAge()).isEqualTo(Duration.ofSeconds(7200));
+    }
+
+    @Test
+    void 범위가_없음이면_남아_있던_음원_쿠키를_지운다() {
+        List<ResponseCookie> issued = new AuthCookies(true, SIGNED).issue(tokens(AudioScope.none()));
+        Map<String, ResponseCookie> cookies = byName(issued);
+
+        assertThat(issued).hasSize(6);
+        assertThat(cookies.get("access").getValue()).isEqualTo("jwt-value");
+        for (String name : SIGNED.names()) {
+            assertThat(cookies.get(name).getPath()).isEqualTo("/audio/");
+            assertThat(cookies.get(name).getMaxAge()).isEqualTo(Duration.ZERO);
+            assertThat(cookies.get(name).getValue()).isEmpty();
+        }
+    }
+
+    @Test
+    void 꺼져_있으면_범위가_없음이어도_쿠키_셋만() {
+        assertThat(new AuthCookies(true, NoAudioCookies.INSTANCE).issue(tokens(AudioScope.none())))
+                .hasSize(3);
     }
 }

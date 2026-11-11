@@ -33,6 +33,14 @@ class AcademyDirectoryService implements AcademyDirectory {
     }
 
     @Override
+    public boolean licenseEnforced(long academyId) {
+        return academies
+                .findById(academyId)
+                .map(Academy::isLicenseEnforced)
+                .orElseThrow(() -> new IllegalStateException("학원이 없다: " + academyId));
+    }
+
+    @Override
     public boolean isActive(long academyId) {
         return academies.findById(academyId).map(Academy::isActive).orElse(false);
     }

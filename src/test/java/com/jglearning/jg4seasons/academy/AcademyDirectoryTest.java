@@ -48,6 +48,21 @@ class AcademyDirectoryTest {
     }
 
     @Test
+    void 사용권_적용_여부를_돌려준다() {
+        long direct = new TestData(jdbc).academy("직영 학원");
+        long partner = new TestData(jdbc).academy("연계 학원");
+        new TestData(jdbc).enforceLicenses(partner);
+
+        assertThat(academies.licenseEnforced(direct)).isFalse();
+        assertThat(academies.licenseEnforced(partner)).isTrue();
+    }
+
+    @Test
+    void 없는_학원의_사용권_적용_여부는_IllegalState() {
+        assertThatThrownBy(() -> academies.licenseEnforced(-1L)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void 타임존이_없으면_서울() {
         long noSettings = new TestData(jdbc).academy("설정 없음");
         long emptySettings = new TestData(jdbc).academy("빈 설정");
