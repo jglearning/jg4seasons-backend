@@ -16,6 +16,12 @@ public record TeacherClassListResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             String name,
 
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "반 가입 코드(영숫자 8자). 입장 링크·QR용. 관리자가 재발급하면 바뀌고 예전 코드로는 들어올 수 없다",
+                    example = "G7KM2XP4")
+            String accessCode,
+
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             TeacherClassLevel level,
 

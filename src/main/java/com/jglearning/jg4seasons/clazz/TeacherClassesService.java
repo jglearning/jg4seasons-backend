@@ -91,6 +91,7 @@ class TeacherClassesService implements TeacherClasses {
         return new TeacherClass(
                 clazz.getId(),
                 clazz.getName(),
+                clazz.getAccessCode(),
                 clazz.getBookId(),
                 clazz.getStatus(),
                 lessons,

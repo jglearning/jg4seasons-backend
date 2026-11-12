@@ -180,6 +180,7 @@ public class TeacherClassService {
         return new TeacherClassItem(
                 clazz.classId(),
                 clazz.name(),
+                clazz.accessCode(),
                 new TeacherClassLevel(book.levelCode(), book.levelNameKo(), book.levelColorHex()),
                 new TeacherClassBook(book.bookCode(), book.label(), book.season()),
                 studentIds.size(),

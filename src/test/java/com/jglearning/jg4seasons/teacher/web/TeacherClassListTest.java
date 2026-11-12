@@ -51,6 +51,7 @@ class TeacherClassListTest {
     long academyId;
     long teacherId;
     long classId;
+    String classCode;
 
     @BeforeEach
     void setUp() {
@@ -58,7 +59,8 @@ class TeacherClassListTest {
         data = new TestData(jdbc);
         academyId = data.academy("교사 목록 학원");
         teacherId = data.staff(academyId, "김교사", "teacher");
-        classId = activeClass("담당 반");
+        classCode = TestData.uniqueAccessCode();
+        classId = data.clazz(academyId, "L2-B1", "담당 반", classCode, "active");
         data.assignTeacher(classId, teacherId);
     }
 
@@ -346,7 +348,36 @@ class TeacherClassListTest {
         long theirs = data.clazz(otherAcademy, "L2-B1", "남의 학원 반", TestData.uniqueAccessCode(), "active");
         data.assignTeacher(theirs, teacherId); // 데이터가 어긋나도 학원 경계가 먼저
 
-        assertThat((List<Integer>) read(classes(), "$.items[*].id")).containsExactly((int) classId);
+        MvcTestResult result = classes();
+
+        assertThat((List<Integer>) read(result, "$.items[*].id")).containsExactly((int) classId);
+        assertThat((List<String>) read(result, "$.items[*].accessCode")).containsExactly(classCode);
+    }
+
+    @Test
+    void 담당_반의_가입_코드만() throws Exception {
+        activeClass("남의 반");
+
+        assertThat((List<String>) read(classes(), "$.items[*].accessCode")).containsExactly(classCode);
+    }
+
+    @Test
+    void 관리자는_반마다_그_반의_가입_코드() throws Exception {
+        long adminId = data.staff(academyId, "관리자", "admin");
+        String otherCode = TestData.uniqueAccessCode();
+        data.clazz(academyId, "L2-B1", "남의 반", otherCode, "active");
+
+        MvcTestResult result = classes(adminId, UserRole.ADMIN);
+
+        assertThat((List<String>) read(result, "$.items[*].accessCode")).containsExactly(classCode, otherCode);
+    }
+
+    @Test
+    void 가입_코드를_바꾸면_목록도_새_코드() throws Exception {
+        String reissued = TestData.uniqueAccessCode();
+        jdbc.update("update `class` set access_code = ? where id = ?", reissued, classId);
+
+        assertThat((List<String>) read(classes(), "$.items[*].accessCode")).containsExactly(reissued);
     }
 
     @Test
@@ -371,6 +402,7 @@ class TeacherClassListTest {
                 .containsOnlyKeys(
                         "id",
                         "name",
+                        "accessCode",
                         "level",
                         "book",
                         "studentCount",

@@ -3989,6 +3989,11 @@
       "TeacherClassItem" : {
         "type" : "object",
         "properties" : {
+          "accessCode" : {
+            "type" : "string",
+            "description" : "반 가입 코드(영숫자 8자). 입장 링크·QR용. 관리자가 재발급하면 바뀌고 예전 코드로는 들어올 수 없다",
+            "example" : "G7KM2XP4"
+          },
           "book" : {
             "$ref" : "#/components/schemas/TeacherClassBook"
           },
@@ -4037,7 +4042,7 @@
             "description" : "현재 소속 학생 수"
           }
         },
-        "required" : [ "book", "current", "id", "level", "loginAlert", "name", "next", "overdueStudents", "studentCount" ]
+        "required" : [ "accessCode", "book", "current", "id", "level", "loginAlert", "name", "next", "overdueStudents", "studentCount" ]
       },
       "TeacherClassLevel" : {
         "type" : "object",
