@@ -143,7 +143,11 @@ class StudentAccountsTest {
         for (IssuedCode code : issued) {
             var row = jdbc.queryForMap(
                     "select identifier, secret_hash from auth_identity where user_id = ?", code.studentId());
-            assertThat((String) row.get("identifier")).hasSize(64).doesNotContain(code.personalCode());
+            // 해시 문자열에 4자리가 우연히 들어갈 수 있어(실행당 약 0.9%) 부분 문자열 대신 기대 해시와 등식으로 본다(이슈 #54)
+            assertThat((String) row.get("identifier"))
+                    .matches("[0-9a-f]{64}")
+                    .isEqualTo(hasher.hash(academyId, code.personalCode()))
+                    .isNotEqualTo(code.personalCode());
             assertThat(row.get("secret_hash")).isNull();
         }
     }
