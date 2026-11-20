@@ -32,6 +32,7 @@ class SchemaTest {
             "academy",
             "user",
             "auth_identity",
+            "user_setting",
             "class",
             "class_teacher",
             "enrollment",
@@ -84,9 +85,41 @@ class SchemaTest {
     }
 
     @Test
-    void 테이블은_ERD의_1차_28개다() {
-        assertThat(FIRST_RELEASE_TABLES).hasSize(28);
+    void 테이블은_ERD의_1차_29개다() {
+        assertThat(FIRST_RELEASE_TABLES).hasSize(29);
         assertThat(tables()).containsExactlyInAnyOrderElementsOf(FIRST_RELEASE_TABLES);
+    }
+
+    @Test
+    void user_setting_표는_user_id가_키이고_voice는_비어_있을_수_있다() {
+        // V11(ADR 0035). 학생 1명당 1행. 학원 칸은 없다 — 읽는 쪽이 user를 조인해 학원 조건을 넣는다
+        assertThat(jdbc.queryForList(
+                        "select column_name from information_schema.key_column_usage"
+                                + " where table_schema = database() and table_name = 'user_setting'"
+                                + " and constraint_name = 'PRIMARY' order by ordinal_position",
+                        String.class))
+                .containsExactly("user_id");
+        assertThat(jdbc.queryForList(
+                        "select column_name from information_schema.columns"
+                                + " where table_schema = database() and table_name = 'user_setting'",
+                        String.class))
+                .containsExactlyInAnyOrder("user_id", "voice", "created_at", "updated_at");
+        assertThat(isNullable("user_setting", "voice")).isEqualTo("YES");
+        assertThat(columnType("user_setting", "voice")).isEqualTo("varchar(8)");
+        assertThat(jdbc.queryForObject(
+                        "select collation_name from information_schema.columns"
+                                + " where table_schema = database() and table_name = 'user_setting'"
+                                + " and column_name = 'voice'",
+                        String.class))
+                .as("글자 그대로 비교 — 기본 정렬(ai_ci)이면 CHECK가 대소문자를 구분하지 못한다")
+                .isEqualTo("utf8mb4_0900_bin");
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from information_schema.table_constraints"
+                                + " where table_schema = database() and table_name = 'user_setting'"
+                                + " and constraint_type = 'CHECK'",
+                        Integer.class))
+                .as("목소리 값 제약")
+                .isEqualTo(1);
     }
 
     @Test

@@ -909,6 +909,74 @@
         "tags" : [ "me-controller" ]
       }
     },
+    "/api/v1/me/settings" : {
+      "get" : {
+        "description" : "저장한 적이 없으면 모든 값이 null. 기본값은 화면이 정한다",
+        "operationId" : "get",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentSettingsResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "내 설정",
+        "tags" : [ "me-settings-controller" ]
+      },
+      "patch" : {
+        "description" : "보낸 칸만 바꾼다. 보내지 않은 칸은 그대로, null은 그 칸만 비운다. 응답은 설정 전체. 네 목소리 밖의 값은 400 VALIDATION(errors[].field = voice)",
+        "operationId" : "patch",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StudentSettingsPatch"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentSettingsResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "내 설정 부분 수정",
+        "tags" : [ "me-settings-controller" ]
+      }
+    },
     "/api/v1/student/classes/{classId}/lessons" : {
       "get" : {
         "description" : "묶음(8회차씩)별 회차와 상태(completed·today·overdue·open·locked). 내가 지금 소속된 active 반만, 다른 학원·남의 반·퇴원한 반은 404",
@@ -3946,6 +4014,27 @@
           }
         },
         "required" : [ "items" ]
+      },
+      "StudentSettingsPatch" : {
+        "type" : "object",
+        "properties" : {
+          "voice" : {
+            "type" : [ "string", "null" ],
+            "description" : "고른 지문 목소리. 보내지 않으면 그대로 두고, null이면 비운다",
+            "enum" : [ "us_w", "us_m", "uk_w", "uk_m" ]
+          }
+        }
+      },
+      "StudentSettingsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "voice" : {
+            "type" : [ "string", "null" ],
+            "description" : "고른 지문 목소리. null = 고른 적 없음(기본 목소리는 화면이 정한다)",
+            "enum" : [ "us_w", "us_m", "uk_w", "uk_m" ]
+          }
+        },
+        "required" : [ "voice" ]
       },
       "StudentUpdateRequest" : {
         "type" : "object",
