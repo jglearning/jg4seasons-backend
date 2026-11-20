@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * <p>레코드가 아니라 setter가 있는 클래스인 이유: "보내지 않음"({@code {}})과 "지움"({@code {"voice": null}})을 구분해야 한다. 레코드는 둘 다 null로
  * 받는다. Jackson은 본문에 있는 칸만 setter를 부르므로(null 포함) 불렸는지를 적어 둔다. 설정이 늘면 칸마다 같은 짝(값 + 보냄 여부)을 더한다.
  */
-public class StudentSettingsPatch {
+public final class StudentSettingsPatch {
 
     private String voice;
     private boolean voicePresent;
