@@ -54,7 +54,9 @@ public record LessonDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             int passagesTotal,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "트랙 완료 기준 청취율(0~1)")
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "완료 기준 청취율(0~1). 목소리 트랙 하나에도, 지문 합산에도 같은 값")
             BigDecimal threshold) {}
 
     @Schema(name = "LessonDetailPassage")
@@ -68,12 +70,23 @@ public record LessonDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             int wordCount,
 
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "지문 청취율 0~1. 여러 목소리로 들은 구간을 합친 값과 목소리 하나의 최댓값 중 큰 쪽(ADR 0034)")
+            BigDecimal coverage,
+
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "지문 완료. 목소리 하나를 기준 이상 들었거나 합친 청취율이 기준 이상. 지문 탭의 완료 표시는 이 값으로")
+            boolean completed,
+
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<Sentence> sentences,
 
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    description = "목소리별 지문 트랙(ADR-27). 학생이 골라 듣고, 아무 목소리 하나를 끝까지 들으면 그 지문 완료. 재생 속도는 플레이어가 조절")
+                    description =
+                            "목소리별 지문 트랙(ADR-27). 학생이 골라 듣고, 듣다가 목소리를 바꿔도 같은 자리로 이어서 인정한다(ADR 0034). 재생 속도는 플레이어가 조절")
             List<Voice> voices) {}
 
     @Schema(name = "LessonDetailSentence")
@@ -105,10 +118,10 @@ public record LessonDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "음원 길이(ms)")
             int durationMs,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "이 목소리로 끝까지 들으면 지문 완료로 치는가(완료 규칙 결과)")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "이 목소리로 들은 구간이 지문 완료에 들어가는가(완료 규칙 결과)")
             boolean required,
 
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "청취율 0~1(병합된 구간 / 길이)")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "이 목소리만의 청취율 0~1(병합된 구간 / 길이)")
             BigDecimal coverage,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
@@ -131,9 +144,18 @@ public record LessonDetailResponse(
                     arraySchema =
                             @Schema(
                                     requiredMode = Schema.RequiredMode.REQUIRED,
-                                    description = "병합된 들은 구간 [시작, 끝] ms. 들은 적 없으면 빈 배열"),
+                                    description = "이 목소리로 직접 들은 구간(병합됨) [시작, 끝] ms. 들은 적 없으면 빈 배열"),
                     schema = @Schema(type = "array", example = "[0, 52000]"))
-            List<int[]> heardRanges) {}
+            List<int[]> heardRanges,
+
+            @ArraySchema(
+                    arraySchema =
+                            @Schema(
+                                    requiredMode = Schema.RequiredMode.REQUIRED,
+                                    description = "어느 목소리로든 들은 구간을 합쳐 이 목소리의 시간축으로 옮긴 것 [시작, 끝] ms(ADR 0034). 들은 구간 바는"
+                                            + " 이것으로 그린다. 합친 집계가 없으면 heardRanges와 같다"),
+                    schema = @Schema(type = "array", example = "[0, 52000]"))
+            List<int[]> combinedRanges) {}
 
     @Schema(name = "LessonDetailWords")
     public record Words(
