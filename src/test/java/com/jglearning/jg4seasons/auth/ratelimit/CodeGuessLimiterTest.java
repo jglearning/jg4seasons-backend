@@ -97,4 +97,35 @@ class CodeGuessLimiterTest {
                 }))
                 .satisfies(CodeGuessLimiterTest::assertRateLimited);
     }
+
+    @Test
+    void 조회하는_사이_한도가_차도_있는_값은_돌려준다() {
+        for (int i = 0; i < 9; i++) {
+            miss(IP);
+        }
+
+        // 받아들인 틈(ADR 0033 보강): 확인을 통과한 뒤 조회 중에 찬 한도는 있는 값을 막지 못한다. 닫으려면 있는 값도 조회 동안 칸을 차지해야
+        // 해서 교실에서 한꺼번에 들어올 때 맞는 코드가 429가 된다
+        assertThat(limiter.guarded(IP, () -> {
+                    miss(IP);
+                    return Optional.of("반");
+                }))
+                .contains("반");
+    }
+
+    @Test
+    void 조회가_예외를_던지면_세지_않고_그대로_올린다() {
+        IllegalStateException dbDown = new IllegalStateException("db down");
+        for (int i = 0; i < 20; i++) {
+            assertThatThrownBy(() -> limiter.guarded(IP, () -> {
+                        throw dbDown;
+                    }))
+                    .isSameAs(dbDown);
+        }
+
+        // 장애 동안의 요청이 찍기로 세졌다면 장애가 풀린 뒤에도 이 IP는 429다
+        for (int i = 0; i < 10; i++) {
+            miss(IP);
+        }
+    }
 }

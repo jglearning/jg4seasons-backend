@@ -5,6 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jglearning.jg4seasons.MutableClock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 /** 키별 고정 창 카운터. 창은 그 키의 첫 기록 시각부터. */
@@ -104,7 +112,7 @@ class FixedWindowCounterTest {
         assertThat(counter.isExhausted("a")).as("다시 물어도").isTrue();
         assertThat(counter.count("a")).as("묻는 것은 세지 않는다").isEqualTo(10);
         assertThat(counter.isExhausted("b")).as("다른 키").isFalse();
-        assertThat(counter.count("b")).as("물어본 키를 만들지 않는다").isZero();
+        assertThat(counter.size()).as("물어본 키를 만들지 않는다").isEqualTo(1);
 
         clock.advance(Duration.ofMinutes(1));
         assertThat(counter.isExhausted("a")).as("창이 끝난 뒤").isFalse();
@@ -124,6 +132,35 @@ class FixedWindowCounterTest {
 
         assertThat(capped.isExhausted("f")).as("처음 보는 키도 공용 칸이 찼으면 찼다").isTrue();
         assertThat(capped.isExhausted("a")).as("있던 키는 자기 칸(1번)").isFalse();
+    }
+
+    @Test
+    void 동시에_세도_한도만큼만_허용한다() throws Exception {
+        int threads = 32;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger allowed = new AtomicInteger();
+        try {
+            List<Future<?>> jobs = new ArrayList<>();
+            for (int i = 0; i < 200; i++) {
+                jobs.add(pool.submit(() -> {
+                    start.await();
+                    if (counter.tryAcquire("ip")) {
+                        allowed.incrementAndGet();
+                    }
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> job : jobs) {
+                job.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(allowed).hasValue(10);
+        assertThat(counter.count("ip")).isEqualTo(10);
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -167,12 +168,35 @@ class CodeVerifyTest {
         assertThat(missing).bodyJson().extractingPath("$.code").isEqualTo("RATE_LIMITED");
         assertThat(existing).as("응답으로 코드가 있는지 알 수 없다").hasStatus(429);
         assertThat(existing).bodyJson().extractingPath("$.code").isEqualTo("RATE_LIMITED");
+        for (MvcTestResult blocked : List.of(missing, existing)) {
+            // 던지는 곳이 둘(조회 전·세는 순간)이라 문구가 갈리면 그것으로 코드가 있는지 드러난다
+            assertThat(blocked).bodyJson().extractingPath("$.title").isEqualTo("너무 많이 시도했어요");
+            assertThat(blocked).bodyJson().extractingPath("$.detail").isEqualTo("잠시 후 다시 시도해 주세요");
+        }
         assertThat(existing.getResponse().getContentAsString())
                 .as("막힌 응답에 반 정보 없음")
                 .doesNotContain("겨울 그린 A반");
         assertThat(verify("{\"code\":\"" + code + "\"}", "198.18.56.250"))
                 .as("다른 IP")
                 .hasStatusOk();
+    }
+
+    @Test
+    void 비활성_반과_정지_학원의_코드도_없는_코드로_센다() {
+        String finished = TestData.uniqueAccessCode();
+        data.clazz(academyId, "L2-B1", "끝난 반", finished, "finished");
+        long suspendedAcademy = data.academy("정지 학원");
+        String ofSuspended = TestData.uniqueAccessCode();
+        data.clazz(suspendedAcademy, "L2-B1", "정지 학원 반", ofSuspended, "active");
+        jdbc.update("update academy set status = 'suspended' where id = ?", suspendedAcademy);
+
+        for (int i = 0; i < 5; i++) {
+            assertThat(verify(finished)).as("끝난 반 %d번째", i + 1).hasStatus(404);
+            assertThat(verify(ofSuspended)).as("정지 학원 %d번째", i + 1).hasStatus(404);
+        }
+
+        // 세지 않았다면 여기서 200이고, 같은 코드를 되풀이해 404가 계속 오는 것으로 "행은 있다"를 알 수 있다
+        assertThat(verify(code)).hasStatus(429);
     }
 
     @Test

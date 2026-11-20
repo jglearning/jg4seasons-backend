@@ -97,6 +97,40 @@ class StaffLoginTest {
                 .exchange();
     }
 
+    private MvcTestResult verifyAccessCode(String code) {
+        return mvc.post()
+                .uri("/api/v1/auth/code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"" + code + "\"}")
+                .with(request -> {
+                    request.setRemoteAddr(ip);
+                    return request;
+                })
+                .exchange();
+    }
+
+    @Test
+    void 가입_코드_한도가_차도_교사_로그인_칸은_따로다() {
+        for (int i = 0; i < 10; i++) {
+            assertThat(verifyAccessCode(TestData.uniqueAccessCode())).hasStatus(404);
+        }
+        assertThat(verifyAccessCode(TestData.uniqueAccessCode())).as("학생 쪽은 찼다").hasStatus(429);
+
+        assertThat(login(loginId, PASSWORD)).as("같은 IP의 교사 로그인").hasStatusOk();
+    }
+
+    @Test
+    void 교사_로그인_한도가_차도_학생_가입_코드_확인은_된다() {
+        String accessCode = TestData.uniqueAccessCode();
+        data.clazz(academyId, "L2-B1", "겨울 그린 A반", accessCode, "active");
+        for (int i = 0; i < 10; i++) {
+            assertThat(login(loginId, PASSWORD)).hasStatusOk();
+        }
+        assertThat(login(loginId, PASSWORD)).as("교사 쪽은 찼다").hasStatus(429);
+
+        assertThat(verifyAccessCode(accessCode)).as("같은 교실 IP의 학생").hasStatusOk();
+    }
+
     static List<String> setCookies(MvcTestResult result) {
         return result.getResponse().getHeaders(HttpHeaders.SET_COOKIE);
     }
