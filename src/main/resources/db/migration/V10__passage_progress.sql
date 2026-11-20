@@ -23,10 +23,7 @@ CREATE TABLE passage_progress (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
 -- 2) 완료 규칙: 지문마다 목소리 하나를 기준 이상 들었거나(그대로), 여러 목소리로 들은 구간을 합친 청취율이 기준 이상이면 그 지문 완료.
---    합산 여부는 규칙 데이터에 둔다(ADR-07). combine이 없거나 false면 V4의 판정 그대로
+--    합산 여부는 규칙 데이터에 둔다(ADR-07). combine이 없거나 false면 V4의 판정 그대로.
+--    combine 키만 더한다 — 필수 목소리(anyOf)는 건드리지 않는다(레벨마다 바꿔 둔 값이 있어도 남는다)
 UPDATE completion_rule
-SET required_tracks = JSON_ARRAY(JSON_OBJECT(
-        'kind', 'passage',
-        'eachPassage', TRUE,
-        'anyOf', JSON_ARRAY('us_w', 'us_m', 'uk_w', 'uk_m'),
-        'combine', TRUE));
+SET required_tracks = JSON_SET(required_tracks, '$[0].combine', TRUE);
