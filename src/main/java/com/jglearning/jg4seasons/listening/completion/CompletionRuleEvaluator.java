@@ -17,7 +17,7 @@ public final class CompletionRuleEvaluator {
      * 청취율(0~1)이 규칙의 기준 이상이어도 완료.
      *
      * @param requiredTrackCompleted 이 지문의 필수 목소리 트랙 중 완료한 것이 있는가
-     * @param combinedCoverage 필수 목소리로 들은 구간을 지문의 기준 시간축에서 합친 청취율. 모르면 0
+     * @param combinedCoverage 필수 목소리로 들은 구간을 지문의 기준 시간축에서 합친 청취율(0~1)
      */
     public static boolean isPassageComplete(
             CompletionRule rule, boolean requiredTrackCompleted, BigDecimal combinedCoverage) {

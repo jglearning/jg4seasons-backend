@@ -5,7 +5,6 @@ import com.jglearning.jg4seasons.listening.completion.CompletionRule;
 import com.jglearning.jg4seasons.listening.completion.CompletionRuleEvaluator;
 import com.jglearning.jg4seasons.listening.segment.MergedRanges;
 import com.jglearning.jg4seasons.listening.segment.Range;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -47,8 +46,6 @@ public final class PassageCombiner {
                     : PassageAxis.mapAll(VoiceAxis.of(voice), referenceAxis, heard);
             merged = MergedRanges.merge(merged, onReference, reference.durationMs());
         }
-        int coveredMs = MergedRanges.coveredMs(merged);
-        BigDecimal coverage = MergedRanges.coverage(coveredMs, reference.durationMs());
-        return new CombinedProgress(reference.trackId(), reference.durationMs(), merged, coveredMs, coverage);
+        return CombinedProgress.of(reference, merged);
     }
 }

@@ -10,13 +10,11 @@ import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.completion.CompletionRule;
 import com.jglearning.jg4seasons.listening.completion.CompletionRuleEvaluator;
-import com.jglearning.jg4seasons.listening.passage.PassageAxis;
 import com.jglearning.jg4seasons.listening.passage.PassageCombiner;
 import com.jglearning.jg4seasons.listening.passage.PassageSummaries;
 import com.jglearning.jg4seasons.listening.passage.PassageSummary;
 import com.jglearning.jg4seasons.listening.passage.StoredPassage;
 import com.jglearning.jg4seasons.listening.passage.TrackState;
-import com.jglearning.jg4seasons.listening.passage.VoiceAxis;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.LessonProgressRow;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.TrackProgressRow;
@@ -126,7 +124,7 @@ public class StudentLessonService {
     }
 
     /**
-     * 지문 하나. 지문 청취율·완료는 flush·교사 화면과 같은 계산(PassageSummaries — 바닥 규칙 포함). 합친 구간(combinedRanges)은 저장된 지문 집계를 쓸 수
+     * 지문 하나. 지문 청취율·완료는 flush 응답과 같은 계산(PassageSummaries — 바닥 규칙 포함). 합친 구간(combinedRanges)은 저장된 지문 집계를 쓸 수
      * 있을 때만(기준 트랙·기준 길이가 지금과 같다) 목소리마다 그 목소리의 시간축으로 옮겨 준다. 쓸 수 없으면 그 목소리로 직접 들은 구간과 같다.
      */
     private LessonDetailResponse.Passage passage(
@@ -138,13 +136,12 @@ public class StudentLessonService {
         for (LessonContent.Voice voice : passage.voices()) {
             TrackProgressRow row = tracks.get(voice.trackId());
             if (row != null) {
-                states.put(voice.trackId(), new TrackState(row.coverage(), row.completed()));
+                states.put(voice.trackId(), row.state());
             }
         }
         PassageSummary summary = PassageSummaries.of(passage, rule, stored, states);
-        LessonContent.Voice reference = PassageCombiner.reference(passage, rule);
-        Optional<StoredPassage> usable = stored.filter(row -> PassageSummaries.usable(row, reference));
-        VoiceAxis referenceAxis = VoiceAxis.of(reference);
+        Optional<StoredPassage.OnReference> usable =
+                stored.flatMap(row -> row.on(PassageCombiner.reference(passage, rule)));
         return new LessonDetailResponse.Passage(
                 passage.no(),
                 passage.title(),
@@ -158,11 +155,8 @@ public class StudentLessonService {
                         .map(voice -> {
                             TrackProgressRow heard = tracks.get(voice.trackId());
                             List<Range> own = heard == null ? List.of() : heard.mergedRanges();
-                            List<Range> combined = usable.map(row -> voice.trackId() == reference.trackId()
-                                            ? row.mergedRanges()
-                                            : PassageAxis.mapAll(
-                                                    referenceAxis, VoiceAxis.of(voice), row.mergedRanges()))
-                                    .orElse(own);
+                            List<Range> combined =
+                                    usable.map(row -> row.rangesOn(voice)).orElse(own);
                             return voice(voice, rule, heard, combined);
                         })
                         .toList());

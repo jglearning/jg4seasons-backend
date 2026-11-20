@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.listening.passage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.content.api.LessonContent;
 import com.jglearning.jg4seasons.listening.completion.CompletionRule;
@@ -94,8 +95,7 @@ class PassageSummariesTest {
     void 기준_길이가_다르면_지문_집계의_청취율을_쓰지_않고_완료는_유지한다() {
         StoredPassage stale = stored(US_W, 9_000, "1", true);
 
-        assertThat(PassageSummaries.usable(stale, PassageCombiner.reference(PASSAGE, RULE)))
-                .isFalse();
+        assertThat(stale.on(PassageCombiner.reference(PASSAGE, RULE))).isEmpty();
         PassageSummary summary =
                 PassageSummaries.of(PASSAGE, RULE, Optional.of(stale), Map.of(US_W, track("0.5", false)));
         assertThat(summary.coverage()).as("옛 시간축 값은 버린다").isEqualByComparingTo("0.5");
@@ -106,18 +106,45 @@ class PassageSummariesTest {
     void 기준_트랙이_다르면_지문_집계의_청취율을_쓰지_않는다() {
         StoredPassage stale = stored(UK_M, 10_000, "0.95", false);
 
-        assertThat(PassageSummaries.usable(stale, PassageCombiner.reference(PASSAGE, RULE)))
-                .isFalse();
+        assertThat(stale.on(PassageCombiner.reference(PASSAGE, RULE))).isEmpty();
         assertThat(PassageSummaries.of(PASSAGE, RULE, Optional.of(stale), Map.of(US_W, track("0.2", false)))
                         .coverage())
                 .isEqualByComparingTo("0.2");
     }
 
     @Test
-    void 기준이_같으면_쓸_수_있다() {
-        assertThat(PassageSummaries.usable(
-                        stored(US_W, 10_000, "0.5", false), PassageCombiner.reference(PASSAGE, RULE)))
+    void 기준이_같으면_합친_구간을_어느_목소리의_시간축으로든_꺼낼_수_있다() {
+        LessonContent.Voice reference = PassageCombiner.reference(PASSAGE, RULE);
+        StoredPassage.OnReference usable =
+                stored(US_W, 10_000, "0.5", false).on(reference).orElseThrow();
+
+        assertThat(usable.coverage()).isEqualByComparingTo("0.5");
+        assertThat(usable.rangesOn(reference)).containsExactly(new Range(0, 5_000));
+        // us_w의 0~5000(문장 0 + 간격 0 + 문장 1의 절반) = uk_m의 0~6000
+        assertThat(usable.rangesOn(PASSAGE.voices().get(1))).containsExactly(new Range(0, 6_000));
+    }
+
+    @Test
+    void 범위를_벗어난_청취율은_데이터_오류() {
+        assertThatThrownBy(() -> stored(US_W, 10_000, "1.2", false)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> stored(US_W, 0, "0.5", false)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new PassageSummary(new BigDecimal("-0.1"), false))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 필수_트랙_완료_여부는_이_지문의_필수_목소리만_본다() {
+        assertThat(PassageSummaries.requiredTrackCompleted(PASSAGE, RULE, Map.of(UK_M, track("0.9", true))))
                 .isTrue();
+        assertThat(PassageSummaries.requiredTrackCompleted(PASSAGE, RULE, Map.of(UK_M, track("0.89", false))))
+                .isFalse();
+        assertThat(PassageSummaries.requiredTrackCompleted(
+                        PASSAGE, PassageFixtures.rule(Set.of("us_w"), true), Map.of(UK_M, track("1", true))))
+                .as("필수가 아닌 목소리의 완료")
+                .isFalse();
+        assertThat(PassageSummaries.requiredTrackCompleted(PASSAGE, RULE, Map.of(999L, track("1", true))))
+                .as("다른 지문의 트랙")
+                .isFalse();
     }
 
     @Test

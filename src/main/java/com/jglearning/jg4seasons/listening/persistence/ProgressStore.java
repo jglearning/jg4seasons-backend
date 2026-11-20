@@ -4,6 +4,7 @@ import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
 import com.jglearning.jg4seasons.listening.api.TrackProgressSummary;
 import com.jglearning.jg4seasons.listening.passage.StoredPassage;
+import com.jglearning.jg4seasons.listening.passage.TrackState;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,6 +31,12 @@ public class ProgressStore {
 
     /** completed = completed_at이 있음(flush의 완료 판정 결과). coverage 0~1 — 벗어나면 데이터 오류 */
     public record TrackProgressRow(long trackId, BigDecimal coverage, boolean completed, List<Range> mergedRanges) {
+
+        /** 지문 판정에 쓰는 값만 */
+        public TrackState state() {
+            return new TrackState(coverage, completed);
+        }
+
         public TrackProgressRow {
             if (coverage == null || coverage.signum() < 0 || coverage.compareTo(BigDecimal.ONE) > 0) {
                 throw new IllegalStateException("청취율은 0~1이어야 한다: track " + trackId + " " + coverage);
@@ -66,7 +73,6 @@ public class ProgressStore {
                 rows.stream().collect(Collectors.toMap(TrackProgressRow::trackId, Function.identity())));
     }
 
-    /** 여러 회차 진도를 한 번에(홈·회차 목록). 진도가 있는 회차만 담는다(없으면 시작 전) */
     /** 지문 id → 저장된 지문 집계(passage_progress, ADR-34). 행이 있는 것만. 쓸 수 있는지(기준이 지금과 같은지)는 읽는 쪽이 본다 */
     public Map<Long, StoredPassage> passageProgress(long studentId, Collection<Long> passageIds) {
         if (passageIds.isEmpty()) {
@@ -90,6 +96,7 @@ public class ProgressStore {
         return rows;
     }
 
+    /** 여러 회차 진도를 한 번에(홈·회차 목록). 진도가 있는 회차만 담는다(없으면 시작 전) */
     public Map<Long, LessonProgressRow> lessonProgress(long studentId, Collection<Long> lessonIds) {
         if (lessonIds.isEmpty()) {
             return Map.of();

@@ -10,6 +10,7 @@ import com.jglearning.jg4seasons.listening.persistence.FlushStore;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.SessionRow;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.TrackProgressLock;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.TrackProgressUpdate;
+import com.jglearning.jg4seasons.listening.persistence.ProgressStore;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.LessonProgressRow;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import com.jglearning.jg4seasons.listening.segment.SegmentFilter.Accepted;
@@ -176,13 +177,20 @@ class FlushStoreTest {
                 done,
                 new TrackProgressUpdate(List.of(new Range(0, 9000)), 9000, BigDecimal.ONE, NOW, 9000, 1, NOW));
 
-        Map<Long, FlushStore.TrackShare> shares = store.trackProgressForShare(studentId, List.of(done, notDone));
+        Map<Long, ProgressStore.TrackProgressRow> shares =
+                store.trackProgressForShare(studentId, List.of(done, notDone));
         assertThat(shares).containsOnlyKeys(done, notDone);
         assertThat(shares.get(done).completed()).isTrue();
-        assertThat(shares.get(done).merged()).containsExactly(new Range(0, 9000));
+        assertThat(shares.get(done).mergedRanges()).containsExactly(new Range(0, 9000));
         assertThat(shares.get(done).coverage()).isEqualByComparingTo(BigDecimal.ONE);
         assertThat(shares.get(notDone).completed()).isFalse();
-        assertThat(shares.get(notDone).merged()).isEmpty();
+        assertThat(shares.get(notDone).mergedRanges()).isEmpty();
+        assertThat(store.completedTracksForShare(studentId, List.of(done, notDone)))
+                .as("다른 지문은 완료 여부만 읽는다")
+                .containsExactly(done);
+        assertThat(store.completedTracksForShare(otherStudentId, List.of(done, notDone)))
+                .isEmpty();
+        assertThat(store.completedTracksForShare(studentId, List.of())).isEmpty();
         assertThat(store.trackProgressForShare(otherStudentId, List.of(done, notDone)))
                 .as("다른 학생의 행은 없다")
                 .isEmpty();

@@ -14,14 +14,12 @@ import com.jglearning.jg4seasons.listening.passage.CombinedProgress;
 import com.jglearning.jg4seasons.listening.passage.PassageCombiner;
 import com.jglearning.jg4seasons.listening.passage.PassageSummaries;
 import com.jglearning.jg4seasons.listening.passage.PassageSummary;
-import com.jglearning.jg4seasons.listening.passage.StoredPassage;
 import com.jglearning.jg4seasons.listening.passage.TrackState;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.PassageProgressLock;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.SessionRow;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.TrackProgressLock;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.TrackProgressUpdate;
-import com.jglearning.jg4seasons.listening.persistence.FlushStore.TrackShare;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.LessonProgressRow;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.TrackProgressRow;
@@ -51,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 3.1 청취 구간 전송(TRK-04·05·06). 한 트랜잭션: 학원 활성 → 트랙 → 그 권의 소속 반들 중 열림(2.3과 같은 판정) → 세션 upsert·검증 → 세그먼트 걸러 추가 → (새 세그먼트가
  * 있으면) 회차 행 잠금 → 트랙 행 잠금 → 병합·청취율·완료 → 회차의 필수 트랙 잠금 읽기 → 지문 집계(목소리별 구간을 기준 시간축으로 옮겨 합침, ADR-34) → 회차 재평가.
  *
- * <p>잠금 순서는 세션 행 → 회차 → 트랙 → 필수 트랙(FOR SHARE) → 지문 집계 → 다른 지문 집계(FOR SHARE). 세션 행(upsertSession의 ON DUPLICATE KEY 배타 잠금)이 같은 세션 요청을 줄 세워 같은
+ * <p>잠금 순서는 세션 행 → 회차 → 트랙 → 그 지문의 필수 트랙(FOR SHARE) → 지문 집계 → 다른 지문 집계·다른 지문의 필수 트랙(FOR SHARE). 세션 행(upsertSession의 ON DUPLICATE KEY 배타 잠금)이 같은 세션 요청을 줄 세워 같은
  * 구간이 두 번 저장되지 않는다. 회차 행이 같은 학생·같은 회차 flush를 줄 세운다. 트랙 행을 먼저 잡으면 서로 다른 지문을 동시에 보낼 때 교착이 생기고, 이
  * 트랜잭션은 READ COMMITTED라 잠금을 기다린 뒤의 조회가 앞 요청의 커밋을 본다(REPEATABLE READ면 옛 스냅샷).
  *
@@ -132,11 +130,12 @@ public class FlushService {
                 studentId, lesson.lessonId(), lesson.passages().size());
         TrackProgressLock trackLock = store.lockTrackProgress(studentId, track.trackId(), now);
         TrackResult trackNow = updateTrack(studentId, track, rule, trackLock, filtered.accepted(), now);
-        // 회차 행을 잡은 뒤의 잠금 읽기 — 방금 고친 이 트랙과, 같은 회차의 다른 flush가 끝낸 트랙들이 보인다
-        Map<Long, TrackShare> tracks = store.trackProgressForShare(studentId, requiredTrackIds(lesson, rule));
+        // 회차 행을 잡은 뒤의 잠금 읽기 — 방금 고친 이 트랙과, 같은 지문의 다른 목소리로 다른 flush가 끝낸 구간이 보인다
+        Map<Long, TrackProgressRow> tracks =
+                store.trackProgressForShare(studentId, requiredTrackIds(List.of(passage), rule));
         PassageSummary passageNow = updatePassage(studentId, passage, rule, tracks, now);
         LessonProgressRow lessonNow =
-                updateLesson(studentId, lesson, rule, lessonLock, passage, passageNow.completed(), tracks, now);
+                updateLesson(studentId, lesson, rule, lessonLock, passage, passageNow.completed(), now);
 
         return new FlushResponse(
                 new FlushResponse.Track(track.trackId(), plain(trackNow.coverage()), trackNow.completed()),
@@ -180,30 +179,31 @@ public class FlushService {
         return new TrackResult(coverage, completedAt != null);
     }
 
-    private static Set<Long> requiredTrackIds(LessonContent lesson, CompletionRule rule) {
+    private static Set<Long> requiredTrackIds(List<LessonContent.Passage> passages, CompletionRule rule) {
         Set<Long> ids = new HashSet<>();
-        lesson.passages()
-                .forEach(passage -> passage.voices().stream()
-                        .filter(voice -> CompletionRuleEvaluator.isRequired(rule, voice.voice()))
-                        .forEach(voice -> ids.add(voice.trackId())));
+        passages.forEach(passage -> passage.voices().stream()
+                .filter(voice -> CompletionRuleEvaluator.isRequired(rule, voice.voice()))
+                .forEach(voice -> ids.add(voice.trackId())));
         return ids;
     }
 
-    private static Map<Long, TrackState> states(Map<Long, TrackShare> tracks) {
+    private static Map<Long, TrackState> states(Map<Long, TrackProgressRow> tracks) {
         Map<Long, TrackState> states = new HashMap<>();
-        tracks.forEach((trackId, share) -> states.put(trackId, new TrackState(share.coverage(), share.completed())));
+        tracks.forEach((trackId, row) -> states.put(trackId, row.state()));
         return states;
     }
 
     /**
      * 지문 집계(ADR-34): 그 지문의 필수 목소리 트랙 집계를 기준 시간축으로 옮겨 합치고 저장한다. 증분이 아니라 매번 트랙 집계에서 다시 만든다 — 표가 생기기 전의 기록도 그
      * 지문의 다음 flush에서 들어온다. 합산이 꺼진 규칙이면 행을 만들지 않는다. 완료는 한 번 되면 유지.
+     *
+     * @param tracks 이 지문의 필수 목소리 트랙 집계(잠금 읽기)
      */
     private PassageSummary updatePassage(
             long studentId,
             LessonContent.Passage passage,
             CompletionRule rule,
-            Map<Long, TrackShare> tracks,
+            Map<Long, TrackProgressRow> tracks,
             Instant now) {
         Map<Long, TrackState> states = states(tracks);
         if (!rule.combineVoices()) {
@@ -218,28 +218,18 @@ public class FlushService {
         PassageProgressLock lock =
                 store.lockPassageProgress(studentId, passage.id(), reference.trackId(), reference.durationMs());
         Map<Long, List<Range>> merged = new HashMap<>();
-        tracks.forEach((trackId, share) -> merged.put(trackId, share.merged()));
+        tracks.forEach((trackId, row) -> merged.put(trackId, row.mergedRanges()));
         CombinedProgress combined = PassageCombiner.combine(passage, rule, merged);
-        boolean trackCompleted =
-                PassageSummaries.of(passage, rule, Optional.empty(), states).completed();
         boolean completed = lock.completedAt() != null
-                || CompletionRuleEvaluator.isPassageComplete(rule, trackCompleted, combined.coverage());
+                || CompletionRuleEvaluator.isPassageComplete(
+                        rule, PassageSummaries.requiredTrackCompleted(passage, rule, states), combined.coverage());
         store.updatePassageProgress(studentId, passage.id(), combined, completed ? now : null);
-        return PassageSummaries.of(
-                passage,
-                rule,
-                Optional.of(new StoredPassage(
-                        combined.refTrackId(),
-                        combined.refDurationMs(),
-                        combined.mergedRanges(),
-                        combined.coverage(),
-                        completed)),
-                states);
+        return PassageSummaries.of(passage, rule, Optional.of(combined.stored(completed)), states);
     }
 
     /**
-     * 회차 재평가. 지문 완료 = 지문 집계 완료 또는 필수 목소리 트랙 중 완료한 것 있음(바닥 규칙 — 지문 집계 행이 없는 옛 기록도 그대로 완료). 회차 completed는 한 번
-     * 되면 유지(결정 E)
+     * 회차 재평가. 지문 완료 = 지문 집계 완료 또는 필수 목소리 트랙 중 완료한 것 있음(바닥 규칙 — 지문 집계 행이 없는 옛 기록도 그대로 완료). 다른 지문은 완료 여부만
+     * 잠금 읽기로 본다(구간은 읽지 않는다). 회차 completed는 한 번 되면 유지(결정 E)
      */
     private LessonProgressRow updateLesson(
             long studentId,
@@ -248,21 +238,20 @@ public class FlushService {
             LessonProgressRow lock,
             LessonContent.Passage current,
             boolean currentCompleted,
-            Map<Long, TrackShare> tracks,
             Instant now) {
-        Set<Long> otherPassageIds = new HashSet<>();
-        lesson.passages().forEach(passage -> otherPassageIds.add(passage.id()));
-        otherPassageIds.remove(current.id());
-        Set<Long> completedPassages = store.completedPassagesForShare(studentId, otherPassageIds);
-        Map<Long, TrackState> states = states(tracks);
+        List<LessonContent.Passage> others = lesson.passages().stream()
+                .filter(passage -> passage.id() != current.id())
+                .toList();
+        Set<Long> completedPassages = store.completedPassagesForShare(
+                studentId, others.stream().map(LessonContent.Passage::id).toList());
+        Set<Long> completedTracks = store.completedTracksForShare(studentId, requiredTrackIds(others, rule));
         int total = lesson.passages().size();
-        int done = (int) lesson.passages().stream()
-                .filter(passage -> passage.id() == current.id()
-                        ? currentCompleted
-                        : completedPassages.contains(passage.id())
-                                || PassageSummaries.of(passage, rule, Optional.empty(), states)
-                                        .completed())
-                .count();
+        int done = (currentCompleted ? 1 : 0)
+                + (int) others.stream()
+                        .filter(passage -> completedPassages.contains(passage.id())
+                                || requiredTrackIds(List.of(passage), rule).stream()
+                                        .anyMatch(completedTracks::contains))
+                        .count();
         LessonProgressStatus status;
         Instant completedAt = null;
         if (lock.status() == LessonProgressStatus.COMPLETED) {
@@ -290,8 +279,7 @@ public class FlushService {
                 studentId,
                 passage.voices().stream().map(LessonContent.Voice::trackId).toList());
         TrackProgressRow heard = rows.get(track.trackId());
-        Map<Long, TrackState> states = new HashMap<>();
-        rows.forEach((trackId, row) -> states.put(trackId, new TrackState(row.coverage(), row.completed())));
+        Map<Long, TrackState> states = states(rows);
         PassageSummary passageNow = PassageSummaries.of(
                 passage,
                 rule,
