@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.content.importer;
 
+import com.jglearning.jg4seasons.content.api.PassageVoices;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -20,7 +21,7 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
     /** 레벨 1~4는 L1~L4, 블랙은 K. 회차는 두 자리 번호이거나 블랙 보충 S1~S4 */
     private static final Pattern CODE = Pattern.compile("^(?:L[1-4]|K)-B[1-4]-(?:\\d{2}|S[1-4])$");
 
-    public static final List<String> VOICES = List.of("us_w", "us_m", "uk_w", "uk_m");
+    public static final List<String> VOICES = PassageVoices.ALL;
     /** 단어·예문 음원은 미국 여자 하나(ADR 0027) */
     public static final String WORD_VOICE = "us_w";
 
