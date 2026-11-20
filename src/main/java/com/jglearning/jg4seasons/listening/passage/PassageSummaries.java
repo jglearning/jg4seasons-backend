@@ -33,6 +33,18 @@ public final class PassageSummaries {
     }
 
     /**
+     * 저장 행의 합친 구간·청취율을 지금 쓸 수 있으면 꺼낸다. 셋이 모두 맞아야 한다: 합산이 켜진 규칙이다(꺼져 있으면 행이 더 갱신되지 않아 끈 시점의 값이다), 지문에 기준
+     * 목소리가 있다, 계산할 때의 기준 트랙·길이가 지금과 같다. 화면과 응답은 이 메서드 하나로 판단한다.
+     */
+    public static Optional<StoredPassage.OnReference> combined(
+            LessonContent.Passage passage, CompletionRule rule, Optional<StoredPassage> stored) {
+        if (!rule.combineVoices()) {
+            return Optional.empty();
+        }
+        return stored.flatMap(row -> PassageCombiner.reference(passage, rule).flatMap(row::on));
+    }
+
+    /**
      * completed = 저장 행이 완료(쓸 수 없는 행이어도 — 완료는 한 번 되면 유지) 또는 필수 목소리 트랙 중 완료한 것이 있음. coverage = max(쓸 수 있는 저장 행의
      * 합친 청취율, 필수 목소리 트랙 청취율의 최댓값) — 쓸 수 있는 집계가 있는 한 완료인데 기준보다 낮은 숫자가 나가지 않는다. 아무것도 없으면 0.
      *
@@ -50,8 +62,7 @@ public final class PassageSummaries {
                 coverage = coverage.max(track.coverage());
             }
         }
-        Optional<StoredPassage.OnReference> combined =
-                stored.flatMap(row -> PassageCombiner.reference(passage, rule).flatMap(row::on));
+        Optional<StoredPassage.OnReference> combined = combined(passage, rule, stored);
         if (combined.isPresent()) {
             coverage = coverage.max(combined.get().coverage());
         }

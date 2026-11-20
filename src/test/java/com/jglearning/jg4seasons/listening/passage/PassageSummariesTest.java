@@ -171,4 +171,17 @@ class PassageSummariesTest {
         assertThat(summary.completed()).as("저장된 완료는 유지").isTrue();
         assertThat(summary.coverage()).as("필수가 아닌 목소리의 청취율도, 옛 합친 값도 쓰지 않는다").isEqualByComparingTo("0");
     }
+
+    @Test
+    void 합산이_꺼진_규칙이면_저장_행의_청취율을_쓰지_않고_완료만_믿는다() {
+        // 규칙을 끄면 행이 더 갱신되지 않는다 — 기준이 같아도 끈 시점의 값이다
+        CompletionRule off = PassageFixtures.rule(Set.of("us_w", "us_m", "uk_w", "uk_m"), false);
+        StoredPassage row = stored(US_W, 10_000, "0.85", true);
+
+        assertThat(PassageSummaries.combined(PASSAGE, off, Optional.of(row))).isEmpty();
+        assertThat(PassageSummaries.combined(PASSAGE, RULE, Optional.of(row))).isPresent();
+        PassageSummary summary = PassageSummaries.of(PASSAGE, off, Optional.of(row), Map.of(US_W, track("0.4", false)));
+        assertThat(summary.coverage()).isEqualByComparingTo("0.4");
+        assertThat(summary.completed()).isTrue();
+    }
 }

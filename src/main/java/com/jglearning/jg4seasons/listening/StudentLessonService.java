@@ -10,7 +10,6 @@ import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.completion.CompletionRule;
 import com.jglearning.jg4seasons.listening.completion.CompletionRuleEvaluator;
-import com.jglearning.jg4seasons.listening.passage.PassageCombiner;
 import com.jglearning.jg4seasons.listening.passage.PassageSummaries;
 import com.jglearning.jg4seasons.listening.passage.PassageSummary;
 import com.jglearning.jg4seasons.listening.passage.StoredPassage;
@@ -96,7 +95,8 @@ public class StudentLessonService {
                         lessonProgress.passagesTotal(),
                         plain(rule.threshold())),
                 lesson.passages().stream()
-                        .map(passage -> passage(passage, rule, tracks, Optional.ofNullable(passages.get(passage.id()))))
+                        .map(passage -> passage(
+                                lesson.code(), passage, rule, tracks, Optional.ofNullable(passages.get(passage.id()))))
                         .toList(),
                 new LessonDetailResponse.Words(lesson.wordTotal(), wordStudies.memKnown(studentId, lesson.lessonId())));
     }
@@ -128,6 +128,7 @@ public class StudentLessonService {
      * 있을 때만(기준 트랙·기준 길이가 지금과 같다) 목소리마다 그 목소리의 시간축으로 옮겨 준다. 쓸 수 없으면 그 목소리로 직접 들은 구간과 같다.
      */
     private LessonDetailResponse.Passage passage(
+            String lessonCode,
             LessonContent.Passage passage,
             CompletionRule rule,
             Map<Long, TrackProgressRow> tracks,
@@ -140,8 +141,16 @@ public class StudentLessonService {
             }
         }
         PassageSummary summary = PassageSummaries.of(passage, rule, stored, states);
-        Optional<StoredPassage.OnReference> usable =
-                stored.flatMap(row -> PassageCombiner.reference(passage, rule).flatMap(row::on));
+        Optional<StoredPassage.OnReference> usable = PassageSummaries.combined(passage, rule, stored);
+        if (rule.combineVoices() && stored.isPresent() && usable.isEmpty()) {
+            // 콘텐츠를 다시 넣어 기준 트랙의 길이가 바뀌었거나 규칙의 필수 목소리가 바뀌었다. 완료한 학생은 다시 flush하지 않아 이 상태가 오래 갈 수 있다
+            log.warn(
+                    "지문 집계의 기준이 지금과 다르다: lesson {} 지문 {} 저장 기준 track {} {}ms — 목소리별 집계로 보낸다(다음 flush가 다시 계산)",
+                    lessonCode,
+                    passage.no(),
+                    stored.get().refTrackId(),
+                    stored.get().refDurationMs());
+        }
         return new LessonDetailResponse.Passage(
                 passage.no(),
                 passage.title(),

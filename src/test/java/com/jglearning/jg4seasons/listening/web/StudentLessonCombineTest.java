@@ -18,7 +18,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -33,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class StudentLessonCombineTest {
 
     static final String CODE = "L2-B1-05";
@@ -395,5 +399,49 @@ class StudentLessonCombineTest {
                 .exchange();
         assertThat(heard).as("합친 구간을 어긋난 목소리의 시간축으로 옮겨야 하는 학생은 데이터 오류").hasStatus(500);
         assertThat(heard).bodyJson().extractingPath("$.code").isEqualTo("INTERNAL");
+    }
+
+    @Test
+    void 합산_행이_있는_학생도_규칙을_끄면_끈_시점의_합친_값이_나가지_않는다() {
+        // us_w 0~2000 + uk_m 8000~14000(= us_w의 7000~10000) → 합친 값 0.5, 행이 생긴다
+        flush("p1:us_w", 0, 2_000);
+        flush("p1:uk_m", 8_000, 14_000);
+        assertThat(number(detail(), "$.passages[0].coverage")).isEqualByComparingTo("0.5");
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"us_w\",\"us_m\",\"uk_w\",\"uk_m\"]}]");
+        flush("p1:us_w", 2_000, 4_000); // 꺼진 뒤에 더 들은 구간 — 지문 집계 행은 갱신되지 않는다
+
+        String json = detail();
+
+        assertThat(ranges(json, 0, US_W, "combinedRanges"))
+                .as("끈 시점의 합친 구간([0,2000]·[7000,10000])이 아니라 지금 그 목소리로 들은 구간")
+                .containsExactly(List.of(0, 4_000));
+        assertThat(ranges(json, 0, UK_M, "combinedRanges")).containsExactly(List.of(8_000, 14_000));
+        assertThat(number(json, "$.passages[0].coverage"))
+                .as("옛 합친 값 0.5가 아니라 목소리 하나의 최댓값(uk_m 6000/14000)")
+                .isEqualByComparingTo("0.4285");
+    }
+
+    @Test
+    void 기준이_달라진_지문_집계를_만나면_경고를_남긴다(CapturedOutput output) {
+        flush("p1:us_w", 0, 5_000);
+        jdbc.update("update passage_progress set ref_duration_ms = 9000 where student_id = ?", studentId);
+
+        detail();
+
+        assertThat(output.getOut())
+                .contains("지문 집계의 기준이 지금과 다르다: lesson " + CODE + " 지문 1")
+                .contains("9000ms");
+    }
+
+    @Test
+    void 쓸_수_있는_지문_집계에는_경고가_없다(CapturedOutput output) {
+        flush("p1:us_w", 0, 5_000);
+
+        detail();
+
+        assertThat(output.getOut()).doesNotContain("지문 집계의 기준이 지금과 다르다");
     }
 }
