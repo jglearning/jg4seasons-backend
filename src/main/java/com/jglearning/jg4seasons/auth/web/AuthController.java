@@ -64,8 +64,9 @@ public class AuthController {
 
     @Operation(
             summary = "가입 코드로 반 확인(S-01 입력 중 표시용)",
-            description = "반이 없거나 비활성이거나 학원이 정지면 404 INVALID_CODE. 없는 가입 코드는 IP당 1분에 10회까지(학생 로그인의 없는 가입 코드와 함께 셈)이고,"
-                    + " 10회가 차면 그 IP는 창이 끝날 때까지 맞는 코드도 429 RATE_LIMITED. 맞는 코드는 세지 않음. CSRF 검사 없음")
+            description =
+                    "반이 없거나 비활성이거나 학원이 정지면 404 INVALID_CODE. 없는 가입 코드는 IP당 1분에 10회까지(학생 로그인의 없는 가입 코드와 함께 셈)이고,"
+                            + " 10회가 차면 그 IP는 창이 끝날 때까지 맞는 코드도 429 RATE_LIMITED(확장 필드 until = 풀리는 시각). 맞는 코드는 세지 않음. CSRF 검사 없음")
     @PermitAll
     @PostMapping("/code/verify")
     public CodeVerifyResponse verify(@Valid @RequestBody CodeVerifyRequest request, HttpServletRequest http) {
@@ -79,7 +80,7 @@ public class AuthController {
                             + " 사용권을 적용하는 학원은 쓸 수 있는 권의 음원만 열고, 그런 권이 없으면 음원 쿠키를 만료)."
                             + " 틀리면 401 INVALID_CREDENTIALS(어느 쪽이 틀렸는지 구분하지 않음),"
                             + " (반, IP) 5회 실패면 10분 동안 423 LOCKED(확장 필드 until)."
-                            + " 없는 가입 코드가 IP당 1분에 10회 차면(가입 코드 확인과 함께 셈) 그 IP는 창이 끝날 때까지 맞는 코드도 429 RATE_LIMITED."
+                            + " 없는 가입 코드가 IP당 1분에 10회 차면(가입 코드 확인과 함께 셈) 그 IP는 창이 끝날 때까지 맞는 코드도 429 RATE_LIMITED(확장 필드 until = 풀리는 시각)."
                             + " CSRF 검사 없음")
     @PermitAll
     @PostMapping("/student/login")

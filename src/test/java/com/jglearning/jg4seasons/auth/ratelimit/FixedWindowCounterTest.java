@@ -101,21 +101,25 @@ class FixedWindowCounterTest {
     }
 
     @Test
-    void 한도에_차면_isExhausted이고_물어도_세지_않는다() {
+    void 한도에_차면_창이_끝나는_시각을_주고_물어도_세지_않는다() {
+        Instant windowEnd = clock.instant().plus(Duration.ofMinutes(1));
         for (int i = 0; i < 9; i++) {
             counter.tryAcquire("a");
+            clock.advance(Duration.ofSeconds(1));
         }
-        assertThat(counter.isExhausted("a")).as("9번").isFalse();
+        assertThat(counter.exhaustedUntil("a")).as("9번").isEmpty();
 
         counter.tryAcquire("a");
-        assertThat(counter.isExhausted("a")).as("10번").isTrue();
-        assertThat(counter.isExhausted("a")).as("다시 물어도").isTrue();
+        assertThat(counter.exhaustedUntil("a")).as("10번 — 창은 첫 기록부터 1분").contains(windowEnd);
+        assertThat(counter.exhaustedUntil("a")).as("다시 물어도").contains(windowEnd);
         assertThat(counter.count("a")).as("묻는 것은 세지 않는다").isEqualTo(10);
-        assertThat(counter.isExhausted("b")).as("다른 키").isFalse();
+        assertThat(counter.exhaustedUntil("b")).as("다른 키").isEmpty();
         assertThat(counter.size()).as("물어본 키를 만들지 않는다").isEqualTo(1);
 
-        clock.advance(Duration.ofMinutes(1));
-        assertThat(counter.isExhausted("a")).as("창이 끝난 뒤").isFalse();
+        clock.set(windowEnd.minusMillis(1));
+        assertThat(counter.exhaustedUntil("a")).as("창 끝 1ms 전").contains(windowEnd);
+        clock.set(windowEnd);
+        assertThat(counter.exhaustedUntil("a")).as("창이 끝난 순간").isEmpty();
     }
 
     @Test
@@ -125,13 +129,13 @@ class FixedWindowCounterTest {
         capped.tryAcquire("a");
         capped.tryAcquire("b");
         capped.tryAcquire("c");
-        assertThat(capped.isExhausted("d")).as("공용 칸이 비었다").isFalse();
+        assertThat(capped.exhaustedUntil("d")).as("공용 칸이 비었다").isEmpty();
 
         capped.tryAcquire("d");
         capped.tryAcquire("e");
 
-        assertThat(capped.isExhausted("f")).as("처음 보는 키도 공용 칸이 찼으면 찼다").isTrue();
-        assertThat(capped.isExhausted("a")).as("있던 키는 자기 칸(1번)").isFalse();
+        assertThat(capped.exhaustedUntil("f")).as("처음 보는 키도 공용 칸이 찼으면 찼다").isPresent();
+        assertThat(capped.exhaustedUntil("a")).as("있던 키는 자기 칸(1번)").isEmpty();
     }
 
     @Test

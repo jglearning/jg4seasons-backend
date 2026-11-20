@@ -11,22 +11,56 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /** 가입 코드 찍기 한도: 없는 코드만 세고, 한도가 찬 IP는 조회 전에 막는다(ADR 0033 보강). */
+@ExtendWith(OutputCaptureExtension.class)
 class CodeGuessLimiterTest {
 
     static final String IP = "198.51.100.1";
 
-    final MutableClock clock = new MutableClock(Instant.parse("2026-11-20T00:00:00Z"));
+    static final Instant START = Instant.parse("2026-11-20T00:00:00Z");
+
+    final MutableClock clock = new MutableClock(START);
     final CodeGuessLimiter limiter = new CodeGuessLimiter(new FixedWindowCounter(clock, 10, Duration.ofMinutes(1)));
 
     private void miss(String ip) {
         assertThat(limiter.guarded(ip, Optional::empty)).isEmpty();
     }
 
+    /** 429이고, 풀리는 시각(until)은 창 끝 — 조회 전에 막혔든 세는 순간 막혔든 같다 */
     private static void assertRateLimited(Throwable thrown) {
         assertThat(thrown).isInstanceOf(ApiException.class);
         assertThat(((ApiException) thrown).errorCode()).isEqualTo(AuthErrorCode.RATE_LIMITED);
+        assertThat(((ApiException) thrown).extensions()).containsEntry("until", START.plus(Duration.ofMinutes(1)));
+    }
+
+    @Test
+    void 한도가_차는_순간_한_번만_WARN을_남기고_IP는_남기지_않는다(CapturedOutput output) {
+        for (int i = 0; i < 9; i++) {
+            miss(IP);
+        }
+        assertThat(output.getOut()).as("9번").doesNotContain("code guess limit reached");
+
+        miss(IP);
+        for (int i = 0; i < 5; i++) {
+            assertThatThrownBy(() -> limiter.guarded(IP, Optional::empty)).isInstanceOf(ApiException.class);
+        }
+
+        assertThat(output.getOut())
+                .containsOnlyOnce("code guess limit reached until=" + START.plus(Duration.ofMinutes(1)))
+                .doesNotContain(IP);
+    }
+
+    @Test
+    void 있는_값만_오면_WARN이_없다(CapturedOutput output) {
+        for (int i = 0; i < 30; i++) {
+            limiter.guarded(IP, () -> Optional.of("반"));
+        }
+
+        assertThat(output.getOut()).doesNotContain("code guess limit reached");
     }
 
     @Test

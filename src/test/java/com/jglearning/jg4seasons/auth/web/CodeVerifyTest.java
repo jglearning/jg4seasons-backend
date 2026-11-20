@@ -172,6 +172,11 @@ class CodeVerifyTest {
             // 던지는 곳이 둘(조회 전·세는 순간)이라 문구가 갈리면 그것으로 코드가 있는지 드러난다
             assertThat(blocked).bodyJson().extractingPath("$.title").isEqualTo("너무 많이 시도했어요");
             assertThat(blocked).bodyJson().extractingPath("$.detail").isEqualTo("잠시 후 다시 시도해 주세요");
+            assertThat(blocked)
+                    .bodyJson()
+                    .extractingPath("$.until")
+                    .as("풀리는 시각 = 첫 없는 코드부터 1분")
+                    .isEqualTo(clock.instant().plus(Duration.ofMinutes(1)).toString());
         }
         assertThat(existing.getResponse().getContentAsString())
                 .as("막힌 응답에 반 정보 없음")

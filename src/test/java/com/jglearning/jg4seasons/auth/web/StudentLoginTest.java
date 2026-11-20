@@ -348,6 +348,10 @@ class StudentLoginTest {
 
         assertThat(blocked).as("401·423과 구분되지 않게 429").hasStatus(429);
         assertThat(blocked).bodyJson().extractingPath("$.code").isEqualTo("RATE_LIMITED");
+        assertThat(blocked)
+                .bodyJson()
+                .extractingPath("$.until")
+                .isEqualTo(clock.instant().plus(Duration.ofMinutes(1)).toString());
         assertThat(setCookies(blocked)).isEmpty();
         for (int i = 0; i < 6; i++) {
             assertThat(login(accessCode, WRONG_CODE)).as("막힌 동안 틀린 개인 코드").hasStatus(429);
