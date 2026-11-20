@@ -5,7 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
- * 그 학원 학생임을 auth가 확인한 학생 id 묶음. 진도·단어 집계 표(track_progress·lesson_progress·word_study)에는 학원 칸이 없어 학생 id 목록이 곧 학원
+ * 그 학원 학생임을 auth가 확인한 학생 id 묶음. 진도·단어 집계 표(track_progress·passage_progress·lesson_progress·word_study)에는 학원 칸이 없어 학생 id 목록이 곧 학원
  * 범위다 — 그 표를 읽는 api는 이 타입만 받아, 확인하지 않은 id(경로 값 등)를 넘길 길을 막는다. 만드는 것(of)은 auth 패키지에서만
  * (ArchitectureTest.학원_학생_묶음은_auth만_만든다). 다른 모듈은 받은 묶음을 좁히기만(only) 한다.
  */

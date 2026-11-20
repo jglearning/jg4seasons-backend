@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
+import com.jglearning.jg4seasons.listening.passage.CombinedProgress;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.SessionRow;
 import com.jglearning.jg4seasons.listening.persistence.FlushStore.TrackProgressLock;
@@ -180,6 +181,68 @@ class FlushStoreTest {
         assertThat(store.completedTracksForShare(otherStudentId, List.of(done, notDone)))
                 .isEmpty();
         assertThat(store.completedTracksForShare(studentId, List.of())).isEmpty();
+    }
+
+    @Test
+    void 필수_트랙의_구간과_완료를_잠금_읽기로_읽는다() {
+        long done = tracks.get("p1:us_w");
+        long notDone = tracks.get("p2:us_w");
+        store.lockTrackProgress(studentId, done, NOW);
+        store.lockTrackProgress(studentId, notDone, NOW);
+        store.updateTrackProgress(
+                studentId,
+                done,
+                new TrackProgressUpdate(List.of(new Range(0, 9000)), 9000, BigDecimal.ONE, NOW, 9000, 1, NOW));
+
+        Map<Long, FlushStore.TrackShare> shares = store.trackProgressForShare(studentId, List.of(done, notDone));
+        assertThat(shares).containsOnlyKeys(done, notDone);
+        assertThat(shares.get(done).completed()).isTrue();
+        assertThat(shares.get(done).merged()).containsExactly(new Range(0, 9000));
+        assertThat(shares.get(done).coverage()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(shares.get(notDone).completed()).isFalse();
+        assertThat(shares.get(notDone).merged()).isEmpty();
+        assertThat(store.trackProgressForShare(otherStudentId, List.of(done, notDone)))
+                .as("다른 학생의 행은 없다")
+                .isEmpty();
+        assertThat(store.trackProgressForShare(studentId, List.of())).isEmpty();
+    }
+
+    @Test
+    void 지문_집계_행을_확보하고_갱신하면_완료_시각은_처음_값을_유지한다() {
+        long track = tracks.get("p1:us_w");
+        long passageId = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, track);
+
+        assertThat(store.lockPassageProgress(studentId, passageId, track, 6500).completedAt())
+                .as("새 행")
+                .isNull();
+        store.updatePassageProgress(
+                studentId,
+                passageId,
+                new CombinedProgress(track, 6500, List.of(new Range(0, 6500)), 6500, BigDecimal.ONE),
+                NOW);
+        store.updatePassageProgress(
+                studentId,
+                passageId,
+                new CombinedProgress(track, 6500, List.of(new Range(0, 6500)), 6500, BigDecimal.ONE),
+                null);
+
+        assertThat(store.lockPassageProgress(studentId, passageId, track, 6500).completedAt())
+                .as("null로 갱신해도 유지")
+                .isEqualTo(NOW);
+        assertThat(jdbc.queryForMap(
+                        "select ref_track_id, ref_duration_ms, merged_ranges, covered_ms from passage_progress"
+                                + " where student_id = ? and passage_id = ?",
+                        studentId,
+                        passageId))
+                .containsEntry("ref_track_id", track)
+                .containsEntry("ref_duration_ms", 6500)
+                .containsEntry("merged_ranges", "[[0, 6500]]")
+                .containsEntry("covered_ms", 6500);
+        assertThat(store.completedPassagesForShare(studentId, List.of(passageId)))
+                .containsExactly(passageId);
+        assertThat(store.completedPassagesForShare(otherStudentId, List.of(passageId)))
+                .isEmpty();
+        assertThat(store.completedPassagesForShare(studentId, List.of())).isEmpty();
     }
 
     @Test
