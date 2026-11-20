@@ -42,6 +42,7 @@ class SchemaTest {
             "listening_segment",
             "track_progress",
             "lesson_progress",
+            "passage_progress",
             "word_study",
             // 인증·운영
             "refresh_token",
@@ -83,9 +84,39 @@ class SchemaTest {
     }
 
     @Test
-    void 테이블은_ERD의_1차_27개다() {
-        assertThat(FIRST_RELEASE_TABLES).hasSize(27);
+    void 테이블은_ERD의_1차_28개다() {
+        assertThat(FIRST_RELEASE_TABLES).hasSize(28);
         assertThat(tables()).containsExactlyInAnyOrderElementsOf(FIRST_RELEASE_TABLES);
+    }
+
+    @Test
+    void 지문_집계_표는_학생과_지문이_키이고_기준_트랙과_기준_길이를_가진다() {
+        // V10(ADR-34). 학원 칸은 없다(다른 집계 표와 같음 — 읽는 api는 학원 학생 묶음만 받는다)
+        assertThat(jdbc.queryForList(
+                        "select column_name from information_schema.key_column_usage"
+                                + " where table_schema = database() and table_name = 'passage_progress'"
+                                + " and constraint_name = 'PRIMARY' order by ordinal_position",
+                        String.class))
+                .containsExactly("student_id", "passage_id");
+        assertThat(jdbc.queryForList(
+                        "select column_name from information_schema.columns"
+                                + " where table_schema = database() and table_name = 'passage_progress'",
+                        String.class))
+                .containsExactlyInAnyOrder(
+                        "student_id",
+                        "passage_id",
+                        "ref_track_id",
+                        "ref_duration_ms",
+                        "merged_ranges",
+                        "covered_ms",
+                        "coverage",
+                        "completed_at",
+                        "created_at",
+                        "updated_at");
+        assertThat(isNullable("passage_progress", "ref_track_id")).isEqualTo("NO");
+        assertThat(isNullable("passage_progress", "ref_duration_ms")).isEqualTo("NO");
+        assertThat(isNullable("passage_progress", "completed_at")).isEqualTo("YES");
+        assertThat(columnType("passage_progress", "coverage")).isEqualTo("decimal(5,4)");
     }
 
     @Test

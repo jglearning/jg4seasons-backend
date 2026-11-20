@@ -181,10 +181,14 @@ public class FlushService {
             completed.add(currentTrackId);
         }
         int total = lesson.passages().size();
+        // 합친 청취율은 아직 모른다(0) — 지문 집계가 붙기 전까지는 필수 트랙 완료만 본다
         int done = (int) lesson.passages().stream()
-                .filter(passage -> passage.voices().stream()
-                        .filter(voice -> CompletionRuleEvaluator.isRequired(rule, voice.voice()))
-                        .anyMatch(voice -> completed.contains(voice.trackId())))
+                .filter(passage -> CompletionRuleEvaluator.isPassageComplete(
+                        rule,
+                        passage.voices().stream()
+                                .filter(voice -> CompletionRuleEvaluator.isRequired(rule, voice.voice()))
+                                .anyMatch(voice -> completed.contains(voice.trackId())),
+                        BigDecimal.ZERO))
                 .count();
         LessonProgressStatus status;
         Instant completedAt = null;

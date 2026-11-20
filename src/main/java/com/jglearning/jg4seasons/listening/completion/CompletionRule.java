@@ -10,11 +10,15 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 레벨별 완료 규칙(completion_rule, ADR-07)을 읽은 값. 1차가 지원하는 형태는 하나:
- * {@code [{"kind":"passage","eachPassage":true,"anyOf":["us_w", …]}]} — 지문마다 anyOf 목소리 중 하나를 threshold 이상 들으면 그 지문
- * 완료(ADR-27). 목소리끼리 들은 구간은 합치지 않는다.
- * 다른 형태는 데이터 오류라 IllegalStateException(규칙을 조용히 무시하지 않는다).
+ * {@code [{"kind":"passage","eachPassage":true,"anyOf":["us_w", …],"combine":true}]} — 지문마다 anyOf 목소리 중 하나를 threshold 이상
+ * 들으면 그 지문 완료(ADR-27). combine이 true면 anyOf 목소리로 들은 구간을 합친 청취율이 threshold 이상이어도 완료(ADR-34), 없거나 false면 합치지
+ * 않는다.
+ * 다른 형태(모르는 키 포함)는 데이터 오류라 IllegalStateException(규칙을 조용히 무시하지 않는다).
  */
-public record CompletionRule(BigDecimal threshold, Set<String> requiredVoices) {
+public record CompletionRule(BigDecimal threshold, Set<String> requiredVoices, boolean combineVoices) {
+
+    /** 항목에 올 수 있는 키. 그 밖의 키는 거부한다 — combined 같은 오타가 조용히 "합치지 않음"이 되지 않게 */
+    private static final Set<String> KEYS = Set.of("kind", "eachPassage", "anyOf", "combine");
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -48,6 +52,14 @@ public record CompletionRule(BigDecimal threshold, Set<String> requiredVoices) {
             throw new IllegalStateException("required_tracks는 항목 하나짜리 배열이어야 한다: " + requiredTracksJson);
         }
         JsonNode track = tracks.get(0);
+        if (!track.isObject()) {
+            throw new IllegalStateException("required_tracks 항목은 객체여야 한다: " + requiredTracksJson);
+        }
+        for (String key : track.propertyNames()) {
+            if (!KEYS.contains(key)) {
+                throw new IllegalStateException("required_tracks에 모르는 키 " + key + ": " + requiredTracksJson);
+            }
+        }
         if (!"passage".equals(text(track, "kind"))) {
             throw new IllegalStateException("지원하지 않는 required_tracks kind: " + requiredTracksJson);
         }
@@ -66,7 +78,11 @@ public record CompletionRule(BigDecimal threshold, Set<String> requiredVoices) {
             }
             voices.add(voice.asString());
         }
-        return new CompletionRule(coverageThreshold, voices);
+        JsonNode combine = track.get("combine");
+        if (combine != null && !combine.isBoolean()) {
+            throw new IllegalStateException("required_tracks combine은 true·false여야 한다: " + requiredTracksJson);
+        }
+        return new CompletionRule(coverageThreshold, voices, combine != null && combine.booleanValue());
     }
 
     private static String text(JsonNode node, String field) {
