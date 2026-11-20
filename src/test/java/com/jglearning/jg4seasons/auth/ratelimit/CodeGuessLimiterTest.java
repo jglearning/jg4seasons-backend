@@ -162,4 +162,15 @@ class CodeGuessLimiterTest {
             miss(IP);
         }
     }
+
+    @Test
+    void 조회가_null을_주면_세지_않고_원인을_말한다() {
+        assertThatThrownBy(() -> limiter.guarded(IP, () -> null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("lookup returned null");
+
+        for (int i = 0; i < 10; i++) {
+            miss(IP);
+        }
+    }
 }
