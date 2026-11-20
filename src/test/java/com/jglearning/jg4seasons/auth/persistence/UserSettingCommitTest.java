@@ -60,7 +60,7 @@ class UserSettingCommitTest {
                 for (String voice : List.of("us_m", "uk_w")) {
                     saves.add(pool.submit(() -> {
                         start.await();
-                        store.saveVoice(studentId, voice);
+                        store.saveVoice(academyId, studentId, voice);
                         return null;
                     }));
                 }

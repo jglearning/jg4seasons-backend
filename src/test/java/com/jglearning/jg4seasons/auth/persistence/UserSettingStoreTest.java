@@ -50,7 +50,7 @@ class UserSettingStoreTest {
 
     @Test
     void 저장하면_그_학원의_그_학생에게만_보인다() {
-        store.saveVoice(studentId, "uk_m");
+        store.saveVoice(academyId, studentId, "uk_m");
 
         assertThat(store.find(academyId, studentId)).contains(new UserSettingStore.Row("uk_m"));
         // 죽여야 하는 틀린 구현: 사용자 조건을 빼는 것(같은 학원의 다른 학생에게 보인다)
@@ -61,11 +61,11 @@ class UserSettingStoreTest {
 
     @Test
     void 다시_저장하면_덮어쓰고_null이면_지우며_행은_하나다() {
-        store.saveVoice(studentId, "us_w");
-        store.saveVoice(studentId, "uk_m");
+        store.saveVoice(academyId, studentId, "us_w");
+        store.saveVoice(academyId, studentId, "uk_m");
         assertThat(store.find(academyId, studentId)).contains(new UserSettingStore.Row("uk_m"));
 
-        store.saveVoice(studentId, null);
+        store.saveVoice(academyId, studentId, null);
 
         assertThat(store.find(academyId, studentId)).as("행은 남고 값만 비어 있다").contains(new UserSettingStore.Row(null));
         assertThat(rows(studentId)).isEqualTo(1);
@@ -73,8 +73,8 @@ class UserSettingStoreTest {
 
     @Test
     void 한_학생의_저장이_다른_학생의_값을_바꾸지_않는다() {
-        store.saveVoice(studentId, "us_m");
-        store.saveVoice(classmateId, "uk_w");
+        store.saveVoice(academyId, studentId, "us_m");
+        store.saveVoice(academyId, classmateId, "uk_w");
 
         assertThat(store.find(academyId, studentId)).contains(new UserSettingStore.Row("us_m"));
         assertThat(store.find(academyId, classmateId)).contains(new UserSettingStore.Row("uk_w"));
@@ -87,7 +87,7 @@ class UserSettingStoreTest {
                 .isInstanceOf(DataAccessException.class);
         // 표 기본 정렬(ai_ci)은 대소문자를 구분하지 않고 끝 공백도 무시할 수 있다 — 칸 정렬이 글자 그대로(utf8mb4_0900_bin)여야 거부된다
         for (String wrong : new String[] {"US_W", "Us_w", "us_w ", " us_w", ""}) {
-            assertThatThrownBy(() -> store.saveVoice(studentId, wrong))
+            assertThatThrownBy(() -> store.saveVoice(academyId, studentId, wrong))
                     .as("[%s]", wrong)
                     .isInstanceOf(DataAccessException.class);
         }
@@ -95,7 +95,16 @@ class UserSettingStoreTest {
     }
 
     @Test
-    void 없는_사용자에게는_저장할_수_없다() {
-        assertThatThrownBy(() -> store.saveVoice(-1L, "us_w")).isInstanceOf(DataAccessException.class);
+    void 그_학원의_사용자가_아니면_저장되지_않는다() {
+        // 죽여야 하는 틀린 구현: 쓰기에 학원 조건이 없는 것 — 호출자가 학원 확인을 빠뜨리면 다른 학원 학생의 행이 쓰인다
+        store.saveVoice(otherAcademyId, studentId, "us_w");
+        assertThat(rows(studentId)).as("다른 학원으로 처음 저장").isZero();
+
+        store.saveVoice(academyId, studentId, "uk_m");
+        store.saveVoice(otherAcademyId, studentId, "us_w");
+        assertThat(store.find(academyId, studentId)).as("다른 학원으로 덮어쓰기").contains(new UserSettingStore.Row("uk_m"));
+
+        store.saveVoice(academyId, -1L, "us_w");
+        assertThat(rows(-1L)).as("없는 사용자").isZero();
     }
 }

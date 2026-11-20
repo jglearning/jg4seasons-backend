@@ -47,7 +47,7 @@ public class StudentSettingsService {
             if (voice != null && !PassageVoices.isValid(voice)) {
                 throw ApiException.validation("voice", "목소리를 다시 골라 주세요");
             }
-            settings.saveVoice(userId, voice);
+            settings.saveVoice(academyId, userId, voice);
         }
         return current(academyId, userId);
     }
