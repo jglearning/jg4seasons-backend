@@ -93,6 +93,40 @@ class FixedWindowCounterTest {
     }
 
     @Test
+    void 한도에_차면_isExhausted이고_물어도_세지_않는다() {
+        for (int i = 0; i < 9; i++) {
+            counter.tryAcquire("a");
+        }
+        assertThat(counter.isExhausted("a")).as("9번").isFalse();
+
+        counter.tryAcquire("a");
+        assertThat(counter.isExhausted("a")).as("10번").isTrue();
+        assertThat(counter.isExhausted("a")).as("다시 물어도").isTrue();
+        assertThat(counter.count("a")).as("묻는 것은 세지 않는다").isEqualTo(10);
+        assertThat(counter.isExhausted("b")).as("다른 키").isFalse();
+        assertThat(counter.count("b")).as("물어본 키를 만들지 않는다").isZero();
+
+        clock.advance(Duration.ofMinutes(1));
+        assertThat(counter.isExhausted("a")).as("창이 끝난 뒤").isFalse();
+    }
+
+    @Test
+    void 키_상한_중_새_키는_공용_칸으로_판정한다() {
+        // tryAcquire와 같은 칸을 봐야 한다 — 새 키를 0으로 읽으면 상한 공격 중 "찼는지"가 늘 거짓
+        FixedWindowCounter capped = new FixedWindowCounter(clock, 2, Duration.ofMinutes(1), 1, 3);
+        capped.tryAcquire("a");
+        capped.tryAcquire("b");
+        capped.tryAcquire("c");
+        assertThat(capped.isExhausted("d")).as("공용 칸이 비었다").isFalse();
+
+        capped.tryAcquire("d");
+        capped.tryAcquire("e");
+
+        assertThat(capped.isExhausted("f")).as("처음 보는 키도 공용 칸이 찼으면 찼다").isTrue();
+        assertThat(capped.isExhausted("a")).as("있던 키는 자기 칸(1번)").isFalse();
+    }
+
+    @Test
     void 창이_지난_키는_count가_0이다() {
         counter.tryAcquire("ip");
         clock.advance(Duration.ofMinutes(1));

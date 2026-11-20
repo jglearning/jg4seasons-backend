@@ -34,11 +34,13 @@ public class CodeVerifyService {
         this.books = books;
     }
 
-    /** 반이 없거나 비활성이거나 학원이 정지면 404 INVALID_CODE. IP당 1분 10회를 넘으면 429 RATE_LIMITED */
+    /**
+     * 반이 없거나 비활성이거나 학원이 정지면 404 INVALID_CODE. 없는 코드만 IP당 1분 10회로 세고(맞는 코드는 세지 않는다), 한도가 찬 IP는 맞는 코드도 429
+     * RATE_LIMITED(ADR 0033 보강)
+     */
     public CodeVerifyResponse verify(String rawCode, String clientIp) {
-        codeGuessLimiter.acquire(clientIp);
-        ClassEntry clazz = enterableClasses
-                .find(rawCode)
+        ClassEntry clazz = codeGuessLimiter
+                .guarded(clientIp, () -> enterableClasses.find(rawCode))
                 .orElseThrow(() -> new ApiException(AuthErrorCode.INVALID_CODE, "가입 코드를 다시 확인해 주세요"));
         BookSummary book = books.summaryOf(clazz.bookId());
         return new CodeVerifyResponse(new ClassInfo(

@@ -3,8 +3,11 @@ package com.jglearning.jg4seasons.auth.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +17,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 1.1 POST /auth/code/verify — 가입 코드로 반 확인. 명단 없음, IP당 1분 10회. */
+/** 1.1 POST /auth/code/verify — 가입 코드로 반 확인. 명단 없음, 없는 코드만 IP당 1분 10회(ADR 0033 보강). */
 @IntegrationTest
 @Transactional
 class CodeVerifyTest {
@@ -27,6 +30,9 @@ class CodeVerifyTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    MutableClock clock;
 
     TestData data;
     long academyId;
@@ -42,6 +48,11 @@ class CodeVerifyTest {
         classId = data.clazz(academyId, "L2-B1", "겨울 그린 A반", code, "active");
         data.enroll(classId, data.student(academyId, "김학생"));
         ip = "198.51.100." + IP_SEQ.getAndIncrement();
+    }
+
+    @AfterEach
+    void resetClock() {
+        clock.reset();
     }
 
     private MvcTestResult verify(String body, String fromIp) {
@@ -129,24 +140,58 @@ class CodeVerifyTest {
     }
 
     @Test
-    void 같은_IP_11번째는_429_RATE_LIMITED() {
-        for (int i = 0; i < 10; i++) {
+    void 맞는_코드는_한도에_세지_않는다() {
+        // 교실(공인 IP 하나)에서 한 반이 함께 들어오는 장면
+        for (int i = 0; i < 30; i++) {
             assertThat(verify(code)).as("%d번째", i + 1).hasStatusOk();
         }
-        MvcTestResult limited = verify(code);
+        for (int i = 0; i < 10; i++) {
+            assertThat(verify(TestData.uniqueAccessCode()))
+                    .as("없는 코드 한도 10번이 처음부터 남아 있다(%d번째)", i + 1)
+                    .hasStatus(404);
+        }
+    }
 
-        assertThat(limited).hasStatus(429);
-        assertThat(limited).bodyJson().extractingPath("$.code").isEqualTo("RATE_LIMITED");
+    @Test
+    void 없는_코드_10번_뒤에는_맞는_코드도_429() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            assertThat(verify(TestData.uniqueAccessCode())).as("%d번째", i + 1).hasStatus(404);
+        }
+        MvcTestResult missing = verify(TestData.uniqueAccessCode());
+        MvcTestResult existing = verify(code);
+
+        assertThat(missing).hasStatus(429);
+        assertThat(missing).bodyJson().extractingPath("$.code").isEqualTo("RATE_LIMITED");
+        assertThat(existing).as("응답으로 코드가 있는지 알 수 없다").hasStatus(429);
+        assertThat(existing).bodyJson().extractingPath("$.code").isEqualTo("RATE_LIMITED");
+        assertThat(existing.getResponse().getContentAsString())
+                .as("막힌 응답에 반 정보 없음")
+                .doesNotContain("겨울 그린 A반");
         assertThat(verify("{\"code\":\"" + code + "\"}", "198.51.100.250"))
                 .as("다른 IP")
                 .hasStatusOk();
     }
 
     @Test
-    void 없는_코드도_한도에_센다() {
+    void 한도는_1분_뒤_풀린다() {
         for (int i = 0; i < 10; i++) {
             verify(TestData.uniqueAccessCode());
         }
-        assertThat(verify(code)).hasStatus(429);
+        clock.advance(Duration.ofMinutes(1).minusMillis(1));
+        assertThat(verify(code)).as("창 끝 1ms 전").hasStatus(429);
+
+        clock.advance(Duration.ofMillis(1));
+
+        assertThat(verify(code)).hasStatusOk();
+    }
+
+    @Test
+    void 형식이_틀린_코드는_세지_않는다() {
+        for (int i = 0; i < 20; i++) {
+            assertThat(verify("ABC")).hasStatus(400);
+        }
+        for (int i = 0; i < 10; i++) {
+            assertThat(verify(TestData.uniqueAccessCode())).as("%d번째", i + 1).hasStatus(404);
+        }
     }
 }

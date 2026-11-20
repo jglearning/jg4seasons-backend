@@ -61,9 +61,9 @@ public class StudentLoginService {
     }
 
     public LoginResult login(String rawCode, String personalCode, String clientIp, String userAgent) {
-        Optional<ClassEntry> found = enterableClasses.find(rawCode);
+        // 가입 코드 한도가 찬 IP는 여기서 429 — 반을 보기 전이라 개인 코드 실패(attempts)에 넣지 않는다. 없는 가입 코드는 guarded가 센다
+        Optional<ClassEntry> found = codeGuessLimiter.guarded(clientIp, () -> enterableClasses.find(rawCode));
         if (found.isEmpty()) {
-            codeGuessLimiter.acquire(clientIp);
             throw new ApiException(AuthErrorCode.INVALID_CREDENTIALS, WRONG);
         }
         ClassEntry clazz = found.get();

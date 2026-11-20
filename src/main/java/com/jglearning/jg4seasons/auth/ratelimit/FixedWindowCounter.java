@@ -53,7 +53,7 @@ public class FixedWindowCounter {
         if (windows.size() > sweepThreshold) {
             sweepIfDue(now);
         }
-        String counted = windows.size() >= hardCap && !windows.containsKey(key) ? OVERFLOW_KEY : key;
+        String counted = countedKey(key);
         boolean[] acquired = {false};
         windows.compute(counted, (k, current) -> {
             if (current == null || expired(current, now)) {
@@ -67,6 +67,17 @@ public class FixedWindowCounter {
             return current;
         });
         return acquired[0];
+    }
+
+    /** 지금 창이 한도에 찼는가. 세지 않고 키를 만들지도 않는다. 키 상한 중 새 키는 tryAcquire와 같이 공용 칸(OVERFLOW_KEY)을 본다 */
+    public boolean isExhausted(String key) {
+        Window current = windows.get(countedKey(key));
+        return current != null && !expired(current, clock.instant()) && current.count() >= limit;
+    }
+
+    /** 이 키를 세는 칸: 키 상한에 차 있고 처음 보는 키면 공용 칸 */
+    private String countedKey(String key) {
+        return windows.size() >= hardCap && !windows.containsKey(key) ? OVERFLOW_KEY : key;
     }
 
     /** 지금 창의 횟수. 창이 끝났으면 0 */
