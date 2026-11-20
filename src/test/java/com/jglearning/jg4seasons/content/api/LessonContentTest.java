@@ -24,7 +24,7 @@ class LessonContentTest {
         List<Sentence> sentences = List.of(new Sentence(1, "One.", null), new Sentence(2, "Two.", null));
         Voice oneTiming = new Voice(1L, "us_w", "audio/x.mp3", 1000, List.of(new TimeRange(0, 500)), false);
 
-        assertThatThrownBy(() -> new Passage(1, "P", 10, sentences, List.of(oneTiming)))
+        assertThatThrownBy(() -> new Passage(7L, 1, "P", 10, sentences, List.of(oneTiming)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

@@ -52,6 +52,11 @@ class LessonCatalogTest {
         assertThat(lesson.type()).isEqualTo("regular");
         assertThat(lesson.bookId()).isEqualTo(data.bookId("L2-B1"));
         assertThat(lesson.passages()).extracting(Passage::no).containsExactly(1, 2);
+        assertThat(lesson.passages())
+                .extracting(Passage::id)
+                .as("지문 id는 passage 행의 id(지문 집계의 키)")
+                .containsExactlyElementsOf(jdbc.queryForList(
+                        "select id from passage where lesson_id = ? order by no", Long.class, lesson.lessonId()));
         Passage first = lesson.passages().get(0);
         assertThat(first.title()).isEqualTo("Made-up Passage 1");
         assertThat(first.wordCount()).isEqualTo(101);

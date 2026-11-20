@@ -169,6 +169,7 @@ class LessonCatalogService implements LessonCatalog {
                             timingsByTrack.getOrDefault(track.id(), Map.of())))
                     .toList();
             passages.add(new Passage(
+                    passage.id(),
                     passage.no(),
                     passage.title(),
                     passage.wordCount(),
