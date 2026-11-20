@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class RateLimitConfig {
 
-    /** 가입 코드 찍기: IP당 1분 10회. verify 호출과, 없는 가입 코드로 한 로그인 시도가 함께 센다 */
+    /** 가입 코드 찍기: 없는 가입 코드만 IP당 1분 10회. 확인(1.1)과 학생 로그인(1.2)이 함께 센다. 교사·관리자 로그인도 같은 값을 쓴다 */
     public static final int CODE_GUESS_LIMIT = 10;
 
     public static final Duration CODE_GUESS_WINDOW = Duration.ofMinutes(1);

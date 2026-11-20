@@ -5,6 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jglearning.jg4seasons.MutableClock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 /** 키별 고정 창 카운터. 창은 그 키의 첫 기록 시각부터. */
@@ -90,6 +98,73 @@ class FixedWindowCounterTest {
         clock.advance(Duration.ofMinutes(1));
         assertThat(capped.tryAcquire("d")).as("정리되면 다시 자기 칸").isTrue();
         assertThat(capped.count("d")).isEqualTo(1);
+    }
+
+    @Test
+    void 한도에_차면_창이_끝나는_시각을_주고_물어도_세지_않는다() {
+        Instant windowEnd = clock.instant().plus(Duration.ofMinutes(1));
+        for (int i = 0; i < 9; i++) {
+            counter.tryAcquire("a");
+            clock.advance(Duration.ofSeconds(1));
+        }
+        assertThat(counter.exhaustedUntil("a")).as("9번").isEmpty();
+
+        counter.tryAcquire("a");
+        assertThat(counter.exhaustedUntil("a")).as("10번 — 창은 첫 기록부터 1분").contains(windowEnd);
+        assertThat(counter.exhaustedUntil("a")).as("다시 물어도").contains(windowEnd);
+        assertThat(counter.count("a")).as("묻는 것은 세지 않는다").isEqualTo(10);
+        assertThat(counter.exhaustedUntil("b")).as("다른 키").isEmpty();
+        assertThat(counter.size()).as("물어본 키를 만들지 않는다").isEqualTo(1);
+
+        clock.set(windowEnd.minusMillis(1));
+        assertThat(counter.exhaustedUntil("a")).as("창 끝 1ms 전").contains(windowEnd);
+        clock.set(windowEnd);
+        assertThat(counter.exhaustedUntil("a")).as("창이 끝난 순간").isEmpty();
+    }
+
+    @Test
+    void 키_상한_중_새_키는_공용_칸으로_판정한다() {
+        // tryAcquire와 같은 칸을 봐야 한다 — 새 키를 0으로 읽으면 상한 공격 중 "찼는지"가 늘 거짓
+        FixedWindowCounter capped = new FixedWindowCounter(clock, 2, Duration.ofMinutes(1), 1, 3);
+        capped.tryAcquire("a");
+        capped.tryAcquire("b");
+        capped.tryAcquire("c");
+        assertThat(capped.exhaustedUntil("d")).as("공용 칸이 비었다").isEmpty();
+
+        capped.tryAcquire("d");
+        capped.tryAcquire("e");
+
+        assertThat(capped.exhaustedUntil("f")).as("처음 보는 키도 공용 칸이 찼으면 찼다").isPresent();
+        assertThat(capped.exhaustedUntil("a")).as("있던 키는 자기 칸(1번)").isEmpty();
+    }
+
+    @Test
+    void 동시에_세도_한도만큼만_허용한다() throws Exception {
+        int threads = 32;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger allowed = new AtomicInteger();
+        try {
+            List<Future<?>> jobs = new ArrayList<>();
+            for (int i = 0; i < 200; i++) {
+                jobs.add(pool.submit(() -> {
+                    start.await();
+                    if (counter.tryAcquire("ip")) {
+                        allowed.incrementAndGet();
+                    }
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> job : jobs) {
+                job.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(allowed).hasValue(10);
+        assertThat(counter.count("ip")).isEqualTo(10);
     }
 
     @Test

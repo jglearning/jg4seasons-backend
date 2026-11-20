@@ -326,6 +326,71 @@ class StudentLoginTest {
         assertThat(limited).bodyJson().extractingPath("$.code").isEqualTo("RATE_LIMITED");
     }
 
+    private MvcTestResult verify(String code) {
+        return mvc.post()
+                .uri("/api/v1/auth/code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"" + code + "\"}")
+                .with(request -> {
+                    request.setRemoteAddr(ip);
+                    return request;
+                })
+                .exchange();
+    }
+
+    @Test
+    void 한도가_찬_IP는_맞는_코드로도_429이고_창이_지나면_들어간다() {
+        for (int i = 0; i < 10; i++) {
+            assertThat(login(TestData.uniqueAccessCode(), PERSONAL_CODE)).hasStatus(401);
+        }
+
+        MvcTestResult blocked = login(accessCode, PERSONAL_CODE);
+
+        assertThat(blocked).as("401·423과 구분되지 않게 429").hasStatus(429);
+        assertThat(blocked).bodyJson().extractingPath("$.code").isEqualTo("RATE_LIMITED");
+        assertThat(blocked)
+                .bodyJson()
+                .extractingPath("$.until")
+                .isEqualTo(clock.instant().plus(Duration.ofMinutes(1)).toString());
+        assertThat(setCookies(blocked)).isEmpty();
+        for (int i = 0; i < 6; i++) {
+            assertThat(login(accessCode, WRONG_CODE)).as("막힌 동안 틀린 개인 코드").hasStatus(429);
+        }
+
+        clock.advance(Duration.ofMinutes(1));
+
+        // 막힌 동안의 시도가 개인 코드 실패로 쌓였다면 여기서 423이다
+        for (int i = 0; i < 4; i++) {
+            assertThat(login(accessCode, WRONG_CODE)).as("실패 %d번째", i + 1).hasStatus(401);
+        }
+        assertThat(login(accessCode, PERSONAL_CODE)).hasStatusOk();
+    }
+
+    @Test
+    void 확인과_로그인은_같은_칸을_센다() {
+        for (int i = 0; i < 5; i++) {
+            assertThat(verify(TestData.uniqueAccessCode())).hasStatus(404);
+            assertThat(login(TestData.uniqueAccessCode(), PERSONAL_CODE)).hasStatus(401);
+        }
+
+        assertThat(verify(accessCode)).as("확인").hasStatus(429);
+        assertThat(login(accessCode, PERSONAL_CODE)).as("로그인").hasStatus(429);
+    }
+
+    @Test
+    void 맞는_가입_코드의_틀린_개인_코드는_가입_코드_한도에_세지_않는다() {
+        for (int n = 0; n < 3; n++) {
+            String other = TestData.uniqueAccessCode();
+            data.clazz(academyId, "L2-B1", "다른 반 " + n, other, "active");
+            for (int i = 0; i < 4; i++) {
+                assertThat(login(other, WRONG_CODE)).hasStatus(401);
+            }
+        }
+
+        assertThat(verify(accessCode)).as("틀린 개인 코드 12번 뒤").hasStatusOk();
+        assertThat(login(accessCode, PERSONAL_CODE)).hasStatusOk();
+    }
+
     @Test
     void 개인_코드가_숫자_JSON이면_400() {
         MvcTestResult result = loginBody("{\"code\":\"" + accessCode + "\",\"personalCode\":3817}");

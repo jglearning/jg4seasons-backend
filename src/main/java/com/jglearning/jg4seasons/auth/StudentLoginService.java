@@ -16,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 1.2 가입 코드 + 개인 코드로 학생 입장(ADR-22).
  *
- * <p>순서: 가입 코드 → 활성 반(정지 학원 제외). 없으면 가입 코드 찍기 한도(IP당 1분 10회)를 쓰고 401 · (반, IP) 시도를 먼저 센다(잠겼으면 423) · HMAC으로 인증 수단
+ * <p>순서: 가입 코드 한도가 찬 IP면 반을 보기 전에 429(맞는 코드도, 개인 코드 실패로 세지 않음 — ADR 0033 보강) · 가입 코드 → 활성 반(정지 학원 제외).
+ * 없으면 가입 코드 찍기 한도(없는 코드만 IP당 1분 10회)에 한 번 세고 401 · (반, IP) 시도를 먼저 센다(잠겼으면 423) · HMAC으로 인증 수단
  * → 사용자는 반의 학원 범위로 다시 읽음(활성 학생) → 그 반 현재 소속. 어느 단계든 틀리면 반 전체 실패 1회, 5번째 시도였으면 423. 맞으면 센 시도 1회만 되돌린다. 실패 응답은 어느 쪽이
  * 틀렸는지 구분하지 않는다. 개인 코드 평문은 해시 계산에만 쓰고 남기지 않는다.
  */
@@ -61,9 +62,9 @@ public class StudentLoginService {
     }
 
     public LoginResult login(String rawCode, String personalCode, String clientIp, String userAgent) {
-        Optional<ClassEntry> found = enterableClasses.find(rawCode);
+        // 가입 코드 한도가 찬 IP는 여기서 429 — 반을 보기 전이라 개인 코드 실패(attempts)에 넣지 않는다. 없는 가입 코드는 guarded가 센다
+        Optional<ClassEntry> found = codeGuessLimiter.guarded(clientIp, () -> enterableClasses.find(rawCode));
         if (found.isEmpty()) {
-            codeGuessLimiter.acquire(clientIp);
             throw new ApiException(AuthErrorCode.INVALID_CREDENTIALS, WRONG);
         }
         ClassEntry clazz = found.get();
