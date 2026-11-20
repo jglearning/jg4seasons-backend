@@ -2343,7 +2343,7 @@
           "requiredDone" : {
             "type" : "integer",
             "format" : "int32",
-            "description" : "완료한 지문 수"
+            "description" : "완료한 지문 수(목소리를 섞어 들어 완료한 지문 포함)"
           },
           "requiredTotal" : {
             "type" : "integer",
@@ -2356,6 +2356,25 @@
           }
         },
         "required" : [ "code", "requiredDone", "requiredTotal", "status" ]
+      },
+      "FlushPassage" : {
+        "type" : "object",
+        "properties" : {
+          "completed" : {
+            "type" : "boolean",
+            "description" : "지문 완료. 목소리 하나를 기준 이상 들었거나 합친 청취율이 기준 이상(한 번 되면 유지)"
+          },
+          "coverage" : {
+            "type" : "number",
+            "description" : "지문 청취율 0~1. 여러 목소리로 들은 구간을 합친 값과 목소리 하나의 최댓값 중 큰 쪽"
+          },
+          "no" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "지문 번호"
+          }
+        },
+        "required" : [ "completed", "coverage", "no" ]
       },
       "FlushRequest" : {
         "type" : "object",
@@ -2407,11 +2426,14 @@
           "lesson" : {
             "$ref" : "#/components/schemas/FlushLesson"
           },
+          "passage" : {
+            "$ref" : "#/components/schemas/FlushPassage"
+          },
           "track" : {
             "$ref" : "#/components/schemas/FlushTrack"
           }
         },
-        "required" : [ "dropped", "lesson", "track" ]
+        "required" : [ "dropped", "lesson", "passage", "track" ]
       },
       "FlushSegment" : {
         "type" : "object",
@@ -2439,11 +2461,11 @@
         "properties" : {
           "completed" : {
             "type" : "boolean",
-            "description" : "완료 기준 도달(한 번 되면 유지)"
+            "description" : "이 목소리 트랙만으로 완료 기준 도달(한 번 되면 유지)"
           },
           "coverage" : {
             "type" : "number",
-            "description" : "청취율 0~1"
+            "description" : "이 목소리 트랙만의 청취율 0~1"
           },
           "trackId" : {
             "type" : "integer",

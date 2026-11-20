@@ -166,24 +166,6 @@ class FlushStoreTest {
     }
 
     @Test
-    void 완료된_트랙만_골라_읽는다() {
-        long done = tracks.get("p1:us_w");
-        long notDone = tracks.get("p2:us_w");
-        store.lockTrackProgress(studentId, done, NOW);
-        store.lockTrackProgress(studentId, notDone, NOW);
-        store.updateTrackProgress(
-                studentId,
-                done,
-                new TrackProgressUpdate(List.of(new Range(0, 9000)), 9000, BigDecimal.ONE, NOW, 9000, 1, NOW));
-
-        assertThat(store.completedTracksForShare(studentId, List.of(done, notDone)))
-                .containsExactly(done);
-        assertThat(store.completedTracksForShare(otherStudentId, List.of(done, notDone)))
-                .isEmpty();
-        assertThat(store.completedTracksForShare(studentId, List.of())).isEmpty();
-    }
-
-    @Test
     void 필수_트랙의_구간과_완료를_잠금_읽기로_읽는다() {
         long done = tracks.get("p1:us_w");
         long notDone = tracks.get("p2:us_w");

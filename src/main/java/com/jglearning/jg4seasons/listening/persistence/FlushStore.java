@@ -195,18 +195,6 @@ public class FlushStore {
                 trackId);
     }
 
-    /** 잠금 읽기(FOR SHARE) — 일반 SELECT는 트랜잭션 첫 읽기 시점 스냅샷이라 다른 flush가 막 끝낸 완료를 놓친다 */
-    public Set<Long> completedTracksForShare(long studentId, Collection<Long> trackIds) {
-        if (trackIds.isEmpty()) {
-            return Set.of();
-        }
-        return new HashSet<>(named.queryForList(
-                "select track_id from track_progress where student_id = :studentId and track_id in (:trackIds)"
-                        + " and completed_at is not null for share",
-                new MapSqlParameterSource("studentId", studentId).addValue("trackIds", trackIds),
-                Long.class));
-    }
-
     /**
      * 트랙 집계 잠금 읽기(FOR SHARE): 트랙 id → 병합 구간·청취율·완료. 행이 없는 트랙은 맵에 없다(안 들음). 회차 행을 잡은 뒤에 부른다 — 같은 학생·같은 회차의 다른
      * flush가 막 끝낸 구간과 완료를 본다(잠금 없는 읽기를 회차 행 잠금 전에 하면 놓친다).

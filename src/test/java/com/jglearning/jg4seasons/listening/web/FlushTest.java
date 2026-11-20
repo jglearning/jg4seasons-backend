@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 3.1 POST /listening/flush — 청취 구간을 받아 원본을 추가하고 트랙·회차 집계를 갱신한다. 오늘 = 서울 2026-11-10. 반 L2-B1, 5회차 오늘·6회차 내일.
- * 5회차는 지문 2 × 문장 2, 목소리 us_m·us_w(각 6500ms), 아무 목소리나 완료(ADR-27), 기준 0.9.
+ * 5회차는 지문 2 × 문장 2, 목소리 us_m·us_w(각 6500ms), 아무 목소리나 완료(ADR-27)이고 나눠 들은 구간은 합친다(ADR-34), 기준 0.9.
  */
 @IntegrationTest
 @Transactional
@@ -131,6 +131,9 @@ class FlushTest {
         json.extractingPath("$.track.trackId").isEqualTo((int) one);
         json.extractingPath("$.track.coverage").isEqualTo(0.4615); // 3000 / 6500 내림
         json.extractingPath("$.track.completed").isEqualTo(false);
+        json.extractingPath("$.passage.no").isEqualTo(1);
+        json.extractingPath("$.passage.coverage").isEqualTo(0.4615);
+        json.extractingPath("$.passage.completed").isEqualTo(false);
         json.extractingPath("$.lesson.code").isEqualTo("L2-B1-05");
         json.extractingPath("$.lesson.status").isEqualTo("in_progress");
         json.extractingPath("$.lesson.requiredDone").isEqualTo(0);
@@ -226,13 +229,17 @@ class FlushTest {
     }
 
     @Test
-    void 목소리를_나눠_들은_구간은_합치지_않는다() {
+    void 목소리를_나눠_들은_구간은_합쳐서_지문_완료() {
+        // ADR 0034(0027 결정 2 변경). 목소리 길이가 다른 경우는 FlushCombineTest
         flush(body(newSession(), tracks.get("p1:us_w"), seg(0, 3250)));
 
         MvcTestResult result = flush(body(newSession(), tracks.get("p1:us_m"), seg(3250, 6500)));
 
-        assertThat(result).bodyJson().extractingPath("$.track.completed").isEqualTo(false);
-        assertThat(result).bodyJson().extractingPath("$.lesson.requiredDone").isEqualTo(0);
+        var json = assertThat(result).bodyJson();
+        json.extractingPath("$.track.completed").as("그 목소리만으로는 미완료").isEqualTo(false);
+        json.extractingPath("$.passage.completed").isEqualTo(true);
+        json.extractingPath("$.passage.coverage").isEqualTo(1);
+        json.extractingPath("$.lesson.requiredDone").isEqualTo(1);
     }
 
     @Test
