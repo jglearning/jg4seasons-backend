@@ -22,7 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class CodeVerifyTest {
 
-    /** 요청 한도 카운터는 컨텍스트에 남는다 → 테스트마다 다른 IP */
+    /**
+     * 요청 한도 카운터는 컨텍스트에 남는다 → 테스트마다 다른 IP. 한도가 찬 IP는 맞는 코드도 막히고 테스트 시계는 멈춰 있어 창이 끝나지 않으므로, 다른 클래스가 쓰지
+     * 않는 대역(198.18.56.x)만 쓴다
+     */
     static final AtomicInteger IP_SEQ = new AtomicInteger(1);
 
     @Autowired
@@ -47,7 +50,7 @@ class CodeVerifyTest {
         code = TestData.uniqueAccessCode();
         classId = data.clazz(academyId, "L2-B1", "겨울 그린 A반", code, "active");
         data.enroll(classId, data.student(academyId, "김학생"));
-        ip = "198.51.100." + IP_SEQ.getAndIncrement();
+        ip = "198.18.56." + IP_SEQ.getAndIncrement();
     }
 
     @AfterEach
@@ -167,7 +170,7 @@ class CodeVerifyTest {
         assertThat(existing.getResponse().getContentAsString())
                 .as("막힌 응답에 반 정보 없음")
                 .doesNotContain("겨울 그린 A반");
-        assertThat(verify("{\"code\":\"" + code + "\"}", "198.51.100.250"))
+        assertThat(verify("{\"code\":\"" + code + "\"}", "198.18.56.250"))
                 .as("다른 IP")
                 .hasStatusOk();
     }
