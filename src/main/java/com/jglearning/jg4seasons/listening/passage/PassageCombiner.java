@@ -7,6 +7,7 @@ import com.jglearning.jg4seasons.listening.segment.MergedRanges;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 한 지문을 여러 목소리로 들은 구간을 합친다(ADR 0034). 목소리별 병합 구간(track_progress.merged_ranges)을 지문의 기준 시간축으로 옮긴 뒤 구간 병합으로
@@ -18,22 +19,27 @@ public final class PassageCombiner {
 
     private PassageCombiner() {}
 
-    /** 지문의 기준 목소리: 규칙의 필수 목소리 중 트랙 순서가 가장 앞인 것. 목소리 이름을 코드에 적지 않는다. 없으면 데이터 오류 */
-    public static LessonContent.Voice reference(LessonContent.Passage passage, CompletionRule rule) {
+    /**
+     * 지문의 기준 목소리: 규칙의 필수 목소리 중 트랙 순서가 가장 앞인 것. 목소리 이름을 코드에 적지 않는다. 필수 목소리 트랙이 하나도 없는 지문(음원이 아직 없거나 규칙의
+     * 필수 목소리를 좁힌 경우)은 기준이 없다 — 그 지문은 합치지 않고 지금까지처럼 "완료될 수 없는 지문"으로 남는다(오류가 아니다).
+     */
+    public static Optional<LessonContent.Voice> reference(LessonContent.Passage passage, CompletionRule rule) {
         return passage.voices().stream()
                 .filter(voice -> CompletionRuleEvaluator.isRequired(rule, voice.voice()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("지문에 완료 규칙의 필수 목소리 트랙이 없다: 지문 " + passage.no()));
+                .findFirst();
     }
 
     /**
      * 필수 목소리 트랙들의 병합 구간을 기준 시간축으로 옮겨 합친다.
      *
+     * @param reference 이 지문의 기준 목소리({@link #reference}) — 저장할 행을 잠글 때 쓴 기준과 같은 값을 넘긴다
      * @param mergedByTrackId 트랙 id → 그 트랙의 병합 구간. 없는 트랙은 안 들은 것. 필수가 아닌 목소리의 구간은 넣어도 쓰지 않는다
      */
     public static CombinedProgress combine(
-            LessonContent.Passage passage, CompletionRule rule, Map<Long, List<Range>> mergedByTrackId) {
-        LessonContent.Voice reference = reference(passage, rule);
+            LessonContent.Passage passage,
+            CompletionRule rule,
+            LessonContent.Voice reference,
+            Map<Long, List<Range>> mergedByTrackId) {
         VoiceAxis referenceAxis = VoiceAxis.of(reference);
         List<Range> merged = List.of();
         for (LessonContent.Voice voice : passage.voices()) {

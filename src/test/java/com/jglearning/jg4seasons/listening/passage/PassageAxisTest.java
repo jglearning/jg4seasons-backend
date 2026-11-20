@@ -207,4 +207,21 @@ class PassageAxisTest {
                 .as("여백이 없는 쪽의 전체 = 문장 0의 시작부터 문장 1의 끝까지")
                 .contains(range(500, 9_000));
     }
+
+    @Test
+    void 문장_시각이_음원_길이를_넘는_트랙은_트랙_id와_함께_데이터_오류() {
+        LessonContent.Voice broken = new LessonContent.Voice(
+                77L,
+                "uk_m",
+                "audio/x.mp3",
+                14_000,
+                List.of(new LessonContent.TimeRange(0, 4_000), new LessonContent.TimeRange(5_000, 15_000)),
+                false);
+
+        assertThatThrownBy(() -> VoiceAxis.of(broken))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("track 77")
+                .hasMessageContaining("uk_m")
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+    }
 }

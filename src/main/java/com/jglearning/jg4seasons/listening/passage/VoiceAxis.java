@@ -26,11 +26,20 @@ public record VoiceAxis(int durationMs, List<Range> sentences) {
         }
     }
 
+    /**
+     * 목소리 트랙의 시간축. 문장 시각이 음원 길이와 맞지 않으면(끝이 길이를 넘음, 겹침, 역순) 콘텐츠 데이터 오류라 IllegalStateException — 어느 음원인지 찾을 수
+     * 있게 트랙 id와 목소리를 메시지에 넣는다. import가 만든 데이터에서는 생기지 않는다.
+     */
     public static VoiceAxis of(LessonContent.Voice voice) {
-        return new VoiceAxis(
-                voice.durationMs(),
-                voice.timings().stream()
-                        .map(timing -> new Range(timing.startMs(), timing.endMs()))
-                        .toList());
+        try {
+            return new VoiceAxis(
+                    voice.durationMs(),
+                    voice.timings().stream()
+                            .map(timing -> new Range(timing.startMs(), timing.endMs()))
+                            .toList());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(
+                    "지문 트랙의 시간축을 만들 수 없다: track " + voice.trackId() + "(" + voice.voice() + ") — " + e.getMessage(), e);
+        }
     }
 }

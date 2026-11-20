@@ -141,7 +141,7 @@ public class StudentLessonService {
         }
         PassageSummary summary = PassageSummaries.of(passage, rule, stored, states);
         Optional<StoredPassage.OnReference> usable =
-                stored.flatMap(row -> row.on(PassageCombiner.reference(passage, rule)));
+                stored.flatMap(row -> PassageCombiner.reference(passage, rule).flatMap(row::on));
         return new LessonDetailResponse.Passage(
                 passage.no(),
                 passage.title(),

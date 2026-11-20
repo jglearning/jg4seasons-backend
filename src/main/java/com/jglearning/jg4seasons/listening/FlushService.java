@@ -206,7 +206,9 @@ public class FlushService {
             Map<Long, TrackProgressRow> tracks,
             Instant now) {
         Map<Long, TrackState> states = states(tracks);
-        if (!rule.combineVoices()) {
+        Optional<LessonContent.Voice> reference = PassageCombiner.reference(passage, rule);
+        // 합산이 꺼진 규칙, 또는 필수 목소리 트랙이 없는 지문(기준 없음): 지문 집계 없이 지금까지처럼
+        if (!rule.combineVoices() || reference.isEmpty()) {
             return PassageSummaries.of(
                     passage,
                     rule,
@@ -214,12 +216,14 @@ public class FlushService {
                             .get(passage.id())),
                     states);
         }
-        LessonContent.Voice reference = PassageCombiner.reference(passage, rule);
-        PassageProgressLock lock =
-                store.lockPassageProgress(studentId, passage.id(), reference.trackId(), reference.durationMs());
+        PassageProgressLock lock = store.lockPassageProgress(
+                studentId,
+                passage.id(),
+                reference.get().trackId(),
+                reference.get().durationMs());
         Map<Long, List<Range>> merged = new HashMap<>();
         tracks.forEach((trackId, row) -> merged.put(trackId, row.mergedRanges()));
-        CombinedProgress combined = PassageCombiner.combine(passage, rule, merged);
+        CombinedProgress combined = PassageCombiner.combine(passage, rule, reference.get(), merged);
         boolean completed = lock.completedAt() != null
                 || CompletionRuleEvaluator.isPassageComplete(
                         rule, PassageSummaries.requiredTrackCompleted(passage, rule, states), combined.coverage());

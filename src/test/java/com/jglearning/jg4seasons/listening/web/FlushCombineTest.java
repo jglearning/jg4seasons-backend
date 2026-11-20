@@ -394,4 +394,27 @@ class FlushCombineTest {
                 .containsEntry("ref_duration_ms", 14_000)
                 .containsEntry("merged_ranges", "[[0, 14000]]");
     }
+
+    @Test
+    void 필수_목소리_트랙이_없는_지문은_지문_집계_없이_전처럼_기록된다() {
+        // 이 회차에는 uk_w 트랙이 없다. 합산이 생기기 전에도 이런 지문은 "완료될 수 없음"이었고 flush는 됐다
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"uk_w\"],\"combine\":true}]");
+
+        MvcTestResult result = flush("p1:us_w", seg(0, 5_000));
+
+        assertThat(result).hasStatusOk();
+        var json = assertThat(result).bodyJson();
+        json.extractingPath("$.track.coverage").isEqualTo(0.5);
+        json.extractingPath("$.passage.completed").isEqualTo(false);
+        json.extractingPath("$.passage.coverage").isEqualTo(0);
+        json.extractingPath("$.lesson.requiredDone").isEqualTo(0);
+        assertThat(passageRows()).isZero();
+        assertThat(jdbc.queryForObject(
+                        "select merged_ranges from track_progress where student_id = ?", String.class, studentId))
+                .as("원본과 목소리별 집계는 저장된다")
+                .isEqualTo("[[0, 5000]]");
+    }
 }

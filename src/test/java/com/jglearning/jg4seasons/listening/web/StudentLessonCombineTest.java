@@ -351,4 +351,49 @@ class StudentLessonCombineTest {
                 .as("필수가 아닌 목소리의 바에도 합친 구간이 보인다")
                 .containsExactly(List.of(0, 10_000));
     }
+
+    @Test
+    void 필수_목소리_트랙이_없는_지문이_있어도_회차_상세는_열린다() {
+        flush("p1:us_w", 0, 5_000);
+        flush("p1:uk_m", 6_000, 14_000);
+        // 지문 집계 행이 있는 상태에서 규칙의 필수 목소리를 이 회차에 없는 목소리로 좁힌다
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"uk_w\"],\"combine\":true}]");
+
+        String json = detail();
+
+        assertThat(JsonPath.<Boolean>read(json, "$.passages[0].completed"))
+                .as("이미 완료한 지문은 유지")
+                .isTrue();
+        assertThat(JsonPath.<Boolean>read(json, "$.passages[1].completed")).isFalse();
+        assertThat(ranges(json, 0, US_W, "combinedRanges"))
+                .as("기준을 구할 수 없으면 그 목소리로 직접 들은 구간")
+                .containsExactly(List.of(0, 5_000));
+        assertThat(JsonPath.<Boolean>read(json, "$.passages[0].voices[" + US_W + "].required"))
+                .isFalse();
+    }
+
+    @Test
+    void 문장_시각이_어긋난_음원이_있어도_합친_구간을_옮길_일이_없는_학생의_회차_상세는_열린다() {
+        long other = data.student(academyId, "이학생");
+        data.enroll(classId, other);
+        flush("p1:us_w", 0, 5_000);
+        // uk_m 지문 1의 마지막 문장 끝이 음원 길이(14000)를 넘는다 — import로는 생기지 않는 손으로 고친 데이터
+        assertThat(jdbc.update(
+                        "update sentence_timing set end_ms = 15000 where track_id = ? and end_ms = 14000",
+                        tracks.get("p1:uk_m")))
+                .isEqualTo(1);
+
+        assertThat(number(detailAs(other), "$.passages[0].coverage"))
+                .as("한 번도 안 들은 학생")
+                .isEqualByComparingTo("0");
+        MvcTestResult heard = mvc.get()
+                .uri("/api/v1/student/lessons/" + CODE)
+                .cookie(cookies.studentAccess(studentId, academyId))
+                .exchange();
+        assertThat(heard).as("합친 구간을 어긋난 목소리의 시간축으로 옮겨야 하는 학생은 데이터 오류").hasStatus(500);
+        assertThat(heard).bodyJson().extractingPath("$.code").isEqualTo("INTERNAL");
+    }
 }

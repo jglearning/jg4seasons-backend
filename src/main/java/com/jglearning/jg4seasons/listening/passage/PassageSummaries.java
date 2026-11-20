@@ -51,7 +51,7 @@ public final class PassageSummaries {
             }
         }
         Optional<StoredPassage.OnReference> combined =
-                stored.flatMap(row -> row.on(PassageCombiner.reference(passage, rule)));
+                stored.flatMap(row -> PassageCombiner.reference(passage, rule).flatMap(row::on));
         if (combined.isPresent()) {
             coverage = coverage.max(combined.get().coverage());
         }

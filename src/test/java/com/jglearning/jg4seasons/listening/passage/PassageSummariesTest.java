@@ -95,7 +95,8 @@ class PassageSummariesTest {
     void 기준_길이가_다르면_지문_집계의_청취율을_쓰지_않고_완료는_유지한다() {
         StoredPassage stale = stored(US_W, 9_000, "1", true);
 
-        assertThat(stale.on(PassageCombiner.reference(PASSAGE, RULE))).isEmpty();
+        assertThat(stale.on(PassageCombiner.reference(PASSAGE, RULE).orElseThrow()))
+                .isEmpty();
         PassageSummary summary =
                 PassageSummaries.of(PASSAGE, RULE, Optional.of(stale), Map.of(US_W, track("0.5", false)));
         assertThat(summary.coverage()).as("옛 시간축 값은 버린다").isEqualByComparingTo("0.5");
@@ -106,7 +107,8 @@ class PassageSummariesTest {
     void 기준_트랙이_다르면_지문_집계의_청취율을_쓰지_않는다() {
         StoredPassage stale = stored(UK_M, 10_000, "0.95", false);
 
-        assertThat(stale.on(PassageCombiner.reference(PASSAGE, RULE))).isEmpty();
+        assertThat(stale.on(PassageCombiner.reference(PASSAGE, RULE).orElseThrow()))
+                .isEmpty();
         assertThat(PassageSummaries.of(PASSAGE, RULE, Optional.of(stale), Map.of(US_W, track("0.2", false)))
                         .coverage())
                 .isEqualByComparingTo("0.2");
@@ -114,7 +116,7 @@ class PassageSummariesTest {
 
     @Test
     void 기준이_같으면_합친_구간을_어느_목소리의_시간축으로든_꺼낼_수_있다() {
-        LessonContent.Voice reference = PassageCombiner.reference(PASSAGE, RULE);
+        LessonContent.Voice reference = PassageCombiner.reference(PASSAGE, RULE).orElseThrow();
         StoredPassage.OnReference usable =
                 stored(US_W, 10_000, "0.5", false).on(reference).orElseThrow();
 
@@ -156,5 +158,17 @@ class PassageSummariesTest {
 
         assertThat(summary.completed()).isFalse();
         assertThat(summary.coverage()).isEqualByComparingTo("0.1");
+    }
+
+    @Test
+    void 필수_목소리_트랙이_없는_지문은_저장_행이_있어도_오류_없이_바닥_값() {
+        // 규칙의 필수 목소리를 좁힌 뒤에 남은 옛 행 — 기준을 구할 수 없으니 구간·청취율은 쓰지 않고 완료만 믿는다
+        CompletionRule noneHere = PassageFixtures.rule(Set.of("uk_w"), true);
+
+        PassageSummary summary = PassageSummaries.of(
+                PASSAGE, noneHere, Optional.of(stored(US_W, 10_000, "1", true)), Map.of(US_W, track("1", true)));
+
+        assertThat(summary.completed()).as("저장된 완료는 유지").isTrue();
+        assertThat(summary.coverage()).as("필수가 아닌 목소리의 청취율도, 옛 합친 값도 쓰지 않는다").isEqualByComparingTo("0");
     }
 }
