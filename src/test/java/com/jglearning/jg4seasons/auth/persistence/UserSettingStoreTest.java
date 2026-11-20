@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
+import com.jglearning.jg4seasons.content.api.PassageVoices;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,6 +79,16 @@ class UserSettingStoreTest {
 
         assertThat(store.find(academyId, studentId)).contains(new UserSettingStore.Row("us_m"));
         assertThat(store.find(academyId, classmateId)).contains(new UserSettingStore.Row("uk_w"));
+    }
+
+    @Test
+    void 코드의_목소리_목록은_모두_저장된다() {
+        // 죽여야 하는 어긋남: 코드 목록(PassageVoices.ALL)에만 목소리를 더하고 DB 제약을 안 고친 것 — 검증을 통과한 값이 DB에서 거부돼 500이 된다
+        for (String voice : PassageVoices.ALL) {
+            store.saveVoice(academyId, studentId, voice);
+
+            assertThat(store.find(academyId, studentId)).as(voice).contains(new UserSettingStore.Row(voice));
+        }
     }
 
     @Test

@@ -164,8 +164,18 @@ class MeSettingsTest {
 
     @Test
     void 명세에_없는_필드와_타입이_다른_값은_400이다() {
-        for (String body :
-                new String[] {"{\"voice\": \"us_w\", \"speed\": 1.25}", "{\"voice\": 1}", "{\"voice\": true}"}) {
+        // 본문 없음·null·객체가 아닌 본문도 400이다(500이 아니다) — 서비스에 null 본문이 닿지 않는다
+        for (String body : new String[] {
+            "{\"voice\": \"us_w\", \"speed\": 1.25}",
+            "{\"voice\": 1}",
+            "{\"voice\": true}",
+            "{\"voice\": {}}",
+            "{\"voice\": [\"us_w\"]}",
+            "",
+            "null",
+            "[]",
+            "\"us_w\""
+        }) {
             MvcTestResult result = patch(studentId, body);
 
             assertThat(result).as(body).hasStatus(400);
@@ -205,13 +215,26 @@ class MeSettingsTest {
         Cookie teacher = cookies.access(teacherId, UserRole.TEACHER, academyId);
         Cookie operator = cookies.operatorAccess(data.operator("운영자"));
 
-        for (Cookie staff : new Cookie[] {teacher, operator}) {
+        Cookie admin = cookies.access(data.staff(academyId, "관리자", "admin"), UserRole.ADMIN, academyId);
+
+        for (Cookie staff : new Cookie[] {teacher, admin, operator}) {
             MvcTestResult read = mvc.get().uri(URI).cookie(staff).exchange();
             assertThat(read).hasStatus(403);
             assertThat(read).bodyJson().extractingPath("$.code").isEqualTo("FORBIDDEN");
             assertThat(patch(staff, "{\"voice\": \"us_w\"}")).hasStatus(403);
         }
         assertThat(mvc.get().uri(URI)).hasStatus(401);
+        assertThat(rows(teacherId)).isZero();
+    }
+
+    @Test
+    void 토큰은_학생인데_DB의_역할이_학생이_아니면_401이다() {
+        // 죽여야 하는 틀린 구현: 역할을 토큰에서만 보는 것. 위의 403 테스트는 토큰 역할에서 끝나 서비스의 역할 확인에 닿지 않는다
+        long teacherId = data.staff(academyId, "교사", "teacher");
+        Cookie studentToken = cookies.studentAccess(teacherId, academyId);
+
+        assertThat(mvc.get().uri(URI).cookie(studentToken)).hasStatus(401);
+        assertThat(patch(studentToken, "{\"voice\": \"us_w\"}")).hasStatus(401);
         assertThat(rows(teacherId)).isZero();
     }
 

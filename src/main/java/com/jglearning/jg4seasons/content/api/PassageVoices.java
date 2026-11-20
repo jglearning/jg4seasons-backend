@@ -5,7 +5,8 @@ import java.util.List;
 /**
  * 지문 음원의 목소리(ADR 0027): 미국 여·미국 남·영국 여·영국 남. 목소리 값을 검증하는 코드는 이 목록을 본다 — 같은 값을 여러 곳에 따로 적지 않는다.
  *
- * <p>아직 따로 적힌 곳: 완료 규칙의 목소리 형식(listening.completion.CompletionRule의 정규식)과 응답 명세의 허용 값(애너테이션이라 목록을 못 쓴다).
+ * <p>아직 따로 적힌 곳: 완료 규칙의 목소리 형식(listening.completion.CompletionRule의 정규식)과 응답 명세의 허용 값(애너테이션이라 목록을 못 쓴다), 학생
+ * 설정 표의 DB 제약(user_setting의 CHECK — 마이그레이션이라 목록을 못 쓴다. 어긋나면 UserSettingStoreTest가 잡는다).
  * 목소리를 바꾸면 여기와 함께 고친다.
  */
 public final class PassageVoices {

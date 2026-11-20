@@ -54,16 +54,19 @@ class UserSettingCommitTest {
         for (int round = 0; round < 20; round++) {
             long studentId = data.student(academyId, "학생" + round);
             ExecutorService pool = Executors.newFixedThreadPool(2);
+            CountDownLatch ready = new CountDownLatch(2); // 두 작업이 모두 출발선에 선 뒤에 보낸다(한쪽이 먼저 끝나면 겹치지 않는다)
             CountDownLatch start = new CountDownLatch(1);
             try {
                 List<Future<?>> saves = new ArrayList<>();
                 for (String voice : List.of("us_m", "uk_w")) {
                     saves.add(pool.submit(() -> {
+                        ready.countDown();
                         start.await();
                         store.saveVoice(academyId, studentId, voice);
                         return null;
                     }));
                 }
+                assertThat(ready.await(30, TimeUnit.SECONDS)).isTrue();
                 start.countDown();
                 for (Future<?> save : saves) {
                     save.get(30, TimeUnit.SECONDS); // 저장에서 난 예외는 여기서 다시 던져진다
