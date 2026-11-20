@@ -17,6 +17,7 @@ import com.jglearning.jg4seasons.listening.passage.TrackState;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.LessonProgressRow;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.TrackProgressRow;
+import com.jglearning.jg4seasons.listening.segment.MergedRanges;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import com.jglearning.jg4seasons.listening.web.dto.LessonDetailResponse;
 import com.jglearning.jg4seasons.words.api.WordStudies;
@@ -125,7 +126,8 @@ public class StudentLessonService {
 
     /**
      * 지문 하나. 지문 청취율·완료는 flush 응답과 같은 계산(PassageSummaries — 바닥 규칙 포함). 합친 구간(combinedRanges)은 저장된 지문 집계를 쓸 수
-     * 있을 때만(기준 트랙·기준 길이가 지금과 같다) 목소리마다 그 목소리의 시간축으로 옮겨 준다. 쓸 수 없으면 그 목소리로 직접 들은 구간과 같다.
+     * 있을 때만(PassageSummaries.combined) 목소리마다 그 목소리의 시간축으로 옮기고 그 목소리로 직접 들은 구간과 합쳐 준다 — 늘 직접 들은 구간을
+     * 품는다. 쓸 수 없으면 그 목소리로 직접 들은 구간과 같다.
      */
     private LessonDetailResponse.Passage passage(
             String lessonCode,
@@ -164,8 +166,11 @@ public class StudentLessonService {
                         .map(voice -> {
                             TrackProgressRow heard = tracks.get(voice.trackId());
                             List<Range> own = heard == null ? List.of() : heard.mergedRanges();
-                            List<Range> combined =
-                                    usable.map(row -> row.rangesOn(voice)).orElse(own);
+                            // 옮긴 합친 구간에 이 목소리로 직접 들은 구간을 한 번 더 합친다 — 기준 시간축을 거치며 안쪽 반올림으로 1~2ms,
+                            // 간격 길이가 다른 목소리 사이에서는 그 간격만큼 좁아질 수 있어서, 바가 직접 들은 곳보다 덜 칠해지지 않게
+                            List<Range> combined = usable.map(
+                                            row -> MergedRanges.merge(own, row.rangesOn(voice), voice.durationMs()))
+                                    .orElse(own);
                             return voice(voice, rule, heard, combined);
                         })
                         .toList());

@@ -2624,7 +2624,7 @@
           },
           "combinedRanges" : {
             "type" : "array",
-            "description" : "어느 목소리로든 들은 구간을 합쳐 이 목소리의 시간축으로 옮긴 것 [시작, 끝] ms(ADR 0034). 들은 구간 바는 이것으로 그린다. 합친 집계가 없으면 heardRanges와 같다",
+            "description" : "어느 목소리로든 들은 구간을 합쳐 이 목소리의 시간축으로 옮긴 것 [시작, 끝] ms(ADR 0034). 들은 구간 바는 이것으로 그린다. 이 목소리로 직접 들은 구간(heardRanges)을 늘 품고, 합친 집계를 쓸 수 없으면 heardRanges와 같다",
             "items" : {
               "type" : "array",
               "example" : [ 0, 52000 ],

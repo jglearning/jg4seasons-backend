@@ -444,4 +444,47 @@ class StudentLessonCombineTest {
 
         assertThat(output.getOut()).doesNotContain("지문 집계의 기준이 지금과 다르다");
     }
+
+    @Test
+    void combinedRanges는_그_목소리로_직접_들은_구간을_늘_품는다() {
+        // 지문 2의 기준 목소리(us_w)만 문장 사이 간격을 0으로: 0~3000 · 3000~6500 · 6500~10000
+        jdbc.update(
+                "update sentence_timing set start_ms = 3000 where track_id = ? and start_ms = 3500",
+                tracks.get("p2:us_w"));
+        jdbc.update(
+                "update sentence_timing set start_ms = 6500 where track_id = ? and start_ms = 7000",
+                tracks.get("p2:us_w"));
+        // uk_m은 문장 0이 0~4000, 간격이 4000~5000. 간격 안(4600)에서 멈춘다
+        flush("p2:uk_m", 0, 4_600);
+
+        String json = detail();
+
+        assertThat(jdbc.queryForObject(
+                        "select merged_ranges from passage_progress where student_id = ?", String.class, studentId))
+                .as("기준 시간축에는 간격이 없어 문장 0의 끝(3000)까지만 남는다")
+                .isEqualTo("[[0, 3000]]");
+        assertThat(ranges(json, 1, UK_M, "heardRanges")).containsExactly(List.of(0, 4_600));
+        assertThat(ranges(json, 1, UK_M, "combinedRanges"))
+                .as("되돌려 옮기면 0~4000이지만 직접 들은 0~4600보다 좁게 나가지 않는다")
+                .containsExactly(List.of(0, 4_600));
+        assertThat(ranges(json, 1, US_W, "combinedRanges")).containsExactly(List.of(0, 3_000));
+    }
+
+    @Test
+    void 필수가_아닌_목소리로_직접_들은_구간도_그_목소리의_combinedRanges에_보인다() {
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"uk_m\",\"us_m\"],\"combine\":true}]");
+        flush("p1:uk_m", 0, 4_000); // 기준(uk_m)의 문장 0 = us_w의 0~3000
+        flush("p1:us_w", 7_000, 10_000); // 필수가 아닌 목소리 — 합산에는 안 들어간다
+
+        String json = detail();
+
+        assertThat(number(json, "$.passages[0].coverage")).as("합산에는 uk_m만").isEqualByComparingTo("0.2857");
+        assertThat(ranges(json, 0, US_W, "combinedRanges"))
+                .as("합친 구간(0~3000) + us_w로 직접 들은 구간(7000~10000)")
+                .containsExactly(List.of(0, 3_000), List.of(7_000, 10_000));
+        assertThat(ranges(json, 0, UK_M, "combinedRanges")).containsExactly(List.of(0, 4_000));
+    }
 }
