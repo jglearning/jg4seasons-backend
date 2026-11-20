@@ -244,4 +244,28 @@ class FlushStoreTest {
 
         assertThat(store.lockTrackProgress(studentId, track, NOW).completedAt()).isEqualTo(NOW);
     }
+
+    @Test
+    void 지문_집계_갱신은_기준_트랙과_길이를_바꾸고_잠금은_기존_행의_기준을_바꾸지_않는다() {
+        long first = tracks.get("p1:us_w");
+        long second = tracks.get("p2:us_w");
+        long passageId = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, first);
+        store.lockPassageProgress(studentId, passageId, first, 6500);
+
+        store.updatePassageProgress(
+                studentId,
+                passageId,
+                new CombinedProgress(second, 9000, List.of(new Range(0, 4500)), 4500, new BigDecimal("0.5")),
+                null);
+        store.lockPassageProgress(studentId, passageId, first, 6500);
+
+        assertThat(jdbc.queryForMap(
+                        "select ref_track_id, ref_duration_ms, covered_ms from passage_progress"
+                                + " where student_id = ? and passage_id = ?",
+                        studentId,
+                        passageId))
+                .containsEntry("ref_track_id", second)
+                .containsEntry("ref_duration_ms", 9000)
+                .containsEntry("covered_ms", 4500);
+    }
 }

@@ -187,4 +187,24 @@ class PassageAxisTest {
 
         assertThat(VoiceAxis.of(voice)).isEqualTo(B);
     }
+
+    @Test
+    void 앞뒤_여백은_여백으로_간다() {
+        // 지금 콘텐츠는 여백이 0이지만(첫 문장 0에서 시작, 마지막 문장이 길이에서 끝) 시간축은 여백을 허용한다
+        VoiceAxis p = axis(10_000, 500, 3_000, 3_500, 9_000); // 앞 500, 뒤 1000
+        VoiceAxis q = axis(12_000, 1_000, 5_000, 6_000, 11_000); // 앞 1000, 뒤 1000
+        VoiceAxis none = axis(6_500, 0, 3_000, 3_500, 6_500); // 여백 없음
+
+        assertThat(PassageAxis.map(p, q, range(0, 500))).as("앞 여백 전체").contains(range(0, 1_000));
+        assertThat(PassageAxis.map(p, q, range(250, 9_500)))
+                .as("앞 여백의 절반부터 뒤 여백의 절반까지")
+                .contains(range(500, 11_500));
+        assertThat(PassageAxis.map(p, q, range(9_000, 10_000))).as("뒤 여백 전체").contains(range(11_000, 12_000));
+        assertThat(PassageAxis.map(p, none, range(0, 500)))
+                .as("대상에 앞 여백이 없으면 사라진다")
+                .isEmpty();
+        assertThat(PassageAxis.map(none, p, range(0, 6_500)))
+                .as("여백이 없는 쪽의 전체 = 문장 0의 시작부터 문장 1의 끝까지")
+                .contains(range(500, 9_000));
+    }
 }

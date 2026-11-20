@@ -56,6 +56,7 @@ class StudentLessonCombineTest {
     TestData data;
     long academyId;
     long studentId;
+    long classId;
     Map<String, Long> tracks;
 
     @BeforeEach
@@ -63,7 +64,7 @@ class StudentLessonCombineTest {
         clock.set(NOON);
         data = new TestData(jdbc);
         academyId = data.academy("테스트 학원");
-        long classId = data.clazz(academyId, "L2-B1", "겨울 그린 A반", TestData.uniqueAccessCode(), "active");
+        classId = data.clazz(academyId, "L2-B1", "겨울 그린 A반", TestData.uniqueAccessCode(), "active");
         studentId = data.student(academyId, "김학생");
         data.enroll(classId, studentId);
         data.session(classId, 5, CODE, LocalDate.of(2026, 11, 10), "scheduled");
@@ -80,13 +81,17 @@ class StudentLessonCombineTest {
     }
 
     private void flush(String trackKey, int startMs, int endMs) {
+        flushAs(studentId, trackKey, startMs, endMs);
+    }
+
+    private void flushAs(long student, String trackKey, int startMs, int endMs) {
         String json = "{\"clientSessionId\":\"" + UUID.randomUUID() + "\",\"trackId\":" + tracks.get(trackKey)
                 + ",\"startedAt\":\"2026-11-10T02:59:00Z\",\"userAgent\":\"test\",\"segments\":[{\"startMs\":" + startMs
                 + ",\"endMs\":" + endMs + ",\"recordedAt\":\"2026-11-10T02:59:59Z\"}],\"final\":false}";
         assertThat(mvc.post()
                         .uri("/api/v1/listening/flush")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .cookie(cookies.studentAccess(studentId, academyId), AuthCookieSupport.csrf())
+                        .cookie(cookies.studentAccess(student, academyId), AuthCookieSupport.csrf())
                         .header(AuthCookieSupport.CSRF_HEADER, AuthCookieSupport.CSRF_VALUE)
                         .content(json)
                         .exchange())
@@ -95,9 +100,13 @@ class StudentLessonCombineTest {
 
     /** 회차 상세 응답 본문 */
     private String detail() {
+        return detailAs(studentId);
+    }
+
+    private String detailAs(long student) {
         MvcTestResult result = mvc.get()
                 .uri("/api/v1/student/lessons/" + CODE)
-                .cookie(cookies.studentAccess(studentId, academyId))
+                .cookie(cookies.studentAccess(student, academyId))
                 .exchange();
         assertThat(result).hasStatusOk();
         try {
@@ -177,14 +186,20 @@ class StudentLessonCombineTest {
     }
 
     @Test
-    void 한_목소리로_완료한_지문의_coverage는_기준보다_낮지_않다() {
-        flush("p1:uk_m", 0, 12_600); // 14000의 0.9 — 기준 시간축으로 옮긴 값은 이와 다를 수 있다
+    void 한_목소리로_완료한_지문의_coverage는_합친_값이_낮아도_기준보다_낮지_않다() {
+        // uk_m 0~5300 + 6700~14000 = 14000의 0.9(트랙 완료). 기준 시간축에서는 [0,3950] + [6050,10000] = 0.79
+        flush("p1:uk_m", 0, 5_300);
+        flush("p1:uk_m", 6_700, 14_000);
 
         String json = detail();
 
         assertThat(JsonPath.<Boolean>read(json, "$.passages[0].completed")).isTrue();
         assertThat(number(json, "$.passages[0].coverage"))
+                .as("합친 값 0.79가 아니라 목소리 하나의 0.9")
+                .isEqualByComparingTo("0.9");
+        assertThat(number(json, "$.passages[0].coverage"))
                 .isGreaterThanOrEqualTo(number(json, "$.completion.threshold"));
+        assertThat(ranges(json, 0, US_W, "combinedRanges")).containsExactly(List.of(0, 3_950), List.of(6_050, 10_000));
     }
 
     @Test
@@ -266,5 +281,74 @@ class StudentLessonCombineTest {
                 .containsOnlyKeys("no", "title", "wordCount", "coverage", "completed", "sentences", "voices");
         assertThat(JsonPath.<Map<String, Object>>read(json, "$.passages[0].voices[0]"))
                 .containsKeys("heardRanges", "combinedRanges", "coverage", "completed", "timings");
+    }
+
+    @Test
+    void 다른_학생의_지문_집계는_섞이지_않는다() {
+        long other = data.student(academyId, "이학생");
+        data.enroll(classId, other);
+        flush("p1:us_w", 0, 5_000);
+        flush("p1:uk_m", 6_000, 14_000);
+
+        String untouched = detailAs(other);
+
+        assertThat(number(untouched, "$.passages[0].coverage")).isEqualByComparingTo("0");
+        assertThat(JsonPath.<Boolean>read(untouched, "$.passages[0].completed")).isFalse();
+        for (int voice : new int[] {US_W, UK_M, US_M}) {
+            assertThat(ranges(untouched, 0, voice, "combinedRanges")).isEmpty();
+        }
+
+        flushAs(other, "p1:us_w", 0, 1_000);
+
+        String theirs = detailAs(other);
+        assertThat(number(theirs, "$.passages[0].coverage")).isEqualByComparingTo("0.1");
+        assertThat(JsonPath.<Boolean>read(theirs, "$.passages[0].completed")).isFalse();
+        assertThat(ranges(theirs, 0, US_W, "combinedRanges")).containsExactly(List.of(0, 1_000));
+        assertThat(ranges(theirs, 0, UK_M, "combinedRanges"))
+                .as("us_w의 0~1000 = uk_m의 0~1333(문장 0이 3000ms : 4000ms)")
+                .containsExactly(List.of(0, 1_333));
+        assertThat(jdbc.queryForObject(
+                        "select merged_ranges from passage_progress where student_id = ?", String.class, studentId))
+                .as("먼저 들은 학생의 행은 그대로")
+                .isEqualTo("[[0, 10000]]");
+        assertThat(number(detail(), "$.passages[0].coverage")).isEqualByComparingTo("1");
+    }
+
+    @Test
+    void 기준이_달라진_행은_다음_flush가_새_기준으로_다시_맞춘다() {
+        flush("p1:us_w", 0, 5_000);
+        flush("p1:uk_m", 6_000, 14_000);
+        jdbc.update("update passage_progress set ref_duration_ms = 9000 where student_id = ?", studentId);
+
+        flush("p1:us_m", 0, 500);
+
+        assertThat(jdbc.queryForObject(
+                        "select ref_duration_ms from passage_progress where student_id = ?", Integer.class, studentId))
+                .isEqualTo(10_000);
+        String json = detail();
+        assertThat(number(json, "$.passages[0].coverage")).isEqualByComparingTo("1");
+        assertThat(ranges(json, 0, US_W, "combinedRanges")).containsExactly(List.of(0, 10_000));
+        assertThat(ranges(json, 0, UK_M, "combinedRanges")).containsExactly(List.of(0, 14_000));
+    }
+
+    @Test
+    void 필수가_아닌_목소리가_앞에_있으면_그다음_필수_목소리의_시간축에서_합친다() {
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"uk_m\",\"us_m\"],\"combine\":true}]");
+        flush("p1:uk_m", 0, 5_800);
+        flush("p1:us_m", 4_700, 10_000);
+
+        String json = detail();
+
+        assertThat(JsonPath.<Boolean>read(json, "$.passages[0].voices[" + US_W + "].required"))
+                .isFalse();
+        assertThat(JsonPath.<Boolean>read(json, "$.passages[0].completed")).isTrue();
+        assertThat(number(json, "$.passages[0].coverage")).isEqualByComparingTo("1");
+        assertThat(ranges(json, 0, UK_M, "combinedRanges")).containsExactly(List.of(0, 14_000));
+        assertThat(ranges(json, 0, US_W, "combinedRanges"))
+                .as("필수가 아닌 목소리의 바에도 합친 구간이 보인다")
+                .containsExactly(List.of(0, 10_000));
     }
 }

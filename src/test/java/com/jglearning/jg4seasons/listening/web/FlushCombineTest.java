@@ -162,6 +162,13 @@ class FlushCombineTest {
                 .as("목소리별 집계는 각자 그대로")
                 .containsExactly("[[0, 5000]]", "[[6000, 14000]]");
         assertThat(passageRows()).isEqualTo(1);
+        assertThat(jdbc.queryForMap(
+                        "select required_done, passages_done, status from lesson_progress where student_id = ?",
+                        studentId))
+                .as("교사 매트릭스가 읽는 회차 집계")
+                .containsEntry("required_done", 1)
+                .containsEntry("passages_done", 1)
+                .containsEntry("status", "in_progress");
     }
 
     @Test
@@ -178,16 +185,24 @@ class FlushCombineTest {
     }
 
     @Test
-    void 한_목소리로_기준만큼_들으면_지금처럼_완료() {
-        MvcTestResult result = flush("p1:uk_m", seg(0, 12_600)); // 14000의 0.9
+    void 한_목소리로_기준만큼_들으면_합친_값이_기준보다_낮아도_지금처럼_완료() {
+        // uk_m 0~5300 + 6700~14000 = 12600ms = 14000의 0.9 → 그 트랙은 완료.
+        // 기준 시간축(us_w)으로 옮기면 [0,3950] + [6050,10000] = 7900ms = 0.79 — 합친 값만 보면 미완료다(바닥 규칙이 지킨다)
+        MvcTestResult result = flush("p1:uk_m", seg(0, 5_300), seg(6_700, 14_000));
 
         var json = assertThat(result).bodyJson();
         json.extractingPath("$.track.completed").isEqualTo(true);
-        json.extractingPath("$.passage.completed").isEqualTo(true);
+        json.extractingPath("$.track.coverage").isEqualTo(0.9);
+        json.extractingPath("$.passage.completed").as("목소리 하나의 완료는 그대로 인정").isEqualTo(true);
+        json.extractingPath("$.passage.coverage")
+                .as("완료인데 기준보다 낮은 숫자(0.79)가 나가지 않는다")
+                .isEqualTo(0.9);
         json.extractingPath("$.lesson.requiredDone").isEqualTo(1);
-        BigDecimal coverage = new BigDecimal(
-                String.valueOf(com.jayway.jsonpath.JsonPath.<Object>read(body(result), "$.passage.coverage")));
-        assertThat(coverage).as("완료인데 기준보다 낮은 숫자가 나가지 않는다").isGreaterThanOrEqualTo(threshold());
+        assertThat(passageRow(1))
+                .containsEntry("merged_ranges", "[[0, 3950], [6050, 10000]]")
+                .containsEntry("covered_ms", 7_900);
+        assertThat(passageRow(1).get("completed_at")).isNotNull();
+        assertThat(new BigDecimal("0.9")).as("이 테스트의 전제: 0.9는 이 레벨의 기준").isEqualByComparingTo(threshold());
     }
 
     private static String body(MvcTestResult result) {
@@ -336,5 +351,47 @@ class FlushCombineTest {
 
         assertThat(result).bodyJson().extractingPath("$.passage.coverage").isEqualTo(1);
         assertThat(passageRow(1)).containsEntry("merged_ranges", "[[0, 10000]]");
+    }
+
+    @Test
+    void 지문_완료는_기준이_올라도_유지한다() {
+        // us_w 0~5000 + uk_m 6000~13000(= us_w의 5000~9500) → 합친 값 0.95로 완료
+        flush("p1:us_w", seg(0, 5_000));
+        MvcTestResult done = flush("p1:uk_m", seg(6_000, 13_000));
+        assertThat(done).bodyJson().extractingPath("$.passage.coverage").isEqualTo(0.95);
+        assertThat(done).bodyJson().extractingPath("$.passage.completed").isEqualTo(true);
+        jdbc.update("update completion_rule set coverage_threshold = 1.000"
+                + " where level_id = (select level_id from book where code = 'L2-B1')");
+        clock.set(NOON.plusSeconds(60));
+
+        MvcTestResult result = flush("p1:us_m", seg(0, 500));
+
+        var json = assertThat(result).bodyJson();
+        json.extractingPath("$.passage.completed")
+                .as("지금 기준(1.0)으로는 0.95가 미완료여도 유지")
+                .isEqualTo(true);
+        json.extractingPath("$.passage.coverage").isEqualTo(0.95);
+        json.extractingPath("$.lesson.requiredDone").as("완료 지문 수가 줄지 않는다").isEqualTo(1);
+        assertThat(passageRow(1).get("completed_at")).as("처음 완료 시각").hasToString("2026-11-10T03:00");
+    }
+
+    @Test
+    void 필수가_아닌_목소리가_앞에_있으면_그다음_필수_목소리가_기준이다() {
+        // 트랙 순서는 us_w·uk_m·us_m. us_w가 필수가 아니면 기준 시간축은 uk_m(14초)
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"uk_m\",\"us_m\"],\"combine\":true}]");
+        flush("p1:uk_m", seg(0, 5_800));
+
+        MvcTestResult result = flush("p1:us_m", seg(4_700, 10_000)); // us_m의 4700~10000 = uk_m의 5800~14000
+
+        var json = assertThat(result).bodyJson();
+        json.extractingPath("$.passage.coverage").isEqualTo(1);
+        json.extractingPath("$.passage.completed").isEqualTo(true);
+        assertThat(passageRow(1))
+                .containsEntry("ref_track_id", tracks.get("p1:uk_m"))
+                .containsEntry("ref_duration_ms", 14_000)
+                .containsEntry("merged_ranges", "[[0, 14000]]");
     }
 }

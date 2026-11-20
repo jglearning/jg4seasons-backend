@@ -106,4 +106,17 @@ class PassageCombinerTest {
         assertThat(combined.coverage()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(combined.refTrackId()).isEqualTo(US_W);
     }
+
+    @Test
+    void 문장_시각이_없는_목소리는_길이_비율로_합친다() {
+        LessonContent.Passage passage = PassageFixtures.passage(
+                2L,
+                PassageFixtures.voice(US_W, "us_w", 10_000, 0, 3_000, 3_500, 6_500, 7_000, 10_000),
+                PassageFixtures.voice(UK_M, "uk_m", 14_000));
+
+        CombinedProgress combined = PassageCombiner.combine(
+                passage, ALL, Map.of(US_W, List.of(range(0, 5_000)), UK_M, List.of(range(7_000, 14_000))));
+
+        assertThat(combined.mergedRanges()).containsExactly(range(0, 10_000));
+    }
 }
