@@ -170,6 +170,61 @@ public final class TestData {
         return tracks;
     }
 
+    /**
+     * 회차 내용 — 목소리마다 문장 시각(과 음원 길이)이 다른 지문. timingsByVoice: 목소리 → 문장 시작·끝을 차례로(s0, e0, s1, e1, …), 음원 길이 = 마지막
+     * 끝. 문장 수는 모든 목소리가 같아야 한다. 맵의 순서가 트랙 순서(sort_order)다. 반환: "p1:us_w" → trackId
+     */
+    public Map<String, Long> lessonContent(
+            String lessonCode, int passages, LinkedHashMap<String, int[]> timingsByVoice) {
+        long lessonId = lessonId(lessonCode);
+        int sentenceCount = timingsByVoice.values().iterator().next().length / 2;
+        Map<String, Long> tracks = new LinkedHashMap<>();
+        for (int p = 1; p <= passages; p++) {
+            long passageId = insert(
+                    "insert into passage (lesson_id, no, title, word_count) values (?, ?, ?, ?)",
+                    lessonId,
+                    p,
+                    "Made-up Passage " + p,
+                    100 + p);
+            List<Long> sentenceIds = new ArrayList<>();
+            for (int s = 1; s <= sentenceCount; s++) {
+                sentenceIds.add(insert(
+                        "insert into sentence (passage_id, no, text, speaker) values (?, ?, ?, ?)",
+                        passageId,
+                        s,
+                        "Passage " + p + " sentence " + s + " is a made-up line.",
+                        null));
+            }
+            int order = 0;
+            for (Map.Entry<String, int[]> entry : timingsByVoice.entrySet()) {
+                String voice = entry.getKey();
+                int[] bounds = entry.getValue();
+                if (bounds.length != sentenceCount * 2) {
+                    throw new IllegalArgumentException("문장 수는 모든 목소리가 같아야 한다: " + voice);
+                }
+                long trackId = insert(
+                        "insert into track (lesson_id, passage_id, kind, variant, file_key, duration_ms, sort_order)"
+                                + " values (?, ?, 'passage', ?, ?, ?, ?)",
+                        lessonId,
+                        passageId,
+                        "p" + p + ":" + voice,
+                        "audio/" + lessonCode + "/" + lessonCode + "_p" + p + "_" + voice + ".mp3",
+                        bounds[bounds.length - 1],
+                        p * 10 + order++);
+                tracks.put("p" + p + ":" + voice, trackId);
+                for (int s = 0; s < sentenceCount; s++) {
+                    jdbc.update(
+                            "insert into sentence_timing (sentence_id, track_id, start_ms, end_ms) values (?, ?, ?, ?)",
+                            sentenceIds.get(s),
+                            trackId,
+                            bounds[s * 2],
+                            bounds[s * 2 + 1]);
+                }
+            }
+        }
+        return tracks;
+    }
+
     /** 회차 단어 count개(지문 1에 붙임). lessonContent 다음에 부른다 */
     public void words(String lessonCode, int count) {
         long lessonId = lessonId(lessonCode);

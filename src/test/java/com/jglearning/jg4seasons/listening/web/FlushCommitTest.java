@@ -9,6 +9,7 @@ import com.jglearning.jg4seasons.auth.AuthCookieSupport;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -62,7 +63,11 @@ class FlushCommitTest {
         academyId = data.academy("flush 커밋 학원");
         classId = data.clazz(academyId, "L2-B1", "커밋 반", TestData.uniqueAccessCode(), "active");
         data.session(classId, 20, CODE, LocalDate.of(2026, 11, 10), "scheduled");
-        tracks = data.lessonContent(CODE, 2, 2, List.of("us_w"));
+        // us_w는 6500ms(문장 3000 × 2, 간격 500), uk_m은 9000ms(문장 4000 × 2, 간격 1000) — 지문 합산(ADR-34)용
+        LinkedHashMap<String, int[]> voices = new LinkedHashMap<>();
+        voices.put("us_w", new int[] {0, 3000, 3500, 6500});
+        voices.put("uk_m", new int[] {0, 4000, 5000, 9000});
+        tracks = data.lessonContent(CODE, 2, voices);
     }
 
     @AfterEach
@@ -74,6 +79,7 @@ class FlushCommitTest {
         jdbc.update("delete from listening_segment where listening_session_id in"
                 + " (select id from (select id from listening_session where student_id in " + students + ") s)");
         jdbc.update("delete from listening_session where student_id in " + students);
+        jdbc.update("delete from passage_progress where student_id in " + students);
         jdbc.update("delete from track_progress where student_id in " + students);
         jdbc.update("delete from lesson_progress where student_id in " + students);
         jdbc.update("delete from sentence_timing where track_id in " + trackIds);
@@ -157,6 +163,37 @@ class FlushCommitTest {
             assertThat(trackRow(studentId, one).get("completed_at"))
                     .as("round %d", round)
                     .isNotNull();
+        }
+    }
+
+    @Test
+    void 같은_지문_다른_목소리_동시_flush는_둘_다_합쳐진다() throws Exception {
+        // us_w의 0~3250(문장 0 + 간격의 절반)과 uk_m의 4500~9000(간격의 절반부터 끝 = us_w의 3250~6500)
+        long usW = tracks.get("p1:us_w");
+        long ukM = tracks.get("p1:uk_m");
+        long passageId = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, usW);
+        for (int round = 0; round < 20; round++) {
+            long studentId = newStudent(round);
+
+            List<Integer> statuses = together(
+                    flush(studentId, UUID.randomUUID().toString(), usW, 0, 3250),
+                    flush(studentId, UUID.randomUUID().toString(), ukM, 4500, 9000));
+
+            assertThat(statuses).as("round %d", round).containsOnly(200);
+            Map<String, Object> passage = jdbc.queryForMap(
+                    "select merged_ranges, covered_ms, completed_at from passage_progress"
+                            + " where student_id = ? and passage_id = ?",
+                    studentId,
+                    passageId);
+            assertThat(passage)
+                    .as("round %d — 늦게 끝난 쪽이 앞 요청의 구간을 보고 합쳐야 한다", round)
+                    .containsEntry("merged_ranges", "[[0, 6500]]")
+                    .containsEntry("covered_ms", 6500);
+            assertThat(passage.get("completed_at")).as("round %d", round).isNotNull();
+            assertThat(jdbc.queryForObject(
+                            "select passages_done from lesson_progress where student_id = ?", Integer.class, studentId))
+                    .as("round %d", round)
+                    .isEqualTo(1);
         }
     }
 

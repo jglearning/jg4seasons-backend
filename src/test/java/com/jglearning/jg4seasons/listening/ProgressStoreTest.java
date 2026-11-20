@@ -146,4 +146,27 @@ class ProgressStoreTest {
     void 회차_목록이_비면_빈_결과() {
         assertThat(store.lessonProgress(studentId, List.of())).isEmpty();
     }
+
+    @Test
+    void 지문_집계는_그_학생의_행만_읽는다() {
+        long track = tracks.get("p1:us_w");
+        long passageId = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, track);
+        jdbc.update(
+                "insert into passage_progress (student_id, passage_id, ref_track_id, ref_duration_ms, merged_ranges,"
+                        + " covered_ms, coverage, completed_at) values (?, ?, ?, 6500, '[[0, 3250]]', 3250, 0.5000,"
+                        + " '2026-11-05 10:00:00')",
+                studentId,
+                passageId,
+                track);
+
+        assertThat(store.passageProgress(studentId, List.of(passageId))).containsOnlyKeys(passageId);
+        assertThat(store.passageProgress(studentId, List.of(passageId))
+                        .get(passageId)
+                        .completed())
+                .isTrue();
+        assertThat(store.passageProgress(otherStudentId, List.of(passageId)))
+                .as("다른 학생")
+                .isEmpty();
+        assertThat(store.passageProgress(studentId, List.of())).isEmpty();
+    }
 }

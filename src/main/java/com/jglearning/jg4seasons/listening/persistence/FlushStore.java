@@ -1,7 +1,9 @@
 package com.jglearning.jg4seasons.listening.persistence;
 
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
+import com.jglearning.jg4seasons.listening.passage.CombinedProgress;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.LessonProgressRow;
+import com.jglearning.jg4seasons.listening.persistence.ProgressStore.TrackProgressRow;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import com.jglearning.jg4seasons.listening.segment.SegmentFilter.Accepted;
 import java.math.BigDecimal;
@@ -9,8 +11,10 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -23,8 +27,10 @@ import tools.jackson.databind.json.JsonMapper;
  * 학생의 학원 반 소속·회차 열림을 먼저 확인한다. 시각은 UTC LocalDateTime으로 쓰고 읽는다(JVM 시간대와 무관하게).
  *
  * <p>잠금 순서는 호출자(FlushService)가 지킨다: 세션 행(upsertSession — 같은 세션 요청을 줄 세워, 뒤 요청이 앞 요청의 구간을 receivedRanges로
- * 보고 같은 구간을 다시 저장하지 않게 한다) → 회차 행(lockLessonProgress — 같은 학생·같은 회차를 줄 세운다) → 트랙 행(lockTrackProgress) → 다른 트랙
- * 잠금 읽기(completedTracksForShare). 회차 행을 잡은 뒤 다른 세션 행을 잠그면 순환이 생길 수 있다.
+ * 보고 같은 구간을 다시 저장하지 않게 한다) → 회차 행(lockLessonProgress — 같은 학생·같은 회차를 줄 세운다) → 트랙 행(lockTrackProgress) → 회차의 필수
+ * 트랙 잠금 읽기(trackProgressForShare — 그 지문의 구간까지, completedTracksForShare — 다른 지문은 완료 여부만) → 지문 집계 행(lockPassageProgress,
+ * ADR-34) → 다른 지문 집계 잠금 읽기(completedPassagesForShare).
+ * 회차 행을 잡은 뒤 다른 세션 행을 잠그면 순환이 생길 수 있다.
  * 행 확보는 {@code INSERT … ON DUPLICATE KEY UPDATE <키> = <키>}(아무것도 바꾸지 않음) — 동시 첫 요청은 PK·UNIQUE로 한쪽만 만들고, 이미 있는
  * 행에는 처음부터 배타 잠금을 잡는다. INSERT IGNORE는 이미 있는 행에 공유 잠금을 잡아, 두 요청이 이어지는 FOR UPDATE에서 서로 공유 잠금을 기다리는 교착이
  * 났다(커밋 테스트로 재현).
@@ -43,6 +49,9 @@ public class FlushStore {
             merged = List.copyOf(merged);
         }
     }
+
+    /** 잠근 지문 집계. completedAt은 null 가능 */
+    public record PassageProgressLock(Instant completedAt) {}
 
     public record TrackProgressUpdate(
             List<Range> merged,
@@ -181,7 +190,32 @@ public class FlushStore {
                 trackId);
     }
 
-    /** 잠금 읽기(FOR SHARE) — 일반 SELECT는 트랜잭션 첫 읽기 시점 스냅샷이라 다른 flush가 막 끝낸 완료를 놓친다 */
+    /**
+     * 트랙 집계 잠금 읽기(FOR SHARE): 트랙 id → 집계(병합 구간 포함). 행이 없는 트랙은 맵에 없다(안 들음). 회차 행을 잡은 뒤에 부른다 — 같은 학생·같은 회차의 다른
+     * flush가 막 끝낸 구간과 완료를 본다(회차 행 잠금 전에 읽으면 놓친다). 구간 JSON을 읽으므로 합칠 지문의 트랙만 넘긴다.
+     */
+    public Map<Long, TrackProgressRow> trackProgressForShare(long studentId, Collection<Long> trackIds) {
+        if (trackIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, TrackProgressRow> rows = new HashMap<>();
+        named.query(
+                "select track_id, merged_ranges, coverage, completed_at from track_progress"
+                        + " where student_id = :studentId and track_id in (:trackIds) for share",
+                new MapSqlParameterSource("studentId", studentId).addValue("trackIds", trackIds),
+                rs -> {
+                    rows.put(
+                            rs.getLong("track_id"),
+                            new TrackProgressRow(
+                                    rs.getLong("track_id"),
+                                    rs.getBigDecimal("coverage"),
+                                    rs.getObject("completed_at", LocalDateTime.class) != null,
+                                    RangesJson.read(jsonMapper, rs.getString("merged_ranges"))));
+                });
+        return rows;
+    }
+
+    /** 완료한 트랙의 id — 잠금 읽기(FOR SHARE). 회차 재평가에서 다른 지문의 필수 트랙을 본다(구간은 읽지 않는다) */
     public Set<Long> completedTracksForShare(long studentId, Collection<Long> trackIds) {
         if (trackIds.isEmpty()) {
             return Set.of();
@@ -190,6 +224,50 @@ public class FlushStore {
                 "select track_id from track_progress where student_id = :studentId and track_id in (:trackIds)"
                         + " and completed_at is not null for share",
                 new MapSqlParameterSource("studentId", studentId).addValue("trackIds", trackIds),
+                Long.class));
+    }
+
+    /** 지문 집계 행을 확보(없으면 빈 구간, 기준은 넘긴 값)하고 FOR UPDATE. 회차 행·트랙 행 다음에 잡는다 */
+    public PassageProgressLock lockPassageProgress(long studentId, long passageId, long refTrackId, int refDurationMs) {
+        jdbc.update(
+                "insert into passage_progress (student_id, passage_id, ref_track_id, ref_duration_ms, merged_ranges)"
+                        + " values (?, ?, ?, ?, '[]') on duplicate key update student_id = student_id",
+                studentId,
+                passageId,
+                refTrackId,
+                refDurationMs);
+        return jdbc.queryForObject(
+                "select completed_at from passage_progress where student_id = ? and passage_id = ? for update",
+                (rs, i) -> new PassageProgressLock(instant(rs.getObject("completed_at", LocalDateTime.class))),
+                studentId,
+                passageId);
+    }
+
+    /** 합친 결과로 통째로 바꾼다(기준 트랙·기준 길이 포함). completed_at은 처음 값을 유지한다(null로 덮지 않음) */
+    public void updatePassageProgress(long studentId, long passageId, CombinedProgress combined, Instant completedAt) {
+        jdbc.update(
+                "update passage_progress set ref_track_id = ?, ref_duration_ms = ?, merged_ranges = ?,"
+                        + " covered_ms = ?, coverage = ?, completed_at = coalesce(completed_at, ?)"
+                        + " where student_id = ? and passage_id = ?",
+                combined.refTrackId(),
+                combined.refDurationMs(),
+                RangesJson.write(combined.mergedRanges()),
+                combined.coveredMs(),
+                combined.coverage(),
+                utc(completedAt),
+                studentId,
+                passageId);
+    }
+
+    /** 완료한 지문 집계의 지문 id — 잠금 읽기(FOR SHARE). 회차 재평가에서 다른 지문을 본다 */
+    public Set<Long> completedPassagesForShare(long studentId, Collection<Long> passageIds) {
+        if (passageIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(named.queryForList(
+                "select passage_id from passage_progress where student_id = :studentId"
+                        + " and passage_id in (:passageIds) and completed_at is not null for share",
+                new MapSqlParameterSource("studentId", studentId).addValue("passageIds", passageIds),
                 Long.class));
     }
 

@@ -157,6 +157,12 @@ class ReferenceDataTest {
                                 + " and json_extract(required_tracks, '$[0].eachPassage') = true",
                         Integer.class))
                 .isEqualTo(5);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from completion_rule where"
+                                + " json_extract(required_tracks, '$[0].combine') = true",
+                        Integer.class))
+                .as("V10: 모든 레벨이 목소리끼리 합친다(ADR-34)")
+                .isEqualTo(5);
     }
 
     private boolean requiredVoicesEqual(String level, String json) {

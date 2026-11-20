@@ -10,14 +10,22 @@ import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.completion.CompletionRule;
 import com.jglearning.jg4seasons.listening.completion.CompletionRuleEvaluator;
+import com.jglearning.jg4seasons.listening.passage.PassageSummaries;
+import com.jglearning.jg4seasons.listening.passage.PassageSummary;
+import com.jglearning.jg4seasons.listening.passage.StoredPassage;
+import com.jglearning.jg4seasons.listening.passage.TrackState;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.LessonProgressRow;
 import com.jglearning.jg4seasons.listening.persistence.ProgressStore.TrackProgressRow;
+import com.jglearning.jg4seasons.listening.segment.MergedRanges;
+import com.jglearning.jg4seasons.listening.segment.Range;
 import com.jglearning.jg4seasons.listening.web.dto.LessonDetailResponse;
 import com.jglearning.jg4seasons.words.api.WordStudies;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -71,6 +79,9 @@ public class StudentLessonService {
                 .map(LessonContent.Voice::trackId)
                 .toList();
         Map<Long, TrackProgressRow> tracks = progress.trackProgress(studentId, trackIds);
+        Map<Long, StoredPassage> passages = progress.passageProgress(
+                studentId,
+                lesson.passages().stream().map(LessonContent.Passage::id).toList());
         LessonProgressRow lessonProgress = lessonProgress(studentId, lesson);
 
         return new LessonDetailResponse(
@@ -85,7 +96,8 @@ public class StudentLessonService {
                         lessonProgress.passagesTotal(),
                         plain(rule.threshold())),
                 lesson.passages().stream()
-                        .map(passage -> passage(passage, rule, tracks))
+                        .map(passage -> passage(
+                                lesson.code(), passage, rule, tracks, Optional.ofNullable(passages.get(passage.id()))))
                         .toList(),
                 new LessonDetailResponse.Words(lesson.wordTotal(), wordStudies.memKnown(studentId, lesson.lessonId())));
     }
@@ -112,22 +124,65 @@ public class StudentLessonService {
         return new LessonProgressRow(stored.status(), Math.min(stored.passagesDone(), total), total);
     }
 
+    /**
+     * 지문 하나. 지문 청취율·완료는 flush 응답과 같은 계산(PassageSummaries — 바닥 규칙 포함). 합친 구간(combinedRanges)은 저장된 지문 집계를 쓸 수
+     * 있을 때만(PassageSummaries.combined) 목소리마다 그 목소리의 시간축으로 옮기고 그 목소리로 직접 들은 구간과 합쳐 준다 — 늘 직접 들은 구간을
+     * 품는다. 쓸 수 없으면 그 목소리로 직접 들은 구간과 같다.
+     */
     private LessonDetailResponse.Passage passage(
-            LessonContent.Passage passage, CompletionRule rule, Map<Long, TrackProgressRow> tracks) {
+            String lessonCode,
+            LessonContent.Passage passage,
+            CompletionRule rule,
+            Map<Long, TrackProgressRow> tracks,
+            Optional<StoredPassage> stored) {
+        Map<Long, TrackState> states = new HashMap<>();
+        for (LessonContent.Voice voice : passage.voices()) {
+            TrackProgressRow row = tracks.get(voice.trackId());
+            if (row != null) {
+                states.put(voice.trackId(), row.state());
+            }
+        }
+        PassageSummary summary = PassageSummaries.of(passage, rule, stored, states);
+        Optional<StoredPassage.OnReference> usable = PassageSummaries.combined(passage, rule, stored);
+        if (rule.combineVoices() && stored.isPresent() && usable.isEmpty()) {
+            // 콘텐츠를 다시 넣어 기준 트랙의 길이가 바뀌었거나 규칙의 필수 목소리가 바뀌었다. 완료한 학생은 다시 flush하지 않아 이 상태가 오래 갈 수 있다
+            log.warn(
+                    "지문 집계의 기준이 지금과 다르다: lesson {} 지문 {} 저장 기준 track {} {}ms — 목소리별 집계로 보낸다(다음 flush가 다시 계산)",
+                    lessonCode,
+                    passage.no(),
+                    stored.get().refTrackId(),
+                    stored.get().refDurationMs());
+        }
         return new LessonDetailResponse.Passage(
                 passage.no(),
                 passage.title(),
                 passage.wordCount(),
+                plain(summary.coverage()),
+                summary.completed(),
                 passage.sentences().stream()
                         .map(s -> new LessonDetailResponse.Sentence(s.no(), s.text(), s.speaker()))
                         .toList(),
                 passage.voices().stream()
-                        .map(voice -> voice(voice, rule, tracks.get(voice.trackId())))
+                        .map(voice -> {
+                            TrackProgressRow heard = tracks.get(voice.trackId());
+                            List<Range> own = heard == null ? List.of() : heard.mergedRanges();
+                            // 옮긴 합친 구간에 이 목소리로 직접 들은 구간을 한 번 더 합친다 — 기준 시간축을 거치며 안쪽 반올림으로 1~2ms,
+                            // 간격 길이가 다른 목소리 사이에서는 그 간격만큼 좁아질 수 있어서, 바가 직접 들은 곳보다 덜 칠해지지 않게
+                            List<Range> combined = usable.map(
+                                            row -> MergedRanges.merge(own, row.rangesOn(voice), voice.durationMs()))
+                                    .orElse(own);
+                            return voice(voice, rule, heard, combined);
+                        })
                         .toList());
     }
 
-    /** heard가 null이면 아직 안 들은 트랙 */
-    private LessonDetailResponse.Voice voice(LessonContent.Voice voice, CompletionRule rule, TrackProgressRow heard) {
+    private static List<int[]> pairs(List<Range> ranges) {
+        return ranges.stream().map(r -> new int[] {r.startMs(), r.endMs()}).toList();
+    }
+
+    /** heard가 null이면 아직 안 들은 트랙. combined는 합친 구간을 이 목소리의 시간축으로 옮긴 것 */
+    private LessonDetailResponse.Voice voice(
+            LessonContent.Voice voice, CompletionRule rule, TrackProgressRow heard, List<Range> combined) {
         return new LessonDetailResponse.Voice(
                 voice.trackId(),
                 voice.voice(),
@@ -140,11 +195,8 @@ public class StudentLessonService {
                         .map(t -> new int[] {t.startMs(), t.endMs()})
                         .toList(),
                 voice.timingsApproximate(),
-                heard == null
-                        ? List.of()
-                        : heard.mergedRanges().stream()
-                                .map(r -> new int[] {r.startMs(), r.endMs()})
-                                .toList());
+                heard == null ? List.of() : pairs(heard.mergedRanges()),
+                pairs(combined));
     }
 
     /** 0.9400 → 0.94, 0.000 → 0 (JSON 숫자를 짧게) */

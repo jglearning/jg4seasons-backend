@@ -7,13 +7,19 @@ import java.math.BigDecimal;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/** 완료 규칙 해석(ADR-07·27): 지문마다 필수 목소리 중 하나를 청취율 기준 이상 들으면 그 지문 완료. */
+/**
+ * 완료 규칙 해석(ADR-07·27·34): 지문마다 필수 목소리 중 하나를 청취율 기준 이상 들었거나, 합산이 켜져 있고 여러 목소리로 들은 구간을 합친 청취율이 기준 이상이면 그 지문
+ * 완료.
+ */
 class CompletionRuleEvaluatorTest {
 
     static final BigDecimal THRESHOLD = new BigDecimal("0.900");
     /** V4 규칙(전 레벨) */
     static final String V4_RULE =
             "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"us_w\",\"us_m\",\"uk_w\",\"uk_m\"]}]";
+    /** V10 규칙(전 레벨): 목소리끼리 합친다 */
+    static final String V10_RULE = "[{\"kind\":\"passage\",\"eachPassage\":true,"
+            + "\"anyOf\":[\"us_w\",\"us_m\",\"uk_w\",\"uk_m\"],\"combine\":true}]";
     /** 목소리 하나만 필수인 규칙(필수가 아닌 목소리 확인용) */
     static final String ONE_VOICE_RULE = "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"us_w\"]}]";
 
@@ -43,23 +49,68 @@ class CompletionRuleEvaluatorTest {
     }
 
     @Test
-    void 아무_목소리나_하나를_끝까지_들으면_지문_완료() {
-        CompletionRule rule = CompletionRule.parse(THRESHOLD, V4_RULE);
+    void combine이_없으면_합치지_않는다() {
+        assertThat(CompletionRule.parse(THRESHOLD, V4_RULE).combineVoices()).isFalse();
+    }
 
-        for (String voice : new String[] {"us_w", "us_m", "uk_w", "uk_m"}) {
-            assertThat(CompletionRuleEvaluator.isPassageComplete(rule, Set.of(voice)))
-                    .as(voice)
+    @Test
+    void combine을_읽는다() {
+        assertThat(CompletionRule.parse(THRESHOLD, V10_RULE).combineVoices()).isTrue();
+        assertThat(CompletionRule.parse(THRESHOLD, V10_RULE.replace("\"combine\":true", "\"combine\":false"))
+                        .combineVoices())
+                .isFalse();
+    }
+
+    @Test
+    void combine이_불리언이_아니면_IllegalState() {
+        for (String value : new String[] {"\"true\"", "1", "null", "[]"}) {
+            assertThatThrownBy(() -> CompletionRule.parse(
+                            THRESHOLD, V10_RULE.replace("\"combine\":true", "\"combine\":" + value)))
+                    .as(value)
+                    .isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Test
+    void 모르는_키는_IllegalState() {
+        // 오타(combined)가 조용히 "합치지 않음"이 되지 않게
+        assertThatThrownBy(() ->
+                        CompletionRule.parse(THRESHOLD, V10_RULE.replace("\"combine\":true", "\"combined\":true")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("combined");
+    }
+
+    @Test
+    void 필수_트랙이_완료면_합친_청취율과_상관없이_지문_완료() {
+        for (String json : new String[] {V4_RULE, V10_RULE}) {
+            CompletionRule rule = CompletionRule.parse(THRESHOLD, json);
+
+            assertThat(CompletionRuleEvaluator.isPassageComplete(rule, true, BigDecimal.ZERO))
                     .isTrue();
         }
     }
 
     @Test
-    void 필수가_아닌_목소리만_완료면_미완료() {
-        CompletionRule rule = CompletionRule.parse(THRESHOLD, ONE_VOICE_RULE);
+    void 합산이_켜져_있으면_합친_청취율이_기준_이상일_때_지문_완료() {
+        CompletionRule rule = CompletionRule.parse(THRESHOLD, V10_RULE);
 
-        assertThat(CompletionRuleEvaluator.isPassageComplete(rule, Set.of("uk_m")))
+        assertThat(CompletionRuleEvaluator.isPassageComplete(rule, false, new BigDecimal("0.8999")))
                 .isFalse();
-        assertThat(CompletionRuleEvaluator.isPassageComplete(rule, Set.of())).isFalse();
+        assertThat(CompletionRuleEvaluator.isPassageComplete(rule, false, new BigDecimal("0.9000")))
+                .as("기준과 같으면 완료")
+                .isTrue();
+        assertThat(CompletionRuleEvaluator.isPassageComplete(rule, false, BigDecimal.ONE))
+                .isTrue();
+        assertThat(CompletionRuleEvaluator.isPassageComplete(rule, false, BigDecimal.ZERO))
+                .isFalse();
+    }
+
+    @Test
+    void 합산이_꺼져_있으면_합친_청취율이_1이어도_미완료() {
+        CompletionRule rule = CompletionRule.parse(THRESHOLD, V4_RULE);
+
+        assertThat(CompletionRuleEvaluator.isPassageComplete(rule, false, BigDecimal.ONE))
+                .isFalse();
     }
 
     @Test
@@ -116,10 +167,13 @@ class CompletionRuleEvaluatorTest {
 
     @Test
     void 생성자로_만들어도_같은_검사를_한다() {
-        assertThatThrownBy(() -> new CompletionRule(new BigDecimal("5"), Set.of("us_w")))
+        assertThatThrownBy(() -> new CompletionRule(new BigDecimal("5"), Set.of("us_w"), true))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> new CompletionRule(null, Set.of("us_w"))).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> new CompletionRule(THRESHOLD, Set.of())).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> new CompletionRule(THRESHOLD, Set.of("1"))).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new CompletionRule(null, Set.of("us_w"), true))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new CompletionRule(THRESHOLD, Set.of(), true))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new CompletionRule(THRESHOLD, Set.of("1"), true))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

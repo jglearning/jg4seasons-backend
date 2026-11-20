@@ -255,6 +255,12 @@ class LessonImporterTest {
     void 지문이_줄어_기록_있는_트랙이_사라지면_거부한다() throws IOException {
         importer.importLesson(manifest());
         listen("p2:uk_m");
+        // 들은 지문에는 지문 집계(passage_progress)도 있다 — 지문·트랙을 지우기 전에 같은 이유로 거부돼 FK 오류까지 가지 않는다
+        jdbc.update(
+                "insert into passage_progress (student_id, passage_id, ref_track_id, ref_duration_ms, merged_ranges)"
+                        + " select s.student_id, t.passage_id, t.id, t.duration_ms, '[]' from listening_session s"
+                        + " join track t on t.id = s.track_id where t.lesson_id = ?",
+                lessonId());
         LessonManifest full = manifest();
         LessonManifest shorter = new LessonManifest(full.code(), full.passages().subList(0, 1), full.words());
 
@@ -262,6 +268,8 @@ class LessonImporterTest {
 
         assertThat(result.status()).isEqualTo(Status.REJECTED);
         assertThat(result.reason()).contains("p2:uk_m");
+        assertThat(jdbc.queryForObject("select count(*) from passage_progress", Integer.class))
+                .isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from passage where lesson_id = ?", Integer.class, lessonId()))
                 .isEqualTo(2);
     }

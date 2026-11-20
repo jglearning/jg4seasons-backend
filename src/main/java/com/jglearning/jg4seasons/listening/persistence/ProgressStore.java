@@ -3,6 +3,8 @@ package com.jglearning.jg4seasons.listening.persistence;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
 import com.jglearning.jg4seasons.listening.api.TrackProgressSummary;
+import com.jglearning.jg4seasons.listening.passage.StoredPassage;
+import com.jglearning.jg4seasons.listening.passage.TrackState;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,7 +23,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 학생 청취 집계 읽기(ADR-06 — 화면은 집계만). track_progress·lesson_progress에는 academy_id가 없다: studentId는 JWT에서 온 값이고, 그 학생이 그
+ * 학생 청취 집계 읽기(ADR-06 — 화면은 집계만). track_progress·passage_progress·lesson_progress에는 academy_id가 없다: studentId는 JWT에서 온 값이고, 그 학생이 그
  * 학원 반 소속임을 호출자가 먼저 확인한 뒤에 부른다.
  */
 @Component
@@ -29,6 +31,12 @@ public class ProgressStore {
 
     /** completed = completed_at이 있음(flush의 완료 판정 결과). coverage 0~1 — 벗어나면 데이터 오류 */
     public record TrackProgressRow(long trackId, BigDecimal coverage, boolean completed, List<Range> mergedRanges) {
+
+        /** 지문 판정에 쓰는 값만 */
+        public TrackState state() {
+            return new TrackState(coverage, completed);
+        }
+
         public TrackProgressRow {
             if (coverage == null || coverage.signum() < 0 || coverage.compareTo(BigDecimal.ONE) > 0) {
                 throw new IllegalStateException("청취율은 0~1이어야 한다: track " + trackId + " " + coverage);
@@ -63,6 +71,29 @@ public class ProgressStore {
                         RangesJson.read(jsonMapper, rs.getString("merged_ranges"))));
         return Collections.unmodifiableMap(
                 rows.stream().collect(Collectors.toMap(TrackProgressRow::trackId, Function.identity())));
+    }
+
+    /** 지문 id → 저장된 지문 집계(passage_progress, ADR-34). 행이 있는 것만. 쓸 수 있는지(기준이 지금과 같은지)는 읽는 쪽이 본다 */
+    public Map<Long, StoredPassage> passageProgress(long studentId, Collection<Long> passageIds) {
+        if (passageIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, StoredPassage> rows = new HashMap<>();
+        jdbc.query(
+                "select passage_id, ref_track_id, ref_duration_ms, merged_ranges, coverage, completed_at"
+                        + " from passage_progress where student_id = :studentId and passage_id in (:passageIds)",
+                new MapSqlParameterSource("studentId", studentId).addValue("passageIds", passageIds),
+                rs -> {
+                    rows.put(
+                            rs.getLong("passage_id"),
+                            new StoredPassage(
+                                    rs.getLong("ref_track_id"),
+                                    rs.getInt("ref_duration_ms"),
+                                    RangesJson.read(jsonMapper, rs.getString("merged_ranges")),
+                                    rs.getBigDecimal("coverage"),
+                                    rs.getObject("completed_at", LocalDateTime.class) != null));
+                });
+        return rows;
     }
 
     /** 여러 회차 진도를 한 번에(홈·회차 목록). 진도가 있는 회차만 담는다(없으면 시작 전) */

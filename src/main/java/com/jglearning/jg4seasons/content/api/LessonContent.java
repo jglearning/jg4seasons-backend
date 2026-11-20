@@ -25,7 +25,8 @@ public record LessonContent(
     /** completion_rule 원문. 해석은 listening.completion이 한다(ADR-07) */
     public record Rule(BigDecimal coverageThreshold, String requiredTracksJson) {}
 
-    public record Passage(int no, String title, int wordCount, List<Sentence> sentences, List<Voice> voices) {
+    /** id는 passage 행의 id — 지문 단위 청취 집계(passage_progress)의 키. 화면에는 no가 나간다 */
+    public record Passage(long id, int no, String title, int wordCount, List<Sentence> sentences, List<Voice> voices) {
         /** 목소리마다 시각은 비어 있거나(아직 없음) 문장 수와 같다 */
         public Passage {
             sentences = List.copyOf(sentences);
