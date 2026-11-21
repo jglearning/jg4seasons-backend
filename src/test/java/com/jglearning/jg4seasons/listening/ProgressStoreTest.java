@@ -169,4 +169,29 @@ class ProgressStoreTest {
                 .isEmpty();
         assertThat(store.passageProgress(studentId, List.of())).isEmpty();
     }
+
+    @Test
+    void 여러_학생의_지문_집계를_한_번에_읽는다() {
+        long p1 = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, tracks.get("p1:us_w"));
+        long otherTrack = data.lessonContent("L2-B1-04", 1, 2, List.of("us_w")).get("p1:us_w");
+        long p2 = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, otherTrack);
+        String insert = "insert into passage_progress (student_id, passage_id, ref_track_id, ref_duration_ms,"
+                + " merged_ranges, covered_ms, coverage, completed_at) values (?, ?, ?, 6500, '[]', 0, 0.5000, ?)";
+        jdbc.update(insert, studentId, p1, tracks.get("p1:us_w"), "2026-11-05 10:00:00");
+        jdbc.update(insert, otherStudentId, p2, otherTrack, null);
+
+        // 죽여야 하는 틀린 구현: 학생 조건 없는 쿼리(다른 학생의 행이 섞인다), 지문 조건 없는 쿼리
+        assertThat(store.passageProgressOf(List.of(studentId), List.of(p1, p2))).containsOnlyKeys(studentId);
+        assertThat(store.passageProgressOf(List.of(studentId), List.of(p1, p2)).get(studentId))
+                .containsOnlyKeys(p1);
+        assertThat(store.passageProgressOf(List.of(studentId, otherStudentId), List.of(p2)))
+                .containsOnlyKeys(otherStudentId);
+
+        Map<Long, Map<Long, com.jglearning.jg4seasons.listening.passage.StoredPassage>> both =
+                store.passageProgressOf(List.of(studentId, otherStudentId), List.of(p1, p2));
+        assertThat(both.get(studentId).get(p1).completed()).isTrue();
+        assertThat(both.get(otherStudentId).get(p2).completed()).isFalse();
+        assertThat(store.passageProgressOf(List.of(), List.of(p1))).isEmpty();
+        assertThat(store.passageProgressOf(List.of(studentId), List.of())).isEmpty();
+    }
 }

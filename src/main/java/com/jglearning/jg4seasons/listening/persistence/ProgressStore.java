@@ -96,6 +96,34 @@ public class ProgressStore {
         return rows;
     }
 
+    /**
+     * 여러 학생 × 여러 지문(교사 화면). 학생 id → 지문 id → 저장된 지문 집계, 행이 있는 것만. 쿼리 하나. 쓸 수 있는지(기준이 지금과 같은지)는 읽는 쪽이 본다 — 이 값을
+     * 화면에 그대로 내보내지 않는다(PassageSummaries를 거친다)
+     */
+    public Map<Long, Map<Long, StoredPassage>> passageProgressOf(
+            Collection<Long> studentIds, Collection<Long> passageIds) {
+        if (studentIds.isEmpty() || passageIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Map<Long, StoredPassage>> rows = new HashMap<>();
+        jdbc.query(
+                "select student_id, passage_id, ref_track_id, ref_duration_ms, merged_ranges, coverage, completed_at"
+                        + " from passage_progress where student_id in (:studentIds) and passage_id in (:passageIds)",
+                new MapSqlParameterSource("studentIds", studentIds).addValue("passageIds", passageIds),
+                rs -> {
+                    rows.computeIfAbsent(rs.getLong("student_id"), id -> new HashMap<>())
+                            .put(
+                                    rs.getLong("passage_id"),
+                                    new StoredPassage(
+                                            rs.getLong("ref_track_id"),
+                                            rs.getInt("ref_duration_ms"),
+                                            RangesJson.read(jsonMapper, rs.getString("merged_ranges")),
+                                            rs.getBigDecimal("coverage"),
+                                            rs.getObject("completed_at", LocalDateTime.class) != null));
+                });
+        return deepUnmodifiable(rows);
+    }
+
     /** 여러 회차 진도를 한 번에(홈·회차 목록). 진도가 있는 회차만 담는다(없으면 시작 전) */
     public Map<Long, LessonProgressRow> lessonProgress(long studentId, Collection<Long> lessonIds) {
         if (lessonIds.isEmpty()) {
