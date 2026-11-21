@@ -287,7 +287,8 @@ class TeacherLessonDetailTest {
 
     @Test
     void 퇴원한_학생과_다른_학원_학생의_지문_집계는_응답_어디에도_없다() {
-        // 죽여야 하는 틀린 구현: 명단 묶음이 아니라 반 소속 전체로 집계를 읽는 것
+        // 지키는 것: 행은 명단에서만 만든다 + 명단 밖 학생의 값이 명단 학생 행에 붙지 않는다(학생 키를 보지 않는 조립을 죽인다).
+        // "명단보다 넓게 읽기"만으로는 응답이 같아 여기서 못 잡는다 — ListeningDetailQueryTest(묶음 밖 학생)와 아키텍처 규칙이 지킨다
         data.leave(classId, lee);
         long otherAcademy = data.academy("다른 학원");
         long foreign = data.student(otherAcademy, "가학생");

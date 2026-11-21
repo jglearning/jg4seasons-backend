@@ -124,7 +124,7 @@ class TeacherPassageConsistencyTest {
         // 지문 1: 두 목소리로 나눠 들어 합쳐서 완료(목소리 하나로는 미완료). 지문 2: 한 목소리로 일부만. 지문 3: 안 들음
         flush("p1:us_w", 0, 5_000);
         flush("p1:uk_m", 6_000, 14_000);
-        flush("p2:us_w", 0, 3_000);
+        flush("p2:us_w", 0, 3_333); // 0.3333 — 교사 화면이 자릿수를 줄이면 학생 화면과 달라진다
 
         String student = studentLesson();
         String detail = teacher("/students/" + studentId);
@@ -134,7 +134,7 @@ class TeacherPassageConsistencyTest {
         List<String> onStudentScreen = passages(student, "$.passages[*]");
         assertThat(onStudentScreen)
                 .as("학생 화면(2.3) — 이 테스트의 전제")
-                .containsExactly("1:1.0:true", "2:0.3:false", "3:0.0:false");
+                .containsExactly("1:1.0:true", "2:0.3333:false", "3:0.0:false");
         assertThat(JsonPath.<List<Boolean>>read(student, "$.passages[0].voices[*].completed"))
                 .as("지문 1은 어느 목소리도 혼자서는 완료가 아니다")
                 .containsOnly(false);

@@ -402,8 +402,45 @@ class TeacherStudentDetailTest {
     }
 
     @Test
+    void 회차가_여럿이어도_같은_번호의_지문이_섞이지_않는다() {
+        // 죽여야 하는 틀린 구현: 지문을 id가 아니라 번호로 찾는 조립 — 뒤 회차의 지문 1이 앞 회차의 지문 1을 덮는다
+        Map<String, Long> first = data.lessonContent("L2-B1-01", 2, 2, List.of("us_w", "us_m"));
+        Map<String, Long> second = data.lessonContent("L2-B1-02", 3, 2, List.of("us_w"));
+        heard(studentId, first.get("p1:us_w"), "0.5000");
+        heard(studentId, first.get("p1:us_m"), "0.4500");
+        combinedCompleted(studentId, first.get("p1:us_w"), "0.9500");
+        heard(studentId, second.get("p1:us_w"), "0.3000");
+
+        MvcTestResult result = detail(studentId);
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.lessons[*].code").isEqualTo(List.of("L2-B1-01", "L2-B1-02"));
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[*].coverage")
+                .asArray()
+                .containsExactly(0.95, 0.0);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[*].completed")
+                .asArray()
+                .containsExactly(true, false);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[1].passages[*].coverage")
+                .asArray()
+                .containsExactly(0.3, 0.0, 0.0);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[1].passages[*].completed")
+                .asArray()
+                .containsOnly(false);
+    }
+
+    @Test
     void passages는_그_학생의_값만이다() {
-        // 죽여야 하는 틀린 구현: 반 전체 묶음으로 읽어 다른 학생의 지문 값을 붙이는 것
+        // 죽여야 하는 틀린 구현: 학생 id로 꺼내지 않는 조립(맵의 첫 학생 값 쓰기, 학생 구분 없이 합치기).
+        // "반 전체로 읽기"만으로는 응답이 같다 — 묶음은 TeacherScope와 아키텍처 규칙이 지킨다
         Map<String, Long> tracks = data.lessonContent("L2-B1-01", 1, 2, List.of("us_w", "us_m"));
         long classmate = data.student(academyId, "이학생");
         data.enroll(classId, classmate);

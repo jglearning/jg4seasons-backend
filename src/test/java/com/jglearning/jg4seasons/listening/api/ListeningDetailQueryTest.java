@@ -216,7 +216,8 @@ class ListeningDetailQueryTest {
 
     @Test
     void 다른_학생의_집계가_섞이지_않는다() {
-        // 죽여야 하는 틀린 구현: 지문 집계를 학생 조건 없이 읽는 것(b의 완료가 a에 붙는다)
+        // 죽여야 하는 틀린 구현: 학생 키를 보지 않고 지문 id로만 요약을 찾는 조립(b의 완료가 a에 붙는다), 학생 사이에 트랙 상태를 이어 쓰는 것.
+        // 쿼리의 학생 조건은 여기서 못 잡는다(행이 학생 id로 묶여 돌아온다) — ProgressStoreTest가 지킨다
         heard(b, "p1:us_w", "0.5000", false);
         combined(b, "p1:us_w", PASSAGE_MS, "0.9500", true);
 
@@ -227,6 +228,8 @@ class ListeningDetailQueryTest {
         ListeningDetail onlyA = query.detailOf(students(a, b).only(a), List.of(content("L2-B1-05")));
         assertThat(onlyA.passages()).containsOnlyKeys(a);
         assertThat(onlyA.tracks()).isEmpty();
+        // 묶음 밖 학생(b)의 완료 행이 DB에 있어도 a의 값은 그대로다 — 묶음보다 넓게 읽어 붙이는 구현을 죽인다
+        PassageSummaryAssert.of(passage(onlyA, a, "p1:us_w")).is("0", false);
     }
 
     @Test
