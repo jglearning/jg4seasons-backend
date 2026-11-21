@@ -296,6 +296,137 @@ class TeacherStudentDetailTest {
         assertThat(result).bodyText().doesNotContain("variant").doesNotContain("p1:xx");
     }
 
+    /** 지문 길이: 문장 2개 × 3000 + 간격 500 */
+    static final int PASSAGE_MS = 2 * TestData.SENTENCE_MS + TestData.GAP_MS;
+
+    private void heard(long student, long trackId, String coverage) {
+        jdbc.update(
+                "insert into track_progress (student_id, track_id, merged_ranges, covered_ms, coverage,"
+                        + " total_play_ms, session_count, last_played_at) values (?, ?, '[]', 0, ?, 4000, 1, ?)",
+                student,
+                trackId,
+                new java.math.BigDecimal(coverage),
+                "2026-11-09 11:00:00");
+    }
+
+    /** 두 목소리를 섞어 들어 합친 청취율로 완료한 지문(ADR 0034) — 목소리 하나로는 완료가 아니다 */
+    private void combinedCompleted(long student, long refTrackId, String coverage) {
+        jdbc.update(
+                "insert into passage_progress (student_id, passage_id, ref_track_id, ref_duration_ms, merged_ranges,"
+                        + " covered_ms, coverage, completed_at)"
+                        + " values (?, (select passage_id from track where id = ?), ?, ?, '[]', 0, ?, ?)",
+                student,
+                refTrackId,
+                refTrackId,
+                PASSAGE_MS,
+                new java.math.BigDecimal(coverage),
+                "2026-11-09 11:00:00");
+    }
+
+    @Test
+    void 섞어_들어_완료한_지문은_passages에서_완료다() {
+        // 죽여야 하는 틀린 구현: 지문 완료를 트랙 완료에서 계산하는 것(두 목소리 모두 미완료라 미완료가 나온다)
+        Map<String, Long> tracks = data.lessonContent("L2-B1-01", 2, 2, List.of("us_w", "us_m"));
+        heard(studentId, tracks.get("p1:us_w"), "0.5000");
+        heard(studentId, tracks.get("p1:us_m"), "0.4500");
+        combinedCompleted(studentId, tracks.get("p1:us_w"), "0.9500");
+
+        MvcTestResult result = detail(studentId);
+
+        assertThat(result).hasStatusOk();
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages")
+                .asArray()
+                .hasSize(2);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[0].no")
+                .isEqualTo(1);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[0].coverage")
+                .isEqualTo(0.95);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[0].completed")
+                .isEqualTo(true);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[1].no")
+                .isEqualTo(2);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[1].coverage")
+                .isEqualTo(0.0);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[1].completed")
+                .isEqualTo(false);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].tracks[*].completed")
+                .asArray()
+                .as("목소리별 완료는 그대로 미완료")
+                .containsOnly(false);
+    }
+
+    @Test
+    void 안_들은_회차도_모든_지문이_번호_순으로_0이고_미완료다() {
+        data.lessonContent("L2-B1-01", 1, 2, List.of("us_w"));
+        data.lessonContent("L2-B1-02", 3, 2, List.of("us_w", "us_m"));
+
+        MvcTestResult result = detail(studentId);
+
+        assertThat(result).hasStatusOk();
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[*].no")
+                .asArray()
+                .containsExactly(1);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[1].passages[*].no")
+                .asArray()
+                .containsExactly(1, 2, 3);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[1].passages[*].coverage")
+                .asArray()
+                .containsOnly(0.0);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.lessons[1].passages[*].completed")
+                .asArray()
+                .containsOnly(false);
+    }
+
+    @Test
+    void passages는_그_학생의_값만이다() {
+        // 죽여야 하는 틀린 구현: 반 전체 묶음으로 읽어 다른 학생의 지문 값을 붙이는 것
+        Map<String, Long> tracks = data.lessonContent("L2-B1-01", 1, 2, List.of("us_w", "us_m"));
+        long classmate = data.student(academyId, "이학생");
+        data.enroll(classId, classmate);
+        heard(classmate, tracks.get("p1:us_w"), "0.5000");
+        combinedCompleted(classmate, tracks.get("p1:us_w"), "0.9500");
+
+        MvcTestResult mine = detail(studentId);
+        MvcTestResult theirs = detail(classmate);
+
+        assertThat(mine)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[0].completed")
+                .isEqualTo(false);
+        assertThat(mine)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[0].coverage")
+                .isEqualTo(0.0);
+        assertThat(theirs)
+                .bodyJson()
+                .extractingPath("$.lessons[0].passages[0].completed")
+                .isEqualTo(true);
+    }
+
     private static void assertNotFound(MvcTestResult result, String why) {
         assertThat(result).as(why).hasStatus(404);
         assertThat(result).as(why).bodyJson().extractingPath("$.code").isEqualTo("NOT_FOUND");
