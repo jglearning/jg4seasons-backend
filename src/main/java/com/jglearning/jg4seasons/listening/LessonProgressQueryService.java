@@ -22,12 +22,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
 class LessonProgressQueryService implements LessonProgressQuery, TrackProgressQuery, ListeningDetailQuery {
+
+    private static final Logger log = LoggerFactory.getLogger(LessonProgressQueryService.class);
 
     private final ProgressStore store;
 
@@ -67,6 +72,7 @@ class LessonProgressQueryService implements LessonProgressQuery, TrackProgressQu
         Map<Long, Map<Long, StoredPassage>> stored = store.passageProgressOf(students.ids(), passageIds);
 
         Map<Long, Map<Long, PassageProgressSummary>> passages = new HashMap<>();
+        Map<String, Integer> unusable = new TreeMap<>(); // 경고 문구 → 학생 수
         for (long studentId : students.ids()) {
             Map<Long, TrackState> states = new HashMap<>();
             tracks.getOrDefault(studentId, Map.of())
@@ -78,13 +84,27 @@ class LessonProgressQueryService implements LessonProgressQuery, TrackProgressQu
                 CompletionRule rule = CompletionRule.parse(
                         lesson.rule().coverageThreshold(), lesson.rule().requiredTracksJson());
                 for (LessonContent.Passage passage : lesson.passages()) {
-                    PassageSummary summary =
-                            PassageSummaries.of(passage, rule, Optional.ofNullable(rows.get(passage.id())), states);
+                    Optional<StoredPassage> row = Optional.ofNullable(rows.get(passage.id()));
+                    PassageSummary summary = PassageSummaries.of(passage, rule, row, states);
+                    if (rule.combineVoices()
+                            && row.isPresent()
+                            && PassageSummaries.combined(passage, rule, row).isEmpty()) {
+                        unusable.merge(
+                                "lesson " + lesson.code() + " 지문 " + passage.no() + " 저장 기준 track "
+                                        + row.get().refTrackId() + " "
+                                        + row.get().refDurationMs() + "ms",
+                                1,
+                                Integer::sum);
+                    }
                     mine.put(passage.id(), new PassageProgressSummary(summary.coverage(), summary.completed()));
                 }
             }
             passages.put(studentId, Map.copyOf(mine));
         }
+        // 콘텐츠를 다시 넣어 기준 트랙의 길이가 바뀌었거나 규칙의 필수 목소리가 바뀌었다(학생 화면 2.3과 같은 경고). 완료한 학생은 그 회차를 다시 열지 않아, 이 상태를 보는
+        // 것이 교사 화면뿐일 수 있다. 학생마다 찍지 않고 (회차, 지문, 저장 기준)마다 한 줄
+        unusable.forEach((where, count) ->
+                log.warn("지문 집계의 기준이 지금과 다르다: {} — 학생 {}명, 목소리별 집계로 보낸다(다음 flush가 다시 계산)", where, count));
         return new ListeningDetail(tracks, Map.copyOf(passages));
     }
 

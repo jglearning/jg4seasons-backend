@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class ListeningDetailQueryTest {
 
     /** 지문 길이: 문장 2개 × 3000 + 간격 500 */
@@ -135,6 +139,41 @@ class ListeningDetailQueryTest {
         ListeningDetail detail = query.detailOf(students(a), List.of(content("L2-B1-05")));
 
         PassageSummaryAssert.of(passage(detail, a, "p1:us_w")).is("0.4000", true);
+    }
+
+    @Test
+    void 쓸_수_없는_저장_행을_만나면_지문마다_경고_한_줄을_남긴다(CapturedOutput output) {
+        // 완료한 학생은 그 회차를 다시 열지 않는다 — 이 상태를 보는 것은 교사 화면뿐이라 여기서 남겨야 운영자가 안다(ADR 0034)
+        for (long student : List.of(a, b)) {
+            heard(student, "p1:us_w", "0.4000", false);
+            combined(student, "p1:us_w", PASSAGE_MS + 1000, "0.9900", true);
+        }
+
+        query.detailOf(students(a, b), List.of(content("L2-B1-05")));
+
+        String warning = "지문 집계의 기준이 지금과 다르다";
+        assertThat(output.getOut().split(warning, -1)).as("학생마다가 아니라 지문마다 한 줄").hasSize(2);
+        assertThat(output.getOut())
+                .contains("lesson L2-B1-05 지문 1")
+                .contains("track " + tracks.get("p1:us_w") + " " + (PASSAGE_MS + 1000) + "ms")
+                .contains("학생 2명");
+    }
+
+    @Test
+    void 쓸_수_있는_저장_행과_합산이_꺼진_규칙은_경고를_남기지_않는다(CapturedOutput output) {
+        heard(a, "p1:us_w", "0.5000", false);
+        combined(a, "p1:us_w", PASSAGE_MS, "0.9500", true);
+        query.detailOf(students(a), List.of(content("L2-B1-05")));
+        assertThat(output.getOut()).as("쓸 수 있는 행").doesNotContain("지문 집계의 기준이 지금과 다르다");
+
+        // 합산을 끄면 저장 행은 끈 시점의 값이라 쓰지 않는다 — 기준이 어긋난 것이 아니다
+        jdbc.update(
+                "update completion_rule set required_tracks = ?"
+                        + " where level_id = (select level_id from book where code = 'L2-B1')",
+                "[{\"kind\":\"passage\",\"eachPassage\":true,\"anyOf\":[\"us_w\",\"us_m\",\"uk_w\",\"uk_m\"]}]");
+        combined(b, "p1:us_w", PASSAGE_MS + 1000, "0.9900", true);
+        query.detailOf(students(b), List.of(content("L2-B1-05")));
+        assertThat(output.getOut()).as("합산이 꺼진 규칙").doesNotContain("지문 집계의 기준이 지금과 다르다");
     }
 
     @Test
