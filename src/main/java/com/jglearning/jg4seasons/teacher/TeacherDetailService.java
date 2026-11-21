@@ -94,15 +94,14 @@ public class TeacherDetailService {
         List<Long> lessonIds = contents.stream().map(LessonContent::lessonId).toList();
         // 트랙 집계와 지문 요약을 한 번에 읽는다 — 지문 요약은 이 트랙 집계로 계산된 값이다(학생 화면 2.3과 같은 계산)
         ListeningDetail detail = listening.detailOf(one, contents);
-        Map<Long, TrackProgressSummary> tracks = detail.tracks().getOrDefault(studentId, Map.of());
-        Map<Long, PassageProgressSummary> passages = detail.passages().getOrDefault(studentId, Map.of());
+        Map<Long, TrackProgressSummary> tracks = detail.tracksOf(studentId);
         Map<Long, LessonProgressSummary> progress =
                 lessonProgress.progressOf(one.ids(), lessonIds).getOrDefault(studentId, Map.of());
         Map<Long, WordStudyScores> words = wordStudies.scoresOf(one, lessonIds).getOrDefault(studentId, Map.of());
 
         List<StudentDetailLesson> lessons = contents.stream()
-                .map(content -> lesson(
-                        content, summaries.get(content.lessonId()), studentId, progress, tracks, passages, words))
+                .map(content ->
+                        lesson(content, summaries.get(content.lessonId()), studentId, progress, tracks, detail, words))
                 .toList();
         return new StudentDetailResponse(
                 new StudentDetailStudent(
@@ -142,13 +141,12 @@ public class TeacherDetailService {
         }
         // 트랙 집계와 지문 요약을 한 번에, 명단 묶음으로만 읽는다(4.3과 같은 조회)
         ListeningDetail detail = listening.detailOf(roster.students(), List.of(content));
-        Map<Long, Map<Long, TrackProgressSummary>> heard = detail.tracks();
         Map<Long, Map<Long, LessonProgressSummary>> progress =
                 lessonProgress.progressOf(roster.students().ids(), List.of(content.lessonId()));
 
         List<TeacherLessonRow> rows = roster.accounts().stream()
                 .map(student -> {
-                    Map<Long, TrackProgressSummary> mine = heard.getOrDefault(student.id(), Map.of());
+                    Map<Long, TrackProgressSummary> mine = detail.tracksOf(student.id());
                     Map<String, TeacherLessonTrackResult> byTrack = new LinkedHashMap<>();
                     for (TeacherLessonTrack track : trackList) {
                         TrackProgressSummary h = mine.get(track.trackId());
@@ -164,7 +162,7 @@ public class TeacherDetailService {
                             new TeacherLessonStudent(student.id(), student.name()),
                             (p == null ? LessonProgressStatus.NOT_STARTED : p.status()).value(),
                             byTrack,
-                            passageRows(content, detail.passages().getOrDefault(student.id(), Map.of())));
+                            passageRows(content, student.id(), detail));
                 })
                 .toList();
         return new TeacherLessonDetailResponse(
@@ -178,7 +176,7 @@ public class TeacherDetailService {
             long studentId,
             Map<Long, LessonProgressSummary> progress,
             Map<Long, TrackProgressSummary> tracks,
-            Map<Long, PassageProgressSummary> passages,
+            ListeningDetail detail,
             Map<Long, WordStudyScores> words) {
         LessonProgressSummary p = TeacherScope.progressOf(progress.get(content.lessonId()), summary, studentId);
         List<StudentDetailTrack> trackRows = content.passages().stream()
@@ -192,7 +190,7 @@ public class TeacherDetailService {
                 p.requiredDone(),
                 p.requiredTotal(),
                 trackRows,
-                passageRows(content, passages),
+                passageRows(content, studentId, detail),
                 w == null
                         ? new StudentDetailWords(content.wordTotal(), 0, 0, 0, 0)
                         : new StudentDetailWords(
@@ -200,18 +198,15 @@ public class TeacherDetailService {
     }
 
     /**
-     * 회차의 모든 지문, 번호 순. 값은 청취 모듈이 만든 요약 그대로다 — 여기서 트랙 값으로 다시 계산하지 않는다(4.2·학생 화면과 어긋난다). 묶음에 있는 학생이면 모든 지문이 들어
-     * 있다. 없으면 조립 오류
+     * 회차의 모든 지문, 번호 순. 값은 청취 모듈이 만든 요약 그대로다 — 여기서 트랙 값으로 다시 계산하지 않는다(4.2·학생 화면과 어긋난다). 요약이 없는 학생·지문은 조립 오류다
+     * (ListeningDetail.passageOf가 던진다 — 0·미완료로 대신하지 않는다)
      */
     private static List<TeacherPassageSummary> passageRows(
-            LessonContent content, Map<Long, PassageProgressSummary> passages) {
+            LessonContent content, long studentId, ListeningDetail detail) {
         return content.passages().stream()
                 .sorted(Comparator.comparingInt(LessonContent.Passage::no))
                 .map(passage -> {
-                    PassageProgressSummary summary = passages.get(passage.id());
-                    if (summary == null) {
-                        throw new IllegalStateException("지문 요약이 없다: passage " + passage.id());
-                    }
+                    PassageProgressSummary summary = detail.passageOf(studentId, passage);
                     return new TeacherPassageSummary(
                             passage.no(), summary.coverage().doubleValue(), summary.completed());
                 })
