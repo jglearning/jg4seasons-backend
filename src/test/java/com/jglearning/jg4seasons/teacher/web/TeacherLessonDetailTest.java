@@ -199,6 +199,117 @@ class TeacherLessonDetailTest {
                 .isEqualTo(List.of("김학생", "박학생"));
     }
 
+    /** 지문 길이: 문장 2개 × 3000 + 간격 500 */
+    static final int PASSAGE_MS = 2 * TestData.SENTENCE_MS + TestData.GAP_MS;
+
+    private void heard(long student, String track, String coverage) {
+        jdbc.update(
+                "insert into track_progress (student_id, track_id, merged_ranges, covered_ms, coverage,"
+                        + " total_play_ms, session_count, last_played_at) values (?, ?, '[]', 0, ?, 1000, 1, ?)",
+                student,
+                tracks.get(track),
+                new java.math.BigDecimal(coverage),
+                "2026-11-10 01:00:00");
+    }
+
+    /** 두 목소리를 섞어 들어 합친 청취율로 완료한 지문(ADR 0034) */
+    private void combinedCompleted(long student, String refTrack, String coverage) {
+        jdbc.update(
+                "insert into passage_progress (student_id, passage_id, ref_track_id, ref_duration_ms, merged_ranges,"
+                        + " covered_ms, coverage, completed_at)"
+                        + " values (?, (select passage_id from track where id = ?), ?, ?, '[]', 0, ?, ?)",
+                student,
+                tracks.get(refTrack),
+                tracks.get(refTrack),
+                PASSAGE_MS,
+                new java.math.BigDecimal(coverage),
+                "2026-11-10 01:00:00");
+    }
+
+    @Test
+    void 섞어_들어_완료한_학생은_그_지문이_완료이고_byTrack은_그대로다() {
+        // 죽여야 하는 틀린 구현: 지문 완료를 트랙 완료에서 계산하는 것(두 목소리 모두 미완료)
+        heard(kim, "p1:us_w", "0.5000");
+        heard(kim, "p1:us_m", "0.4500");
+        combinedCompleted(kim, "p1:us_w", "0.9500");
+
+        MvcTestResult result = lesson(CODE);
+
+        assertThat(result).hasStatusOk();
+        // rows는 이름 순: 김학생(0), 박학생(1), 이학생(2)
+        assertThat(result).bodyJson().extractingPath("$.rows[0].student.name").isEqualTo("김학생");
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.rows[0].passages[*].no")
+                .asArray()
+                .containsExactly(1, 2);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.rows[0].passages[0].coverage")
+                .isEqualTo(0.95);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.rows[0].passages[0].completed")
+                .isEqualTo(true);
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.rows[0].passages[1].completed")
+                .isEqualTo(false);
+        // byTrack: 들은 트랙만, 목소리별 완료는 미완료 그대로
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.rows[0].byTrack")
+                .asMap()
+                .containsOnlyKeys(String.valueOf(tracks.get("p1:us_w")), String.valueOf(tracks.get("p1:us_m")));
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.rows[0].byTrack." + tracks.get("p1:us_w") + ".completed")
+                .isEqualTo(false);
+        // 기록이 없는 학생도 모든 지문이 0·미완료로 들어 있다
+        for (int row : new int[] {1, 2}) {
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.rows[" + row + "].passages[*].no")
+                    .asArray()
+                    .containsExactly(1, 2);
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.rows[" + row + "].passages[*].completed")
+                    .asArray()
+                    .containsOnly(false);
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.rows[" + row + "].passages[*].coverage")
+                    .asArray()
+                    .containsOnly(0.0);
+        }
+    }
+
+    @Test
+    void 퇴원한_학생과_다른_학원_학생의_지문_집계는_응답_어디에도_없다() {
+        // 지키는 것: 행은 명단에서만 만든다 + 명단 밖 학생의 값이 명단 학생 행에 붙지 않는다(학생 키를 보지 않는 조립을 죽인다).
+        // "명단보다 넓게 읽기"만으로는 응답이 같아 여기서 못 잡는다 — ListeningDetailQueryTest(묶음 밖 학생)와 아키텍처 규칙이 지킨다
+        data.leave(classId, lee);
+        long otherAcademy = data.academy("다른 학원");
+        long foreign = data.student(otherAcademy, "가학생");
+        data.enroll(classId, foreign);
+        for (long outsider : List.of(lee, foreign)) {
+            heard(outsider, "p1:us_w", "0.5000");
+            combinedCompleted(outsider, "p1:us_w", "0.9500");
+        }
+
+        MvcTestResult result = lesson(CODE);
+
+        assertThat(result).bodyJson().extractingPath("$.rows[*].student.name").isEqualTo(List.of("김학생", "박학생"));
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.rows[*].passages[*].completed")
+                .asArray()
+                .hasSize(4)
+                .containsOnly(false);
+        assertThat(result).bodyText().doesNotContain("0.95");
+    }
+
     @Test
     void 관리자는_담당이_아니어도_200() {
         long adminId = data.staff(academyId, "관리자", "admin");

@@ -169,4 +169,51 @@ class ProgressStoreTest {
                 .isEmpty();
         assertThat(store.passageProgress(studentId, List.of())).isEmpty();
     }
+
+    @Test
+    void 깨진_지문_집계_행은_어느_학생의_어느_지문인지_오류에_남긴다() {
+        // 여러 학생을 한 번에 읽는 화면(교사 4.4)에서는 행 하나가 깨져도 반 전체가 500이다 — 어느 행인지 찾을 수 있어야 한다
+        long p1 = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, tracks.get("p1:us_w"));
+        jdbc.update(
+                "insert into passage_progress (student_id, passage_id, ref_track_id, ref_duration_ms, merged_ranges,"
+                        + " covered_ms, coverage) values (?, ?, ?, 6500, '[]', 0, 1.2000)",
+                otherStudentId,
+                p1,
+                tracks.get("p1:us_w"));
+
+        assertThatThrownBy(() -> store.passageProgressOf(List.of(studentId, otherStudentId), List.of(p1)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("student " + otherStudentId)
+                .hasMessageContaining("passage " + p1)
+                .hasRootCauseMessage("지문 청취율은 0~1이어야 한다: 1.2000");
+        assertThatThrownBy(() -> store.passageProgress(otherStudentId, List.of(p1)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("student " + otherStudentId)
+                .hasMessageContaining("passage " + p1);
+    }
+
+    @Test
+    void 여러_학생의_지문_집계를_한_번에_읽는다() {
+        long p1 = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, tracks.get("p1:us_w"));
+        long otherTrack = data.lessonContent("L2-B1-04", 1, 2, List.of("us_w")).get("p1:us_w");
+        long p2 = jdbc.queryForObject("select passage_id from track where id = ?", Long.class, otherTrack);
+        String insert = "insert into passage_progress (student_id, passage_id, ref_track_id, ref_duration_ms,"
+                + " merged_ranges, covered_ms, coverage, completed_at) values (?, ?, ?, 6500, '[]', 0, 0.5000, ?)";
+        jdbc.update(insert, studentId, p1, tracks.get("p1:us_w"), "2026-11-05 10:00:00");
+        jdbc.update(insert, otherStudentId, p2, otherTrack, null);
+
+        // 죽여야 하는 틀린 구현: 학생 조건 없는 쿼리(다른 학생의 행이 섞인다), 지문 조건 없는 쿼리
+        assertThat(store.passageProgressOf(List.of(studentId), List.of(p1, p2))).containsOnlyKeys(studentId);
+        assertThat(store.passageProgressOf(List.of(studentId), List.of(p1, p2)).get(studentId))
+                .containsOnlyKeys(p1);
+        assertThat(store.passageProgressOf(List.of(studentId, otherStudentId), List.of(p2)))
+                .containsOnlyKeys(otherStudentId);
+
+        Map<Long, Map<Long, com.jglearning.jg4seasons.listening.passage.StoredPassage>> both =
+                store.passageProgressOf(List.of(studentId, otherStudentId), List.of(p1, p2));
+        assertThat(both.get(studentId).get(p1).completed()).isTrue();
+        assertThat(both.get(otherStudentId).get(p2).completed()).isFalse();
+        assertThat(store.passageProgressOf(List.of(), List.of(p1))).isEmpty();
+        assertThat(store.passageProgressOf(List.of(studentId), List.of())).isEmpty();
+    }
 }

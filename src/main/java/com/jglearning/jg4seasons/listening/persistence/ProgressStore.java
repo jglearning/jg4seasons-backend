@@ -7,6 +7,8 @@ import com.jglearning.jg4seasons.listening.passage.StoredPassage;
 import com.jglearning.jg4seasons.listening.passage.TrackState;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
@@ -84,16 +86,31 @@ public class ProgressStore {
                         + " from passage_progress where student_id = :studentId and passage_id in (:passageIds)",
                 new MapSqlParameterSource("studentId", studentId).addValue("passageIds", passageIds),
                 rs -> {
-                    rows.put(
-                            rs.getLong("passage_id"),
-                            new StoredPassage(
-                                    rs.getLong("ref_track_id"),
-                                    rs.getInt("ref_duration_ms"),
-                                    RangesJson.read(jsonMapper, rs.getString("merged_ranges")),
-                                    rs.getBigDecimal("coverage"),
-                                    rs.getObject("completed_at", LocalDateTime.class) != null));
+                    rows.put(rs.getLong("passage_id"), storedPassage(rs, studentId));
                 });
         return rows;
+    }
+
+    /**
+     * 여러 학생 × 여러 지문(교사 화면). 학생 id → 지문 id → 저장된 지문 집계, 행이 있는 것만. 쿼리 하나. 쓸 수 있는지(기준이 지금과 같은지)는 읽는 쪽이 본다 — 이 값을
+     * 화면에 그대로 내보내지 않는다(PassageSummaries를 거친다)
+     */
+    public Map<Long, Map<Long, StoredPassage>> passageProgressOf(
+            Collection<Long> studentIds, Collection<Long> passageIds) {
+        if (studentIds.isEmpty() || passageIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Map<Long, StoredPassage>> rows = new HashMap<>();
+        jdbc.query(
+                "select student_id, passage_id, ref_track_id, ref_duration_ms, merged_ranges, coverage, completed_at"
+                        + " from passage_progress where student_id in (:studentIds) and passage_id in (:passageIds)",
+                new MapSqlParameterSource("studentIds", studentIds).addValue("passageIds", passageIds),
+                rs -> {
+                    long studentId = rs.getLong("student_id");
+                    rows.computeIfAbsent(studentId, id -> new HashMap<>())
+                            .put(rs.getLong("passage_id"), storedPassage(rs, studentId));
+                });
+        return deepUnmodifiable(rows);
     }
 
     /** 여러 회차 진도를 한 번에(홈·회차 목록). 진도가 있는 회차만 담는다(없으면 시작 전) */
@@ -184,6 +201,24 @@ public class ProgressStore {
                                             completedAt == null ? null : completedAt.toInstant(ZoneOffset.UTC)));
                 });
         return deepUnmodifiable(rows);
+    }
+
+    /**
+     * passage_progress 한 행. 깨진 행(범위 밖 청취율, 기준 길이 0, 읽을 수 없는 구간)은 데이터 오류다 — 여러 학생을 한 번에 읽는 화면에서도 어느 행인지 찾을 수 있게 학생과
+     * 지문을 붙여 다시 던진다
+     */
+    private StoredPassage storedPassage(ResultSet rs, long studentId) throws SQLException {
+        long passageId = rs.getLong("passage_id");
+        try {
+            return new StoredPassage(
+                    rs.getLong("ref_track_id"),
+                    rs.getInt("ref_duration_ms"),
+                    RangesJson.read(jsonMapper, rs.getString("merged_ranges")),
+                    rs.getBigDecimal("coverage"),
+                    rs.getObject("completed_at", LocalDateTime.class) != null);
+        } catch (IllegalStateException e) {
+            throw new IllegalStateException("지문 집계 행을 읽을 수 없다: student " + studentId + " passage " + passageId, e);
+        }
     }
 
     /** 학생 id → (id → 값) 맵을 안쪽까지 수정할 수 없게 */

@@ -13,6 +13,9 @@ import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import com.jglearning.jg4seasons.listening.api.LessonProgressQuery;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
+import com.jglearning.jg4seasons.listening.api.ListeningDetail;
+import com.jglearning.jg4seasons.listening.api.ListeningDetailQuery;
+import com.jglearning.jg4seasons.listening.api.PassageProgressSummary;
 import com.jglearning.jg4seasons.listening.api.TrackProgressQuery;
 import com.jglearning.jg4seasons.listening.api.TrackProgressSummary;
 import com.jglearning.jg4seasons.teacher.web.dto.StudentDetailResponse;
@@ -26,6 +29,7 @@ import com.jglearning.jg4seasons.teacher.web.dto.TeacherLessonDetailResponse.Tea
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherLessonDetailResponse.TeacherLessonStudent;
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherLessonDetailResponse.TeacherLessonTrack;
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherLessonDetailResponse.TeacherLessonTrackResult;
+import com.jglearning.jg4seasons.teacher.web.dto.TeacherPassageSummary;
 import com.jglearning.jg4seasons.words.api.WordStudies;
 import com.jglearning.jg4seasons.words.api.WordStudyScores;
 import java.time.LocalDate;
@@ -49,6 +53,7 @@ public class TeacherDetailService {
     private final LessonCatalog catalog;
     private final LessonProgressQuery lessonProgress;
     private final TrackProgressQuery trackProgress;
+    private final ListeningDetailQuery listening;
     private final WordStudies wordStudies;
 
     TeacherDetailService(
@@ -56,11 +61,13 @@ public class TeacherDetailService {
             LessonCatalog catalog,
             LessonProgressQuery lessonProgress,
             TrackProgressQuery trackProgress,
+            ListeningDetailQuery listening,
             WordStudies wordStudies) {
         this.scope = scope;
         this.catalog = catalog;
         this.lessonProgress = lessonProgress;
         this.trackProgress = trackProgress;
+        this.listening = listening;
         this.wordStudies = wordStudies;
     }
 
@@ -85,19 +92,16 @@ public class TeacherDetailService {
                     .orElseThrow(() -> new IllegalStateException("진도표 회차의 내용을 찾을 수 없다: " + code)));
         }
         List<Long> lessonIds = contents.stream().map(LessonContent::lessonId).toList();
-        List<Long> trackIds = contents.stream()
-                .flatMap(c -> c.passages().stream())
-                .flatMap(p -> p.voices().stream())
-                .map(LessonContent.Voice::trackId)
-                .toList();
-        Map<Long, TrackProgressSummary> tracks =
-                trackProgress.trackProgressOf(one, trackIds).getOrDefault(studentId, Map.of());
+        // 트랙 집계와 지문 요약을 한 번에 읽는다 — 지문 요약은 이 트랙 집계로 계산된 값이다(학생 화면 2.3과 같은 계산)
+        ListeningDetail detail = listening.detailOf(one, contents);
+        Map<Long, TrackProgressSummary> tracks = detail.tracksOf(studentId);
         Map<Long, LessonProgressSummary> progress =
                 lessonProgress.progressOf(one.ids(), lessonIds).getOrDefault(studentId, Map.of());
         Map<Long, WordStudyScores> words = wordStudies.scoresOf(one, lessonIds).getOrDefault(studentId, Map.of());
 
         List<StudentDetailLesson> lessons = contents.stream()
-                .map(content -> lesson(content, summaries.get(content.lessonId()), studentId, progress, tracks, words))
+                .map(content ->
+                        lesson(content, summaries.get(content.lessonId()), studentId, progress, tracks, detail, words))
                 .toList();
         return new StudentDetailResponse(
                 new StudentDetailStudent(
@@ -135,15 +139,14 @@ public class TeacherDetailService {
                         trackProgress.isRequired(content.rule(), voice.voice())));
             }
         }
-        Map<Long, Map<Long, TrackProgressSummary>> heard = trackProgress.trackProgressOf(
-                roster.students(),
-                trackList.stream().map(TeacherLessonTrack::trackId).toList());
+        // 트랙 집계와 지문 요약을 한 번에, 명단 묶음으로만 읽는다(4.3과 같은 조회)
+        ListeningDetail detail = listening.detailOf(roster.students(), List.of(content));
         Map<Long, Map<Long, LessonProgressSummary>> progress =
                 lessonProgress.progressOf(roster.students().ids(), List.of(content.lessonId()));
 
         List<TeacherLessonRow> rows = roster.accounts().stream()
                 .map(student -> {
-                    Map<Long, TrackProgressSummary> mine = heard.getOrDefault(student.id(), Map.of());
+                    Map<Long, TrackProgressSummary> mine = detail.tracksOf(student.id());
                     Map<String, TeacherLessonTrackResult> byTrack = new LinkedHashMap<>();
                     for (TeacherLessonTrack track : trackList) {
                         TrackProgressSummary h = mine.get(track.trackId());
@@ -158,7 +161,8 @@ public class TeacherDetailService {
                     return new TeacherLessonRow(
                             new TeacherLessonStudent(student.id(), student.name()),
                             (p == null ? LessonProgressStatus.NOT_STARTED : p.status()).value(),
-                            byTrack);
+                            byTrack,
+                            passageRows(content, student.id(), detail));
                 })
                 .toList();
         return new TeacherLessonDetailResponse(
@@ -172,6 +176,7 @@ public class TeacherDetailService {
             long studentId,
             Map<Long, LessonProgressSummary> progress,
             Map<Long, TrackProgressSummary> tracks,
+            ListeningDetail detail,
             Map<Long, WordStudyScores> words) {
         LessonProgressSummary p = TeacherScope.progressOf(progress.get(content.lessonId()), summary, studentId);
         List<StudentDetailTrack> trackRows = content.passages().stream()
@@ -185,10 +190,27 @@ public class TeacherDetailService {
                 p.requiredDone(),
                 p.requiredTotal(),
                 trackRows,
+                passageRows(content, studentId, detail),
                 w == null
                         ? new StudentDetailWords(content.wordTotal(), 0, 0, 0, 0)
                         : new StudentDetailWords(
                                 content.wordTotal(), w.cardsViewed(), w.memKnown(), w.recallBest(), w.spellBest()));
+    }
+
+    /**
+     * 회차의 모든 지문, 번호 순. 값은 청취 모듈이 만든 요약 그대로다 — 여기서 트랙 값으로 다시 계산하지 않는다(4.2·학생 화면과 어긋난다). 요약이 없는 학생·지문은 조립 오류다
+     * (ListeningDetail.passageOf가 던진다 — 0·미완료로 대신하지 않는다)
+     */
+    private static List<TeacherPassageSummary> passageRows(
+            LessonContent content, long studentId, ListeningDetail detail) {
+        return content.passages().stream()
+                .sorted(Comparator.comparingInt(LessonContent.Passage::no))
+                .map(passage -> {
+                    PassageProgressSummary summary = detail.passageOf(studentId, passage);
+                    return new TeacherPassageSummary(
+                            passage.no(), summary.coverage().doubleValue(), summary.completed());
+                })
+                .toList();
     }
 
     /** 안 들은 트랙은 coverage 0·재생 0·lastPlayedAt null */

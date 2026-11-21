@@ -3485,6 +3485,13 @@
             "type" : "string",
             "example" : "L2-B1-05"
           },
+          "passages" : {
+            "type" : "array",
+            "description" : "지문별 요약(목소리를 섞어 들은 것까지 합침). 회차의 모든 지문, 번호 오름차순. 안 들은 지문은 0·false",
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherPassageSummary"
+            }
+          },
           "requiredDone" : {
             "type" : "integer",
             "format" : "int32"
@@ -3512,7 +3519,7 @@
             "$ref" : "#/components/schemas/StudentDetailWords"
           }
         },
-        "required" : [ "code", "requiredDone", "requiredTotal", "status", "title", "tracks", "words" ]
+        "required" : [ "code", "passages", "requiredDone", "requiredTotal", "status", "title", "tracks", "words" ]
       },
       "StudentDetailResponse" : {
         "type" : "object",
@@ -4321,6 +4328,13 @@
             },
             "description" : "트랙 id(문자열) → 결과. 없으면 안 들음"
           },
+          "passages" : {
+            "type" : "array",
+            "description" : "지문별 요약(목소리를 섞어 들은 것까지 합침). 회차의 모든 지문, 번호 오름차순. 안 들은 지문은 0·false",
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherPassageSummary"
+            }
+          },
           "status" : {
             "type" : "string",
             "enum" : [ "not_started", "in_progress", "completed" ]
@@ -4329,7 +4343,7 @@
             "$ref" : "#/components/schemas/TeacherLessonStudent"
           }
         },
-        "required" : [ "byTrack", "status", "student" ]
+        "required" : [ "byTrack", "passages", "status", "student" ]
       },
       "TeacherLessonStudent" : {
         "type" : "object",
@@ -4402,6 +4416,28 @@
           }
         },
         "required" : [ "items", "total" ]
+      },
+      "TeacherPassageSummary" : {
+        "type" : "object",
+        "properties" : {
+          "completed" : {
+            "type" : "boolean",
+            "description" : "지문 완료 — 목소리 하나를 기준 이상 들었거나 합친 청취율이 기준 이상. 한 번 되면 유지"
+          },
+          "coverage" : {
+            "type" : "number",
+            "format" : "double",
+            "description" : "지문 청취율 0~1 — 여러 목소리로 들은 구간을 합친 청취율과 목소리 하나의 최댓값 중 큰 쪽. 안 들었으면 0",
+            "maximum" : 1,
+            "minimum" : 0
+          },
+          "no" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "지문 번호 1~6"
+          }
+        },
+        "required" : [ "completed", "coverage", "no" ]
       },
       "TeacherResponse" : {
         "type" : "object",

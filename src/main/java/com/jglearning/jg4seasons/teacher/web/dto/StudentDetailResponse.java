@@ -51,6 +51,11 @@ public record StudentDetailResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지문 트랙(목소리별)")
             List<StudentDetailTrack> tracks,
 
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "지문별 요약(목소리를 섞어 들은 것까지 합침). 회차의 모든 지문, 번호 오름차순. 안 들은 지문은 0·false")
+            List<TeacherPassageSummary> passages,
+
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             StudentDetailWords words) {}
 
