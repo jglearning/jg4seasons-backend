@@ -140,9 +140,9 @@ public class TeacherDetailService {
                         trackProgress.isRequired(content.rule(), voice.voice())));
             }
         }
-        Map<Long, Map<Long, TrackProgressSummary>> heard = trackProgress.trackProgressOf(
-                roster.students(),
-                trackList.stream().map(TeacherLessonTrack::trackId).toList());
+        // 트랙 집계와 지문 요약을 한 번에, 명단 묶음으로만 읽는다(4.3과 같은 조회)
+        ListeningDetail detail = listening.detailOf(roster.students(), List.of(content));
+        Map<Long, Map<Long, TrackProgressSummary>> heard = detail.tracks();
         Map<Long, Map<Long, LessonProgressSummary>> progress =
                 lessonProgress.progressOf(roster.students().ids(), List.of(content.lessonId()));
 
@@ -163,7 +163,8 @@ public class TeacherDetailService {
                     return new TeacherLessonRow(
                             new TeacherLessonStudent(student.id(), student.name()),
                             (p == null ? LessonProgressStatus.NOT_STARTED : p.status()).value(),
-                            byTrack);
+                            byTrack,
+                            passageRows(content, detail.passages().getOrDefault(student.id(), Map.of())));
                 })
                 .toList();
         return new TeacherLessonDetailResponse(

@@ -60,7 +60,12 @@ public record TeacherLessonDetailResponse(
             String status,
 
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "트랙 id(문자열) → 결과. 없으면 안 들음")
-            Map<String, TeacherLessonTrackResult> byTrack) {}
+            Map<String, TeacherLessonTrackResult> byTrack,
+
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "지문별 요약(목소리를 섞어 들은 것까지 합침). 회차의 모든 지문, 번호 오름차순. 안 들은 지문은 0·false")
+            List<TeacherPassageSummary> passages) {}
 
     public record TeacherLessonStudent(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
