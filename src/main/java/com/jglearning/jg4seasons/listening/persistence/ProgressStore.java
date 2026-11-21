@@ -7,6 +7,8 @@ import com.jglearning.jg4seasons.listening.passage.StoredPassage;
 import com.jglearning.jg4seasons.listening.passage.TrackState;
 import com.jglearning.jg4seasons.listening.segment.Range;
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
@@ -84,14 +86,7 @@ public class ProgressStore {
                         + " from passage_progress where student_id = :studentId and passage_id in (:passageIds)",
                 new MapSqlParameterSource("studentId", studentId).addValue("passageIds", passageIds),
                 rs -> {
-                    rows.put(
-                            rs.getLong("passage_id"),
-                            new StoredPassage(
-                                    rs.getLong("ref_track_id"),
-                                    rs.getInt("ref_duration_ms"),
-                                    RangesJson.read(jsonMapper, rs.getString("merged_ranges")),
-                                    rs.getBigDecimal("coverage"),
-                                    rs.getObject("completed_at", LocalDateTime.class) != null));
+                    rows.put(rs.getLong("passage_id"), storedPassage(rs, studentId));
                 });
         return rows;
     }
@@ -111,15 +106,9 @@ public class ProgressStore {
                         + " from passage_progress where student_id in (:studentIds) and passage_id in (:passageIds)",
                 new MapSqlParameterSource("studentIds", studentIds).addValue("passageIds", passageIds),
                 rs -> {
-                    rows.computeIfAbsent(rs.getLong("student_id"), id -> new HashMap<>())
-                            .put(
-                                    rs.getLong("passage_id"),
-                                    new StoredPassage(
-                                            rs.getLong("ref_track_id"),
-                                            rs.getInt("ref_duration_ms"),
-                                            RangesJson.read(jsonMapper, rs.getString("merged_ranges")),
-                                            rs.getBigDecimal("coverage"),
-                                            rs.getObject("completed_at", LocalDateTime.class) != null));
+                    long studentId = rs.getLong("student_id");
+                    rows.computeIfAbsent(studentId, id -> new HashMap<>())
+                            .put(rs.getLong("passage_id"), storedPassage(rs, studentId));
                 });
         return deepUnmodifiable(rows);
     }
@@ -212,6 +201,24 @@ public class ProgressStore {
                                             completedAt == null ? null : completedAt.toInstant(ZoneOffset.UTC)));
                 });
         return deepUnmodifiable(rows);
+    }
+
+    /**
+     * passage_progress 한 행. 깨진 행(범위 밖 청취율, 기준 길이 0, 읽을 수 없는 구간)은 데이터 오류다 — 여러 학생을 한 번에 읽는 화면에서도 어느 행인지 찾을 수 있게 학생과
+     * 지문을 붙여 다시 던진다
+     */
+    private StoredPassage storedPassage(ResultSet rs, long studentId) throws SQLException {
+        long passageId = rs.getLong("passage_id");
+        try {
+            return new StoredPassage(
+                    rs.getLong("ref_track_id"),
+                    rs.getInt("ref_duration_ms"),
+                    RangesJson.read(jsonMapper, rs.getString("merged_ranges")),
+                    rs.getBigDecimal("coverage"),
+                    rs.getObject("completed_at", LocalDateTime.class) != null);
+        } catch (IllegalStateException e) {
+            throw new IllegalStateException("지문 집계 행을 읽을 수 없다: student " + studentId + " passage " + passageId, e);
+        }
     }
 
     /** 학생 id → (id → 값) 맵을 안쪽까지 수정할 수 없게 */

@@ -71,6 +71,15 @@ class LessonProgressQueryService implements LessonProgressQuery, TrackProgressQu
         Map<Long, Map<Long, TrackProgressSummary>> tracks = store.trackProgressOf(students.ids(), trackIds);
         Map<Long, Map<Long, StoredPassage>> stored = store.passageProgressOf(students.ids(), passageIds);
 
+        // 완료 규칙은 회차마다 한 번만 해석한다(학생 수만큼 다시 풀지 않는다)
+        Map<Long, CompletionRule> rules = new HashMap<>();
+        for (LessonContent lesson : lessons) {
+            rules.put(
+                    lesson.lessonId(),
+                    CompletionRule.parse(
+                            lesson.rule().coverageThreshold(), lesson.rule().requiredTracksJson()));
+        }
+
         Map<Long, Map<Long, PassageProgressSummary>> passages = new HashMap<>();
         Map<String, Integer> unusable = new TreeMap<>(); // 경고 문구 → 학생 수
         for (long studentId : students.ids()) {
@@ -81,8 +90,7 @@ class LessonProgressQueryService implements LessonProgressQuery, TrackProgressQu
             Map<Long, StoredPassage> rows = stored.getOrDefault(studentId, Map.of());
             Map<Long, PassageProgressSummary> mine = new HashMap<>();
             for (LessonContent lesson : lessons) {
-                CompletionRule rule = CompletionRule.parse(
-                        lesson.rule().coverageThreshold(), lesson.rule().requiredTracksJson());
+                CompletionRule rule = rules.get(lesson.lessonId());
                 for (LessonContent.Passage passage : lesson.passages()) {
                     Optional<StoredPassage> row = Optional.ofNullable(rows.get(passage.id()));
                     PassageSummary summary = PassageSummaries.of(passage, rule, row, states);
