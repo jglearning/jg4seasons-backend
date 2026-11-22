@@ -11,7 +11,7 @@
     "/api/v1/admin/classes" : {
       "get" : {
         "description" : "id 순, 가입 코드 포함. status를 빼면 전부",
-        "operationId" : "list_1",
+        "operationId" : "listClasses",
         "parameters" : [ {
           "description" : "active · finished · archived",
           "in" : "query",
@@ -49,7 +49,7 @@
       },
       "post" : {
         "description" : "진도표(권의 회차 수만큼 — 블랙 28, 그 밖 24회, 개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요",
-        "operationId" : "create_1",
+        "operationId" : "createClass",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -126,7 +126,7 @@
       },
       "patch" : {
         "description" : "빠진 칸은 그대로. 권·개강일·요일은 바꿀 수 없음(새 반으로). active가 아니면 그 반 가입 코드로 입장할 수 없음. teacherIds는 전체 교체. 다른 학원 반·교사는 404. X-CSRF 필요",
-        "operationId" : "update_2",
+        "operationId" : "updateClass",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -214,7 +214,7 @@
     "/api/v1/admin/classes/{id}/students" : {
       "get" : {
         "description" : "현재 소속 학생(이름 순, 같으면 id 순). 개인 코드 평문 없음. 다른 학원 반은 404",
-        "operationId" : "list_2",
+        "operationId" : "listClassStudents",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -251,7 +251,7 @@
       },
       "post" : {
         "description" : "1~50명, 응답은 요청 순서. 학생마다 개인 코드(숫자 4자리, 학원 안 고유)를 발급해 평문을 이 응답에서만 준다(카드 인쇄용, 다시 볼 수 없음). 이름·학교·학년은 앞뒤 공백을 지운다(학교·학년이 비면 null), 같은 이름 허용. 다른 학원 반은 404, 진행 중(active)이 아닌 반은 409 CLASS_NOT_ACTIVE — 둘 다 아무도 만들지 않는다. X-CSRF 필요",
-        "operationId" : "create_2",
+        "operationId" : "createClassStudents",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -449,7 +449,7 @@
     "/api/v1/admin/students/{id}" : {
       "patch" : {
         "description" : "빠진 칸은 그대로, 이름은 앞뒤 공백을 지움, 학교·학년은 빈 문자열이면 지움. 바꿀 값이 없으면 400. status inactive = 퇴원: 로그인 불가·로그인 유지(refresh) 끊김·반 소속 모두 끝남(기록 보존, 코드는 그대로), 감사 로그. 이미 퇴원이면 아무것도 늘지 않음. active = 되살리기(상태만 — 반은 이동으로). 다른 학원 학생은 404. X-CSRF 필요",
-        "operationId" : "update_1",
+        "operationId" : "updateStudent",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -547,7 +547,7 @@
     "/api/v1/admin/teachers" : {
       "get" : {
         "description" : "id 순",
-        "operationId" : "list",
+        "operationId" : "listTeachers",
         "responses" : {
           "200" : {
             "content" : {
@@ -575,7 +575,7 @@
       },
       "post" : {
         "description" : "아이디가 이미 있으면(전체 학원, 대소문자 무관) 409 LOGIN_ID_TAKEN, 다른 학원 반이 있으면 404. X-CSRF 필요",
-        "operationId" : "create",
+        "operationId" : "createTeacher",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -615,7 +615,7 @@
     "/api/v1/admin/teachers/{id}" : {
       "patch" : {
         "description" : "빠진 칸은 그대로. 자기 비활성화는 409 SELF_CHANGE_NOT_ALLOWED, 다른 학원 교사·반은 404. 비활성화·비밀번호 재설정이면 그 교사의 refresh를 모두 끊음. X-CSRF 필요",
-        "operationId" : "update",
+        "operationId" : "updateTeacher",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -912,7 +912,7 @@
     "/api/v1/me/settings" : {
       "get" : {
         "description" : "저장한 적이 없으면 모든 값이 null. 기본값은 화면이 정한다",
-        "operationId" : "get",
+        "operationId" : "getMySettings",
         "responses" : {
           "200" : {
             "content" : {
@@ -940,7 +940,7 @@
       },
       "patch" : {
         "description" : "보낸 칸만 바꾼다. 보내지 않은 칸은 그대로, null은 그 칸만 비운다. 응답은 설정 전체. 네 목소리 밖의 값은 400 VALIDATION(errors[].field = voice)",
-        "operationId" : "patch",
+        "operationId" : "patchMySettings",
         "requestBody" : {
           "content" : {
             "application/json" : {

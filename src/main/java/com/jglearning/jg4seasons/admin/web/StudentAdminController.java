@@ -45,7 +45,7 @@ public class StudentAdminController {
 
     @Operation(summary = "반 학생 목록", description = "현재 소속 학생(이름 순, 같으면 id 순). 개인 코드 평문 없음. 다른 학원 반은 404")
     @GetMapping("/classes/{id}/students")
-    public StudentListResponse list(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
+    public StudentListResponse listClassStudents(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
         return service.list(Principals.academyId(jwt), Principals.userId(jwt), id);
     }
 
@@ -56,7 +56,7 @@ public class StudentAdminController {
                     + " 아닌 반은 409 CLASS_NOT_ACTIVE — 둘 다 아무도 만들지 않는다. X-CSRF 필요")
     @PostMapping("/classes/{id}/students")
     @ResponseStatus(HttpStatus.CREATED)
-    public StudentCreatedResponse create(
+    public StudentCreatedResponse createClassStudents(
             @AuthenticationPrincipal Jwt jwt, @PathVariable long id, @Valid @RequestBody StudentCreateRequest request) {
         return service.create(Principals.academyId(jwt), Principals.userId(jwt), id, request);
     }
@@ -79,7 +79,7 @@ public class StudentAdminController {
                     + " status inactive = 퇴원: 로그인 불가·로그인 유지(refresh) 끊김·반 소속 모두 끝남(기록 보존, 코드는 그대로), 감사 로그."
                     + " 이미 퇴원이면 아무것도 늘지 않음. active = 되살리기(상태만 — 반은 이동으로). 다른 학원 학생은 404. X-CSRF 필요")
     @PatchMapping("/students/{id}")
-    public StudentResponse update(
+    public StudentResponse updateStudent(
             @AuthenticationPrincipal Jwt jwt, @PathVariable long id, @Valid @RequestBody StudentUpdateRequest request) {
         if (!request.hasChange()) {
             throw ApiException.validation("body", "바꿀 값이 없어요");

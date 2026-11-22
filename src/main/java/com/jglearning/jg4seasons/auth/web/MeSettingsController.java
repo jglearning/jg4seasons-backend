@@ -26,7 +26,7 @@ public class MeSettingsController {
     @Operation(summary = "내 설정", description = "저장한 적이 없으면 모든 값이 null. 기본값은 화면이 정한다")
     @RolesAllowed("STUDENT")
     @GetMapping("/api/v1/me/settings")
-    public StudentSettingsResponse get(@AuthenticationPrincipal Jwt jwt) {
+    public StudentSettingsResponse getMySettings(@AuthenticationPrincipal Jwt jwt) {
         return service.get(Principals.userId(jwt), Principals.academyIdOrNull(jwt));
     }
 
@@ -36,7 +36,8 @@ public class MeSettingsController {
                     + " 네 목소리 밖의 값은 400 VALIDATION(errors[].field = voice)")
     @RolesAllowed("STUDENT")
     @PatchMapping("/api/v1/me/settings")
-    public StudentSettingsResponse patch(@AuthenticationPrincipal Jwt jwt, @RequestBody StudentSettingsPatch patch) {
+    public StudentSettingsResponse patchMySettings(
+            @AuthenticationPrincipal Jwt jwt, @RequestBody StudentSettingsPatch patch) {
         return service.patch(Principals.userId(jwt), Principals.academyIdOrNull(jwt), patch);
     }
 }

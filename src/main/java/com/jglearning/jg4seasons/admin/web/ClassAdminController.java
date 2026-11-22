@@ -43,7 +43,7 @@ public class ClassAdminController {
 
     @Operation(summary = "반 목록", description = "id 순, 가입 코드 포함. status를 빼면 전부")
     @GetMapping
-    public ClassListResponse list(
+    public ClassListResponse listClasses(
             @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "active · finished · archived")
                     @RequestParam(required = false)
@@ -58,7 +58,7 @@ public class ClassAdminController {
                     + " 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ClassResponse create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ClassCreateRequest request) {
+    public ClassResponse createClass(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ClassCreateRequest request) {
         return service.create(Principals.academyId(jwt), Principals.userId(jwt), request);
     }
 
@@ -73,7 +73,7 @@ public class ClassAdminController {
             description = "빠진 칸은 그대로. 권·개강일·요일은 바꿀 수 없음(새 반으로). active가 아니면 그 반 가입 코드로 입장할 수 없음."
                     + " teacherIds는 전체 교체. 다른 학원 반·교사는 404. X-CSRF 필요")
     @PatchMapping("/{id}")
-    public ClassResponse update(
+    public ClassResponse updateClass(
             @AuthenticationPrincipal Jwt jwt, @PathVariable long id, @Valid @RequestBody ClassUpdateRequest request) {
         return service.update(Principals.academyId(jwt), Principals.userId(jwt), id, request);
     }
