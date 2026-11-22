@@ -103,24 +103,32 @@ class OpenApiSpecTest {
     }
 
     @Test
-    void operationId는_springdoc이_번호를_붙이지_않은_고유한_이름이다() throws IOException {
+    void operationId는_번호가_없고_CRUD_동사만으로_된_이름이_아니다() throws IOException {
         // 메서드 이름이 겹치면 springdoc이 등록 순서대로 `_1`·`_2`를 붙인다. 컨트롤러가 늘면 번호가 다른 경로로 옮겨간다
-        String body = apiDocs().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        var root = new tools.jackson.databind.ObjectMapper().readTree(body);
-        java.util.List<String> numbered = new java.util.ArrayList<>();
+        MvcTestResult result = apiDocs();
+        assertThat(result).hasStatusOk();
+        var root = new tools.jackson.databind.ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        java.util.List<String> bad = new java.util.ArrayList<>();
         java.util.List<String> ids = new java.util.ArrayList<>();
         root.path("paths")
                 .properties()
                 .forEach(path -> path.getValue().properties().forEach(operation -> {
+                    if (!operation.getKey().matches("get|put|post|delete|patch|head|options|trace")) {
+                        return; // path 단위 parameters·summary 등은 operation이 아니다
+                    }
                     String id = operation.getValue().path("operationId").asString();
                     ids.add(id);
-                    // 동사만 있는 이름(`get`)은 다음에 같은 이름이 생기면 번호가 붙는다
-                    if (id.matches(".*_\\d+") || id.matches("get|post|put|patch|delete|list|create|update")) {
-                        numbered.add(operation.getKey().toUpperCase() + " " + path.getKey() + " = " + id);
+                    // 가장 자주 겹치는 CRUD 동사만 미리 막는다. 그 밖의 이름(`search`)은 겹치는 순간 `_숫자`로 잡힌다
+                    if (id.isBlank()
+                            || id.matches(".*_\\d+")
+                            || id.matches("get|post|put|patch|delete|list|create|update")) {
+                        bad.add(operation.getKey().toUpperCase() + " " + path.getKey() + " = '" + id + "'");
                     }
                 }));
+        // springdoc은 겹치면 번호를 붙여 고유하게 만든다. 중복은 @Operation(operationId)로 같은 값을 직접 넣은 경우다
         assertThat(ids).isNotEmpty().doesNotHaveDuplicates();
-        assertThat(numbered).as("핸들러 메서드 이름을 동사 + 대상으로 고유하게").isEmpty();
+        assertThat(bad).as("핸들러 메서드 이름을 동사 + 대상으로 고유하게").isEmpty();
     }
 
     @Test
