@@ -103,6 +103,27 @@ class OpenApiSpecTest {
     }
 
     @Test
+    void operationId는_springdoc이_번호를_붙이지_않은_고유한_이름이다() throws IOException {
+        // 메서드 이름이 겹치면 springdoc이 등록 순서대로 `_1`·`_2`를 붙인다. 컨트롤러가 늘면 번호가 다른 경로로 옮겨간다
+        String body = apiDocs().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        var root = new tools.jackson.databind.ObjectMapper().readTree(body);
+        java.util.List<String> numbered = new java.util.ArrayList<>();
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        root.path("paths")
+                .properties()
+                .forEach(path -> path.getValue().properties().forEach(operation -> {
+                    String id = operation.getValue().path("operationId").asString();
+                    ids.add(id);
+                    // 동사만 있는 이름(`get`)은 다음에 같은 이름이 생기면 번호가 붙는다
+                    if (id.matches(".*_\\d+") || id.matches("get|post|put|patch|delete|list|create|update")) {
+                        numbered.add(operation.getKey().toUpperCase() + " " + path.getKey() + " = " + id);
+                    }
+                }));
+        assertThat(ids).isNotEmpty().doesNotHaveDuplicates();
+        assertThat(numbered).as("핸들러 메서드 이름을 동사 + 대상으로 고유하게").isEmpty();
+    }
+
+    @Test
     void 인증_없이_다른_경로는_막힌다() {
         int status =
                 mvc.get().uri("/api/v1/student/home").exchange().getResponse().getStatus();

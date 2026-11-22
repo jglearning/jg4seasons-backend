@@ -38,7 +38,7 @@ public class TeacherAdminController {
 
     @Operation(summary = "교사·관리자 목록", description = "id 순")
     @GetMapping
-    public TeacherListResponse list(@AuthenticationPrincipal Jwt jwt) {
+    public TeacherListResponse listTeachers(@AuthenticationPrincipal Jwt jwt) {
         return service.list(Principals.academyId(jwt), Principals.userId(jwt));
     }
 
@@ -47,7 +47,8 @@ public class TeacherAdminController {
             description = "아이디가 이미 있으면(전체 학원, 대소문자 무관) 409 LOGIN_ID_TAKEN, 다른 학원 반이 있으면 404. X-CSRF 필요")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public TeacherResponse create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody TeacherCreateRequest request) {
+    public TeacherResponse createTeacher(
+            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody TeacherCreateRequest request) {
         return service.create(Principals.academyId(jwt), Principals.userId(jwt), request);
     }
 
@@ -56,7 +57,7 @@ public class TeacherAdminController {
             description = "빠진 칸은 그대로. 자기 비활성화는 409 SELF_CHANGE_NOT_ALLOWED, 다른 학원 교사·반은 404."
                     + " 비활성화·비밀번호 재설정이면 그 교사의 refresh를 모두 끊음. X-CSRF 필요")
     @PatchMapping("/{id}")
-    public TeacherResponse update(
+    public TeacherResponse updateTeacher(
             @AuthenticationPrincipal Jwt jwt, @PathVariable long id, @Valid @RequestBody TeacherUpdateRequest request) {
         return service.update(Principals.academyId(jwt), Principals.userId(jwt), id, request);
     }
