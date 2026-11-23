@@ -41,6 +41,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -339,8 +340,9 @@ public class RosterImportService {
                 .collect(Collectors.toSet());
         Set<String> names = new HashSet<>();
         items.forEach(item -> item.students().forEach(s -> names.add(clean(s.name()))));
+        // 학생 표 정렬(utf8mb4_0900_ai_ci)이 영문 대소문자를 구분하지 않아 조회도 그렇게 찾는다 — 묶는 키도 같은 기준
         Map<String, List<StudentAccount>> sameName = students.findActiveByNames(academyId, names).stream()
-                .collect(Collectors.groupingBy(account -> clean(account.name())));
+                .collect(Collectors.groupingBy(account -> nameKey(account.name())));
         Map<Long, ClassRef> classOf = roster.currentClassOf(
                 academyId,
                 sameName.values().stream()
@@ -349,16 +351,21 @@ public class RosterImportService {
                         .toList());
 
         List<WarningItem> warnings = new ArrayList<>();
+        Set<String> newClassNames = new HashSet<>();
         for (int i = 0; i < items.size(); i++) {
             RosterImportRequest.Item item = items.get(i);
-            if (item.newClass() != null
-                    && activeClassNames.contains(clean(item.newClass().name()))) {
-                warnings.add(new WarningItem(
-                        "classes[" + i + "].newClass.name", RosterWarning.SAME_NAME_CLASS, "같은 이름의 반이 이미 있어요"));
+            if (item.newClass() != null) {
+                String className = clean(item.newClass().name());
+                String at = "classes[" + i + "].newClass.name";
+                if (activeClassNames.contains(className)) {
+                    warnings.add(new WarningItem(at, RosterWarning.SAME_NAME_CLASS, "같은 이름의 반이 이미 있어요"));
+                } else if (!newClassNames.add(className)) {
+                    warnings.add(new WarningItem(at, RosterWarning.SAME_NAME_CLASS, "이 명단에 같은 이름의 반이 또 있어요"));
+                }
             }
             for (int j = 0; j < item.students().size(); j++) {
                 List<StudentAccount> found =
-                        sameName.get(clean(item.students().get(j).name()));
+                        sameName.get(nameKey(item.students().get(j).name()));
                 if (found == null) {
                     continue;
                 }
@@ -394,6 +401,11 @@ public class RosterImportService {
 
     private static RosterIssue validation(String field, String message) {
         return new RosterIssue(field, RosterIssue.VALIDATION, message);
+    }
+
+    /** 같은 이름 경고 키: 앞뒤 공백 제거 + 영문 소문자(학생 표 정렬과 같은 대소문자 무시) */
+    private static String nameKey(@Nullable String value) {
+        return clean(value).toLowerCase(Locale.ROOT);
     }
 
     private static String clean(@Nullable String value) {

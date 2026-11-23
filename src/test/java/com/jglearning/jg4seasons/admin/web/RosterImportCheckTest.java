@@ -229,6 +229,35 @@ class RosterImportCheckTest {
     }
 
     @Test
+    void 영문_이름은_대소문자가_달라도_같은_이름_경고() {
+        // 학생 표 정렬(utf8mb4_0900_ai_ci)이 대소문자를 구분하지 않으므로 경고도 같은 기준
+        data.enroll(greenId, data.student(academyId, "Alex Kim"));
+
+        MvcTestResult result = check("[{\"existingClassId\":" + greenId + ",\"students\":[{\"name\":\"alex kim\"}]}]");
+
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.warnings[*].code")
+                .asArray()
+                .containsExactly("SAME_NAME_STUDENT");
+    }
+
+    @Test
+    void 이_명단_안에서_새_반_이름이_겹치면_두_번째부터_경고() {
+        MvcTestResult result = check("[{\"newClass\":" + newClass("블루 화목반", "L3-B1", "[]")
+                + ",\"students\":[{\"name\":\"가\"}]},"
+                + "{\"newClass\":" + newClass(" 블루 화목반 ", "L3-B1", "[]") + ",\"students\":[{\"name\":\"나\"}]}]");
+
+        assertThat(result).bodyJson().extractingPath("$.errors").asArray().isEmpty();
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.warnings[*].field")
+                .asArray()
+                .containsExactly("classes[1].newClass.name");
+        assertThat(result).bodyJson().extractingPath("$.warnings[0].message").isEqualTo("이 명단에 같은 이름의 반이 또 있어요");
+    }
+
+    @Test
     void 같은_이름_학생과_반은_경고만() {
         data.enroll(greenId, data.student(academyId, "김민준"));
         long gone = data.student(academyId, "퇴원생");
