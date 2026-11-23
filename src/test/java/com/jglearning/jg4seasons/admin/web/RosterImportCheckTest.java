@@ -7,6 +7,7 @@ import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.AuthCookieSupport;
 import com.jglearning.jg4seasons.auth.UserRole;
+import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.Cookie;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -42,6 +43,9 @@ class RosterImportCheckTest {
 
     @Autowired
     MutableClock clock;
+
+    @Autowired
+    EntityManager entityManager;
 
     TestData data;
     long academyId;
@@ -314,5 +318,116 @@ class RosterImportCheckTest {
                 AuthCookieSupport.csrf());
 
         assertThat(result).hasStatus(403);
+    }
+
+    @Test
+    void 비활성화된_관리자의_남은_access는_401() {
+        jdbc.update("update `user` set status = 'inactive' where id = ?", adminId);
+        entityManager.clear();
+
+        assertThat(check("[{\"existingClassId\":" + greenId + ",\"students\":[{\"name\":\"김민준\"}]}]"))
+                .hasStatus(401);
+    }
+
+    @Test
+    void 사용권_시작_전이면_통과한다() {
+        // 처음 시작하는 학원은 개강 준비 기간(before_start)에 명단을 넣는다 — 학습 허용(allowsLearning)과 헷갈리면 여기서 막힌다
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L2-B1", TODAY.plusDays(1), TODAY.plusDays(60), 30);
+
+        MvcTestResult result = check("[{\"existingClassId\":" + greenId + ",\"students\":" + studentsJson("가", 2) + "},"
+                + "{\"newClass\":" + newClass("그린 화목반", "L2-B1", "[]") + ",\"students\":" + studentsJson("나", 2)
+                + "}]");
+
+        assertThat(result).bodyJson().extractingPath("$.errors").asArray().isEmpty();
+    }
+
+    @Test
+    void 사용권_미적용_학원은_사용권_줄이_있어도_한도를_보지_않는다() {
+        data.license(academyId, "L2-B1", TODAY.minusDays(9), TODAY.plusDays(60), 1);
+
+        MvcTestResult result =
+                check("[{\"existingClassId\":" + greenId + ",\"students\":" + studentsJson("가", 3) + "}]");
+
+        assertThat(result).bodyJson().extractingPath("$.errors").asArray().isEmpty();
+    }
+
+    @Test
+    void 한도는_처음_넘는_반_하나에만() {
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L2-B1", TODAY.minusDays(9), TODAY.plusDays(60), 3);
+
+        // 2 → 4(넘음) → 6: 두 번째 반 하나에만 오류
+        MvcTestResult result = check("[{\"existingClassId\":" + greenId + ",\"students\":" + studentsJson("가", 2) + "},"
+                + "{\"newClass\":" + newClass("그린 화목반", "L2-B1", "[]") + ",\"students\":" + studentsJson("나", 2)
+                + "},"
+                + "{\"newClass\":" + newClass("그린 금요반", "L2-B1", "[]") + ",\"students\":" + studentsJson("다", 2)
+                + "}]");
+
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.errors[*].field")
+                .asArray()
+                .containsExactly("classes[1]");
+    }
+
+    @Test
+    void 오류는_반_항목_순서로_정렬된다() {
+        // 0번 반 고르기 오류(요청 규칙, 나중에 모음)가 1번 다른 학원 반 오류(데이터, 먼저 모음)보다 앞
+        long other = data.academy("다른 학원");
+        long otherClass = data.clazz(other, "L2-B1", "다른 반", TestData.uniqueAccessCode(), "active");
+
+        MvcTestResult result = check("[{\"existingClassId\":" + greenId + ",\"newClass\":"
+                + newClass("새 반", "L2-B1", "[]") + ",\"students\":[{\"name\":\"가\"}]},"
+                + "{\"existingClassId\":" + otherClass + ",\"students\":[{\"name\":\"나\"}]}]");
+
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.errors[*].field")
+                .asArray()
+                .containsExactly("classes[0]", "classes[1].existingClassId");
+    }
+
+    @Test
+    void 같은_이름_경고는_다른_학원_학생을_보지_않는다() throws Exception {
+        long other = data.academy("다른 학원");
+        long otherClass = data.clazz(other, "L2-B1", "다른 학원 비밀반", TestData.uniqueAccessCode(), "active");
+        data.enroll(otherClass, data.student(other, "김민준"));
+
+        MvcTestResult result = check("[{\"existingClassId\":" + greenId + ",\"students\":[{\"name\":\"김민준\"}]}]");
+
+        assertThat(result).bodyJson().extractingPath("$.warnings").asArray().isEmpty();
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("다른 학원 비밀반");
+    }
+
+    @Test
+    void 요일과_반_이름_경계는_반_만들기와_같다() {
+        String fifty = "가".repeat(50);
+        String fiftyOne = "가".repeat(51);
+        String item =
+                "{\"newClass\":{\"name\":\"%s\",\"bookCode\":\"L2-B1\",\"startDate\":\"2026-12-01\",\"weekdays\":%s,"
+                        + "\"teacherIds\":[]},\"students\":[{\"name\":\"학생%d\"}]}";
+
+        MvcTestResult result = check("[" + String.format(item, "일요반", "[7]", 0) + ","
+                + String.format(item, "영요일반", "[0]", 1) + ","
+                + String.format(item, "팔요일반", "[8]", 2) + ","
+                + String.format(item, fifty, "[1]", 3) + ","
+                + String.format(item, fiftyOne, "[1]", 4) + "]");
+
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.errors[*].field")
+                .asArray()
+                .containsExactly(
+                        "classes[1].newClass.weekdays", "classes[2].newClass.weekdays", "classes[4].newClass.name");
+    }
+
+    @Test
+    void 반마다_학생_50명은_된다() {
+        MvcTestResult result =
+                check("[{\"existingClassId\":" + greenId + ",\"students\":" + studentsJson("가", 50) + "}]");
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.errors").asArray().isEmpty();
     }
 }

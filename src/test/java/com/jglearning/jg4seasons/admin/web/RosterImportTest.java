@@ -8,7 +8,9 @@ import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.AuthCookieSupport;
 import com.jglearning.jg4seasons.auth.UserRole;
+import jakarta.persistence.EntityManager;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
@@ -30,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 class RosterImportTest {
 
     static final Instant NOON_KST = Instant.parse("2026-11-10T03:00:00Z");
+    static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
     static final AtomicInteger IP_SEQ = new AtomicInteger(1);
 
     @Autowired
@@ -43,6 +46,9 @@ class RosterImportTest {
 
     @Autowired
     MutableClock clock;
+
+    @Autowired
+    EntityManager entityManager;
 
     TestData data;
     long academyId;
@@ -243,5 +249,54 @@ class RosterImportTest {
                 .exchange();
 
         assertThat(result).hasStatus(403);
+    }
+
+    @Test
+    void 비활성화된_관리자의_남은_access는_401() {
+        jdbc.update("update `user` set status = 'inactive' where id = ?", adminId);
+        entityManager.clear();
+
+        assertThat(create("[{\"existingClassId\":" + greenId + ",\"students\":[{\"name\":\"김민준\"}]}]"))
+                .hasStatus(401);
+        assertThat(count("select count(*) from `user` where academy_id = ? and role = 'student'", academyId))
+                .isZero();
+    }
+
+    @Test
+    void 사용권_시작_전이면_만든다() {
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L3-B1", TODAY.plusDays(1), TODAY.plusDays(60), 30);
+
+        MvcTestResult result =
+                create("[{\"newClass\":" + newClass("블루 화목반", "L3-B1", "[]") + ",\"students\":[{\"name\":\"이서연\"}]}]");
+
+        assertThat(result).hasStatus(201);
+    }
+
+    @Test
+    void 기간이_끝난_권이면_403_LICENSE_INACTIVE() {
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L2-B1", TODAY.minusDays(60), TODAY.minusDays(1), 30);
+
+        MvcTestResult result = create("[{\"existingClassId\":" + greenId + ",\"students\":[{\"name\":\"김민준\"}]}]");
+
+        assertThat(result).hasStatus(403);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("LICENSE_INACTIVE");
+    }
+
+    @Test
+    void 새_반의_교사가_다른_학원이거나_비활성이면_404() {
+        long otherTeacher = data.staff(data.academy("다른 학원"), "다른 교사", "teacher");
+        long quit = data.staff(academyId, "그만둔 교사", "teacher");
+        jdbc.update("update `user` set status = 'inactive' where id = ?", quit);
+
+        for (long teacher : new long[] {otherTeacher, quit}) {
+            MvcTestResult result = create("[{\"newClass\":" + newClass("블루 화목반", "L3-B1", "[" + teacher + "]")
+                    + ",\"students\":[{\"name\":\"이서연\"}]}]");
+
+            assertThat(result).hasStatus(404);
+        }
+        assertThat(count("select count(*) from class_teacher where user_id in (?, ?)", otherTeacher, quit))
+                .isZero();
     }
 }

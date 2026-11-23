@@ -147,14 +147,44 @@ class RosterImportCommitTest {
     }
 
     @Test
-    void 성공하면_커밋된다() {
+    void 다른_학원_교사를_넣으면_404이고_반도_교사_배정도_남지_않는다() {
+        long other = new TestData(jdbc).academy("다른 커밋 학원");
+        long otherTeacher = new TestData(jdbc).staff(other, "다른 교사", "teacher");
         String before = snapshot();
+        try {
+            MvcTestResult result = create("[{\"newClass\":" + newClass("블루 화목반", "L3-B1")
+                    + ",\"students\":[{\"name\":\"이서연\"}]},"
+                    + "{\"newClass\":{\"name\":\"교사 반\",\"bookCode\":\"L3-B1\",\"startDate\":\"2026-12-01\","
+                    + "\"weekdays\":[2,4],\"teacherIds\":[" + otherTeacher + "]},\"students\":[{\"name\":\"김민준\"}]}]");
 
-        MvcTestResult result =
-                create("[{\"newClass\":" + newClass("블루 화목반", "L3-B1") + ",\"students\":[{\"name\":\"이서연\"}]}]");
+            assertThat(result).hasStatus(404);
+            assertThat(snapshot()).isEqualTo(before);
+            assertThat(count("select count(*) from class_teacher where user_id = " + otherTeacher))
+                    .isZero();
+        } finally {
+            jdbc.update("delete from `user` where academy_id = ?", other);
+            jdbc.update("delete from academy where id = ?", other);
+        }
+    }
+
+    @Test
+    void 성공하면_반_학생_코드_소속_감사가_커밋된다() {
+        MvcTestResult result = create("[{\"newClass\":" + newClass("블루 화목반", "L3-B1")
+                + ",\"students\":[{\"name\":\"이서연\"},{\"name\":\"박지호\"}]}]");
 
         assertThat(result).hasStatus(201);
-        assertThat(snapshot()).isNotEqualTo(before);
+        String classes = "(select id from `class` where academy_id = " + academyId + ")";
+        String users = "(select id from `user` where academy_id = " + academyId + " and role = 'student')";
+        assertThat(count("select count(*) from `class` where academy_id = " + academyId))
+                .isEqualTo(2); // 그린 + 새 반
+        assertThat(count("select count(*) from class_session where class_id in " + classes))
+                .isEqualTo(24);
+        assertThat(count("select count(*) from `user` where academy_id = " + academyId + " and role = 'student'"))
+                .isEqualTo(2);
+        assertThat(count("select count(*) from auth_identity where user_id in " + users))
+                .isEqualTo(2);
+        assertThat(count("select count(*) from enrollment where class_id in " + classes))
+                .isEqualTo(2);
         assertThat(count("select count(*) from audit_log where academy_id = " + academyId
                         + " and action = 'ROSTER_IMPORT'"))
                 .isEqualTo(1);
