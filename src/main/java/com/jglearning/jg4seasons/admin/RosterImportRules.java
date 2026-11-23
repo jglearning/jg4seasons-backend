@@ -46,14 +46,15 @@ final class RosterImportRules {
                     continue;
                 }
                 String who = display(student);
+                String name = clean(student.name());
                 String field = "classes[" + c + "].students[" + i + "].name";
                 if (first == c) {
-                    issues.add(validation(field, who + subject(who) + " " + draft.label() + "에 두 번 있어요. 한 줄만 남겨 주세요"));
+                    issues.add(validation(field, who + subject(name) + " " + draft.label() + "에 두 번 있어요. 한 줄만 남겨 주세요"));
                 } else {
                     String firstLabel = drafts.get(first).label();
                     issues.add(validation(
                             field,
-                            who + subject(who) + " " + firstLabel + with(firstLabel) + " " + draft.label()
+                            who + subject(name) + " " + firstLabel + with(firstLabel) + " " + draft.label()
                                     + "에 모두 있어요. 한 반만 남겨 주세요"));
                 }
             }
@@ -99,17 +100,17 @@ final class RosterImportRules {
         return batchim == null ? "과(와)" : batchim ? "과" : "와";
     }
 
-    /** 끝 글자에 받침이 있는가. 닫는 괄호는 건너뛴다. 한글·숫자·영문 대문자 일부만 판단하고, 모르면 null */
+    /**
+     * 끝 글자에 받침이 있는가. 괄호가 있으면 첫 `(` 앞 낱말로 본다(`그린(월수)` → 그린 — 조사는 괄호 앞 낱말에 맞춘다). 한글·숫자·영문 일부만 판단하고, 모르면
+     * null
+     */
     private static @Nullable Boolean endsWithBatchim(String word) {
-        String trimmed = word.strip();
-        int end = trimmed.length();
-        while (end > 0 && trimmed.charAt(end - 1) == ')') {
-            end--;
-        }
-        if (end == 0) {
+        int paren = word.indexOf('(');
+        String head = (paren >= 0 ? word.substring(0, paren) : word).strip();
+        if (head.isEmpty()) {
             return null;
         }
-        char last = trimmed.charAt(end - 1);
+        char last = head.charAt(head.length() - 1);
         if (last >= '가' && last <= '힣') {
             return (last - '가') % 28 != 0;
         }

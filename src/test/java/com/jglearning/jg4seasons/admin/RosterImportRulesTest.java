@@ -143,6 +143,31 @@ class RosterImportRulesTest {
     }
 
     @Test
+    void 조사는_괄호_앞_이름과_반_이름에_맞춘다() {
+        // 괄호 안 끝 글자(중2의 2, 중1의 1)를 따르면 "김민준(A중·중2)가", "이서아(중1)이"가 된다
+        List<RosterIssue> issues = RosterImportRules.inspect(List.of(
+                draft("그린(월수)", s("김민준", "A중", "중2"), s("이서아", null, "중1")),
+                draft("블루(화목)", s("김민준", "A중", "중2"), s("이서아", null, "중1"))));
+
+        assertThat(issues)
+                .extracting(RosterIssue::message)
+                .containsExactly(
+                        "김민준(A중·중2)이 그린(월수)과 블루(화목)에 모두 있어요. 한 반만 남겨 주세요",
+                        "이서아(중1)가 그린(월수)과 블루(화목)에 모두 있어요. 한 반만 남겨 주세요");
+    }
+
+    @Test
+    void 받침_없는_반_이름에는_와() {
+        List<RosterIssue> issues = RosterImportRules.inspect(
+                List.of(draft("블루(화목)", s("김민준", null, null)), draft("그린", s("김민준", null, null))));
+
+        assertThat(issues)
+                .singleElement()
+                .extracting(RosterIssue::message)
+                .isEqualTo("김민준이 블루(화목)와 그린에 모두 있어요. 한 반만 남겨 주세요");
+    }
+
+    @Test
     void 빈_요청은_검사하지_않는다() {
         // 반 1~30개·반마다 1~50명은 Bean Validation이 400으로 먼저 막는다
         assertThat(RosterImportRules.inspect(Collections.emptyList())).isEmpty();
