@@ -42,4 +42,7 @@ public interface StudentAccounts {
 
     /** 그 학원 학생 id 전부(퇴원 포함) */
     List<Long> studentIds(long academyId);
+
+    /** 이름이 정확히 같은(앞뒤 공백 제거 뒤) 활성 학생, id 순. 명단 가져오기의 같은 이름 경고용(ADR 0036). 빈 이름은 무시 */
+    List<StudentAccount> findActiveByNames(long academyId, Collection<String> names);
 }

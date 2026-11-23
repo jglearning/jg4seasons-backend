@@ -35,5 +35,9 @@ public interface UserRepository extends AcademyScopedRepository<User, Long> {
     @Query("select u.id from User u where u.academyId = :academyId and u.role = :role")
     List<Long> findIdsByAcademyIdAndRole(@Param("academyId") Long academyId, @Param("role") UserRole role);
 
+    /** 이름이 정확히 같은 사용자(역할·상태로 거름), id 순 */
+    List<User> findByAcademyIdAndRoleAndStatusAndNameInOrderByIdAsc(
+            Long academyId, UserRole role, UserStatus status, Collection<String> names);
+
     User save(User user);
 }
