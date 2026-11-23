@@ -18,6 +18,7 @@ public record RosterImportRequest(
         @Size(min = 1, max = 30, message = "반은 1~30개예요")
         List<@NotNull @Valid Item> classes) {
 
+    @Schema(name = "RosterImportClassItem", description = "반 항목 하나: 기존 반 id 또는 새 반, 그리고 학생")
     public record Item(
             @Schema(description = "학생을 넣을 기존 반 id. newClass와 둘 중 하나만") @Nullable
             Long existingClassId,

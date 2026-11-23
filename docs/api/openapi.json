@@ -2622,69 +2622,6 @@
         },
         "required" : [ "completed", "coverage", "trackId" ]
       },
-      "ImportedClass" : {
-        "type" : "object",
-        "properties" : {
-          "accessCode" : {
-            "type" : "string",
-            "description" : "반 가입 코드(카드 인쇄용)"
-          },
-          "classId" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "created" : {
-            "type" : "boolean",
-            "description" : "true = 이번에 만든 반, false = 기존 반"
-          },
-          "level" : {
-            "$ref" : "#/components/schemas/ClassLevel"
-          },
-          "levelCode" : {
-            "type" : "string",
-            "example" : "L2"
-          },
-          "name" : {
-            "type" : "string"
-          },
-          "season" : {
-            "type" : "string",
-            "description" : "5.1 반 응답의 season과 같음"
-          },
-          "students" : {
-            "type" : "array",
-            "description" : "이번에 만든 학생, 요청 순서",
-            "items" : {
-              "$ref" : "#/components/schemas/PersonalCodeItem"
-            }
-          }
-        },
-        "required" : [ "accessCode", "classId", "created", "level", "levelCode", "name", "season", "students" ]
-      },
-      "Item" : {
-        "type" : "object",
-        "properties" : {
-          "existingClassId" : {
-            "type" : "integer",
-            "format" : "int64",
-            "description" : "학생을 넣을 기존 반 id. newClass와 둘 중 하나만"
-          },
-          "newClass" : {
-            "$ref" : "#/components/schemas/ClassCreateRequest",
-            "description" : "새로 만들 반(5.1 반 만들기와 같은 칸). existingClassId와 둘 중 하나만"
-          },
-          "students" : {
-            "type" : "array",
-            "description" : "1~50명. 새 학생으로 만든다(기존 학생을 찾아 옮기지 않음)",
-            "items" : {
-              "$ref" : "#/components/schemas/StudentCreateItem"
-            },
-            "maxItems" : 50,
-            "minItems" : 1
-          }
-        },
-        "required" : [ "students" ]
-      },
       "LessonDetailCompletion" : {
         "type" : "object",
         "properties" : {
@@ -3391,18 +3328,63 @@
             "type" : "array",
             "description" : "고쳐야 만들 수 있는 것. 비면 만들 수 있음",
             "items" : {
-              "$ref" : "#/components/schemas/Item"
+              "$ref" : "#/components/schemas/RosterImportIssue"
             }
           },
           "warnings" : {
             "type" : "array",
             "description" : "만들 수는 있지만 확인할 것",
             "items" : {
-              "$ref" : "#/components/schemas/Item"
+              "$ref" : "#/components/schemas/RosterImportIssue"
             }
           }
         },
         "required" : [ "errors", "warnings" ]
+      },
+      "RosterImportClassItem" : {
+        "type" : "object",
+        "description" : "반 항목 하나: 기존 반 id 또는 새 반, 그리고 학생",
+        "properties" : {
+          "existingClassId" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "학생을 넣을 기존 반 id. newClass와 둘 중 하나만"
+          },
+          "newClass" : {
+            "$ref" : "#/components/schemas/ClassCreateRequest",
+            "description" : "새로 만들 반(5.1 반 만들기와 같은 칸). existingClassId와 둘 중 하나만"
+          },
+          "students" : {
+            "type" : "array",
+            "description" : "1~50명. 새 학생으로 만든다(기존 학생을 찾아 옮기지 않음)",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentCreateItem"
+            },
+            "maxItems" : 50,
+            "minItems" : 1
+          }
+        },
+        "required" : [ "students" ]
+      },
+      "RosterImportIssue" : {
+        "type" : "object",
+        "description" : "검사 오류 또는 경고 하나",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "오류: VALIDATION · NOT_FOUND · CLASS_NOT_ACTIVE · LICENSE_INACTIVE · LICENSE_SEATS_FULL (만들기가 실패할 때와 같은 code). 경고: SAME_NAME_STUDENT · SAME_NAME_CLASS"
+          },
+          "field" : {
+            "type" : "string",
+            "description" : "요청 안 위치: classes · classes[1] · classes[1].newClass.bookCode · classes[1].students[3].name",
+            "example" : "classes[1].students[3].name"
+          },
+          "message" : {
+            "type" : "string",
+            "description" : "화면에 그대로 보일 문구"
+          }
+        },
+        "required" : [ "code", "field", "message" ]
       },
       "RosterImportRequest" : {
         "type" : "object",
@@ -3411,7 +3393,7 @@
             "type" : "array",
             "description" : "반 항목 1~30개, 요청 순서대로 만든다",
             "items" : {
-              "$ref" : "#/components/schemas/Item"
+              "$ref" : "#/components/schemas/RosterImportClassItem"
             },
             "maxItems" : 30,
             "minItems" : 1
@@ -3426,7 +3408,7 @@
             "type" : "array",
             "description" : "요청 순서",
             "items" : {
-              "$ref" : "#/components/schemas/ImportedClass"
+              "$ref" : "#/components/schemas/RosterImportedClass"
             }
           },
           "createdClasses" : {
@@ -3441,6 +3423,45 @@
           }
         },
         "required" : [ "classes", "createdClasses", "createdStudents" ]
+      },
+      "RosterImportedClass" : {
+        "type" : "object",
+        "properties" : {
+          "accessCode" : {
+            "type" : "string",
+            "description" : "반 가입 코드(카드 인쇄용)"
+          },
+          "classId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "created" : {
+            "type" : "boolean",
+            "description" : "true = 이번에 만든 반, false = 기존 반"
+          },
+          "level" : {
+            "$ref" : "#/components/schemas/ClassLevel"
+          },
+          "levelCode" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "season" : {
+            "type" : "string",
+            "description" : "5.1 반 응답의 season과 같음"
+          },
+          "students" : {
+            "type" : "array",
+            "description" : "이번에 만든 학생, 요청 순서",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonalCodeItem"
+            }
+          }
+        },
+        "required" : [ "accessCode", "classId", "created", "level", "levelCode", "name", "season", "students" ]
       },
       "SessionCancelRequest" : {
         "type" : "object",

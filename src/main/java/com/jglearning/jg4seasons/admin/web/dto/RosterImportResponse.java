@@ -16,6 +16,7 @@ public record RosterImportResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "이번에 만든 학생 수")
         int createdStudents) {
 
+    @Schema(name = "RosterImportedClass")
     public record ImportedClass(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             long classId,

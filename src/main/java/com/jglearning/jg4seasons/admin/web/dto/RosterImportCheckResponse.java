@@ -14,6 +14,7 @@ public record RosterImportCheckResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "만들 수는 있지만 확인할 것")
         List<Item> warnings) {
 
+    @Schema(name = "RosterImportIssue", description = "검사 오류 또는 경고 하나")
     public record Item(
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
