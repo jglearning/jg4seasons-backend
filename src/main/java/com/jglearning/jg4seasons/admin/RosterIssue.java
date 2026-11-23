@@ -5,7 +5,7 @@ package com.jglearning.jg4seasons.admin;
  * 때와 같은 오류 code 이름(VALIDATION·NOT_FOUND는 공통, CLASS_NOT_ACTIVE·LICENSE_*는 반 모듈 — 반 모듈 code는 공개 api가 아니라 이름으로만 든다).
  * message는 화면에 그대로 보일 문구라 입력값은 이름·반 이름까지만 넣는다(개인 코드 없음).
  */
-public record RosterIssue(String field, String code, String message) {
+record RosterIssue(String field, String code, String message) {
 
     static final String VALIDATION = "VALIDATION";
     static final String NOT_FOUND = "NOT_FOUND";
