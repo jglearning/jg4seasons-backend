@@ -5,9 +5,14 @@ import com.jglearning.jg4seasons.academy.api.BookLicenses;
 import com.jglearning.jg4seasons.admin.RosterImportRules.Draft;
 import com.jglearning.jg4seasons.admin.RosterImportRules.Student;
 import com.jglearning.jg4seasons.admin.web.dto.ClassCreateRequest;
+import com.jglearning.jg4seasons.admin.web.dto.ClassResponse;
+import com.jglearning.jg4seasons.admin.web.dto.PersonalCodeItem;
 import com.jglearning.jg4seasons.admin.web.dto.RosterImportCheckResponse;
 import com.jglearning.jg4seasons.admin.web.dto.RosterImportRequest;
+import com.jglearning.jg4seasons.admin.web.dto.RosterImportResponse;
 import com.jglearning.jg4seasons.auth.api.AccountStatus;
+import com.jglearning.jg4seasons.auth.api.IssuedCode;
+import com.jglearning.jg4seasons.auth.api.NewStudent;
 import com.jglearning.jg4seasons.auth.api.StaffAccount;
 import com.jglearning.jg4seasons.auth.api.StaffAccounts;
 import com.jglearning.jg4seasons.auth.api.StudentAccount;
@@ -17,10 +22,18 @@ import com.jglearning.jg4seasons.clazz.api.ClassManagement;
 import com.jglearning.jg4seasons.clazz.api.ClassRef;
 import com.jglearning.jg4seasons.clazz.api.ClassRoster;
 import com.jglearning.jg4seasons.clazz.api.ClassStatus;
+import com.jglearning.jg4seasons.clazz.api.ClassTeachers;
 import com.jglearning.jg4seasons.clazz.api.LicenseUsage;
 import com.jglearning.jg4seasons.clazz.api.LicenseUsages;
+import com.jglearning.jg4seasons.clazz.api.NewClass;
 import com.jglearning.jg4seasons.content.api.BookDirectory;
 import com.jglearning.jg4seasons.content.api.BookLessons;
+import com.jglearning.jg4seasons.content.api.BookSummary;
+import com.jglearning.jg4seasons.infra.audit.AuditAction;
+import com.jglearning.jg4seasons.infra.audit.AuditLogger;
+import com.jglearning.jg4seasons.infra.audit.AuditTarget;
+import com.jglearning.jg4seasons.infra.web.error.ApiException;
+import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -33,6 +46,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
@@ -58,6 +72,8 @@ public class RosterImportService {
     private final BookDirectory books;
     private final BookLicenses licenses;
     private final LicenseUsages usages;
+    private final ClassTeachers classTeachers;
+    private final AuditLogger auditLogger;
     private final Clock clock;
 
     RosterImportService(
@@ -69,6 +85,8 @@ public class RosterImportService {
             BookDirectory books,
             BookLicenses licenses,
             LicenseUsages usages,
+            ClassTeachers classTeachers,
+            AuditLogger auditLogger,
             Clock clock) {
         this.academies = academies;
         this.staff = staff;
@@ -78,7 +96,103 @@ public class RosterImportService {
         this.books = books;
         this.licenses = licenses;
         this.usages = usages;
+        this.classTeachers = classTeachers;
+        this.auditLogger = auditLogger;
         this.clock = clock;
+    }
+
+    /**
+     * 만들기. 학원 관리 쓰기 잠금 → 검사 → 반 항목 순서대로 (새 반이면 반·진도표·가입 코드 + 담당 교사) → 새 학생·개인 코드 → 소속, 한 트랜잭션. 검사 오류가
+     * 있으면 아무것도 남기지 않는다: 첫 오류가 공통 code(VALIDATION·NOT_FOUND)면 여기서 던지고, 반 모듈 code(CLASS_NOT_ACTIVE·LICENSE_*)면 같은
+     * 잠금 안에서 같은 데이터를 보는 반 생성·소속 경로가 그 항목에서 그대로 던진다(앞서 만든 것은 롤백). 감사 로그 한 줄(이름·코드 없음)
+     */
+    public RosterImportResponse create(long academyId, long actorId, RosterImportRequest request) {
+        academies.lockForAdminWrite(academyId);
+        staff.requireActiveAdmin(academyId, actorId);
+        LocalDate today = today(academyId);
+        Inspection inspection = inspect(academyId, request, today);
+        Optional<RosterIssue> firstError = inspection.errors().stream().findFirst();
+        firstError.ifPresent(RosterImportService::throwIfCommon);
+
+        List<RosterImportResponse.ImportedClass> imported = new ArrayList<>();
+        List<Long> createdClassIds = new ArrayList<>();
+        List<Long> existingClassIds = new ArrayList<>();
+        int createdStudents = 0;
+        for (int i = 0; i < request.classes().size(); i++) {
+            RosterImportRequest.Item item = request.classes().get(i);
+            Resolved resolved = inspection.resolved().get(i);
+            ClassDetail target;
+            boolean created = item.newClass() != null;
+            if (created) {
+                ClassCreateRequest newClass = item.newClass();
+                target = classes.create(
+                        academyId,
+                        new NewClass(
+                                newClass.name(),
+                                Objects.requireNonNull(resolved.lessons()),
+                                newClass.startDate(),
+                                newClass.weekdays()));
+                classTeachers.replaceTeachersOf(academyId, target.id(), new TreeSet<>(newClass.teacherIds()));
+                createdClassIds.add(target.id());
+            } else {
+                target = Objects.requireNonNull(resolved.existing());
+                existingClassIds.add(target.id());
+            }
+            List<IssuedCode> issued = students.create(
+                    academyId,
+                    item.students().stream()
+                            .map(s -> new NewStudent(s.name(), s.school(), s.grade()))
+                            .toList());
+            roster.enroll(
+                    academyId,
+                    target.id(),
+                    issued.stream().map(IssuedCode::studentId).toList(),
+                    today);
+            createdStudents += issued.size();
+            imported.add(toImported(target, created, issued));
+        }
+        if (firstError.isPresent()) {
+            // 검사가 막은 요청이 끝까지 왔다 — 반 모듈 규칙과 검사가 어긋남. 500으로 롤백(입력값 없이)
+            throw new IllegalStateException("명단 가져오기 검사 오류가 생성에서 막히지 않음: "
+                    + firstError.get().code() + " " + firstError.get().field());
+        }
+        auditLogger.record(
+                academyId,
+                actorId,
+                AuditAction.ROSTER_IMPORT,
+                AuditTarget.ACADEMY,
+                academyId,
+                Map.of(
+                        "createdClassIds", createdClassIds,
+                        "existingClassIds", existingClassIds,
+                        "createdStudents", createdStudents));
+        return new RosterImportResponse(List.copyOf(imported), createdClassIds.size(), createdStudents);
+    }
+
+    private static void throwIfCommon(RosterIssue issue) {
+        switch (issue.code()) {
+            case RosterIssue.VALIDATION -> throw ApiException.validation(issue.field(), issue.message());
+            case RosterIssue.NOT_FOUND -> throw new ApiException(CommonErrorCode.NOT_FOUND, issue.message());
+            default -> {
+                // 반 모듈 code — 생성 경로가 던진다
+            }
+        }
+    }
+
+    private RosterImportResponse.ImportedClass toImported(
+            ClassDetail target, boolean created, List<IssuedCode> issued) {
+        BookSummary book = books.summaryOf(target.bookId());
+        return new RosterImportResponse.ImportedClass(
+                target.id(),
+                created,
+                target.name(),
+                target.accessCode(),
+                book.levelCode(),
+                new ClassResponse.ClassLevel(book.levelCode(), book.levelNameKo(), book.levelColorHex()),
+                book.season(),
+                issued.stream()
+                        .map(code -> new PersonalCodeItem(code.studentId(), code.name(), code.personalCode()))
+                        .toList());
     }
 
     @Transactional(readOnly = true)

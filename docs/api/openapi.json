@@ -406,6 +406,46 @@
         "tags" : [ "license-admin-controller" ]
       }
     },
+    "/api/v1/admin/roster-imports" : {
+      "post" : {
+        "description" : "반 항목 순서대로 새 반(진도표·가입 코드·담당 교사)을 만들거나 기존 반을 쓰고, 학생을 새로 만들어(이미 있는 학생을 찾아 옮기지 않음) 넣는다. 한 트랜잭션 — 검사 오류가 하나라도 있으면 첫 오류로 4xx(400 VALIDATION·404·409 CLASS_NOT_ACTIVE·403 LICENSE_INACTIVE·409 LICENSE_SEATS_FULL)이고 아무것도 만들지 않는다. 경고는 막지 않는다. 개인 코드 평문은 이 응답에서만(카드 인쇄용). 감사 로그 한 줄. X-CSRF 필요",
+        "operationId" : "createRosterImport",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RosterImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterImportResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "명단 가져오기",
+        "tags" : [ "roster-import-controller" ]
+      }
+    },
     "/api/v1/admin/roster-imports/check" : {
       "post" : {
         "description" : "아무것도 만들지 않는다. 형식(타입·길이·개수: 반 1~30, 반마다 학생 1~50)이 틀리면 400 VALIDATION, 형식이 맞으면 200과 데이터 문제 목록. errors가 비어야 만들기가 성공한다(그 사이 다른 관리자가 바꾸지 않았다면). warnings는 만들기를 막지 않는다. X-CSRF 필요",
@@ -2582,6 +2622,45 @@
         },
         "required" : [ "completed", "coverage", "trackId" ]
       },
+      "ImportedClass" : {
+        "type" : "object",
+        "properties" : {
+          "accessCode" : {
+            "type" : "string",
+            "description" : "반 가입 코드(카드 인쇄용)"
+          },
+          "classId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "created" : {
+            "type" : "boolean",
+            "description" : "true = 이번에 만든 반, false = 기존 반"
+          },
+          "level" : {
+            "$ref" : "#/components/schemas/ClassLevel"
+          },
+          "levelCode" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "season" : {
+            "type" : "string",
+            "description" : "5.1 반 응답의 season과 같음"
+          },
+          "students" : {
+            "type" : "array",
+            "description" : "이번에 만든 학생, 요청 순서",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonalCodeItem"
+            }
+          }
+        },
+        "required" : [ "accessCode", "classId", "created", "level", "levelCode", "name", "season", "students" ]
+      },
       "Item" : {
         "type" : "object",
         "properties" : {
@@ -3339,6 +3418,29 @@
           }
         },
         "required" : [ "classes" ]
+      },
+      "RosterImportResponse" : {
+        "type" : "object",
+        "properties" : {
+          "classes" : {
+            "type" : "array",
+            "description" : "요청 순서",
+            "items" : {
+              "$ref" : "#/components/schemas/ImportedClass"
+            }
+          },
+          "createdClasses" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "이번에 만든 반 수"
+          },
+          "createdStudents" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "이번에 만든 학생 수"
+          }
+        },
+        "required" : [ "classes", "createdClasses", "createdStudents" ]
       },
       "SessionCancelRequest" : {
         "type" : "object",
