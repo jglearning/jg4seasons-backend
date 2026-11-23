@@ -114,6 +114,8 @@ public class RosterImportService {
         Inspection inspection = inspect(academyId, request, today);
         Optional<RosterIssue> firstError = inspection.errors().stream().findFirst();
         firstError.ifPresent(RosterImportService::throwIfCommon);
+        // 남은 첫 오류는 반 모듈 code — 그 항목의 생성 경로가 던져야 한다. 안 던지면 그 항목 바로 뒤에서 멈춘다(뒤쪽 오류 항목에 들어가지 않게)
+        int stopAt = firstError.map(issue -> classIndexOf(issue.field())).orElse(Integer.MAX_VALUE);
 
         List<RosterImportResponse.ImportedClass> imported = new ArrayList<>();
         List<Long> createdClassIds = new ArrayList<>();
@@ -151,11 +153,11 @@ public class RosterImportService {
                     today);
             createdStudents += issued.size();
             imported.add(toImported(target, created, issued));
-        }
-        if (firstError.isPresent()) {
-            // 검사가 막은 요청이 끝까지 왔다 — 반 모듈 규칙과 검사가 어긋남. 500으로 롤백(입력값 없이)
-            throw new IllegalStateException("명단 가져오기 검사 오류가 생성에서 막히지 않음: "
-                    + firstError.get().code() + " " + firstError.get().field());
+            if (i == stopAt) {
+                // 검사가 막은 항목을 생성 경로가 통과시켰다 — 반 모듈 규칙과 검사가 어긋남. 500으로 롤백(입력값 없이)
+                throw new IllegalStateException("명단 가져오기 검사 오류가 생성에서 막히지 않음: "
+                        + firstError.get().code() + " " + firstError.get().field());
+            }
         }
         auditLogger.record(
                 academyId,
