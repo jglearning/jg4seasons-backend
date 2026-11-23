@@ -21,8 +21,10 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -177,6 +179,21 @@ class StudentAccountService implements StudentAccounts {
         }
         return toAccounts(users.findTop50ByAcademyIdAndRoleAndNameContainingOrderByNameAscIdAsc(
                 academyId, UserRole.STUDENT, part));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<StudentAccount> findActiveByNames(long academyId, Collection<String> names) {
+        Set<String> cleaned = names.stream()
+                .filter(Objects::nonNull)
+                .map(String::strip)
+                .filter(name -> !name.isEmpty())
+                .collect(Collectors.toCollection(TreeSet::new));
+        if (cleaned.isEmpty()) {
+            return List.of();
+        }
+        return toAccounts(users.findByAcademyIdAndRoleAndStatusAndNameInOrderByIdAsc(
+                academyId, UserRole.STUDENT, UserStatus.ACTIVE, cleaned));
     }
 
     @Override

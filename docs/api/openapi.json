@@ -406,6 +406,86 @@
         "tags" : [ "license-admin-controller" ]
       }
     },
+    "/api/v1/admin/roster-imports" : {
+      "post" : {
+        "description" : "반 항목 순서대로 새 반(진도표·가입 코드·담당 교사)을 만들거나 기존 반을 쓰고, 학생을 새로 만들어(이미 있는 학생을 찾아 옮기지 않음) 넣는다. 한 트랜잭션 — 검사 오류가 하나라도 있으면 첫 오류로 4xx(400 VALIDATION·404·409 CLASS_NOT_ACTIVE·403 LICENSE_INACTIVE·409 LICENSE_SEATS_FULL)이고 아무것도 만들지 않는다. 경고는 막지 않는다. 개인 코드 평문은 이 응답에서만(카드 인쇄용). 감사 로그 한 줄. X-CSRF 필요",
+        "operationId" : "createRosterImport",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RosterImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterImportResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "명단 가져오기",
+        "tags" : [ "roster-import-controller" ]
+      }
+    },
+    "/api/v1/admin/roster-imports/check" : {
+      "post" : {
+        "description" : "아무것도 만들지 않는다. 형식(타입·길이·개수: 반 1~30, 반마다 학생 1~50)이 틀리면 400 VALIDATION, 형식이 맞으면 200과 데이터 문제 목록. errors가 비어야 만들기가 성공한다(그 사이 다른 관리자가 바꾸지 않았다면). warnings는 만들기를 막지 않는다. X-CSRF 필요",
+        "operationId" : "checkRosterImport",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RosterImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterImportCheckResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "명단 가져오기 검사",
+        "tags" : [ "roster-import-controller" ]
+      }
+    },
     "/api/v1/admin/students/search" : {
       "post" : {
         "description" : "학원 전체(퇴원 포함), 이름 부분 일치(앞뒤 공백 무시, %·_는 글자 그대로), 이름 순, 최대 50명. class는 지금 반(여럿이면 id가 가장 작은 반), 없으면 null. 이름은 본문으로만. X-CSRF 필요",
@@ -3240,6 +3320,148 @@
           }
         },
         "required" : [ "code", "requestId", "status", "title" ]
+      },
+      "RosterImportCheckResponse" : {
+        "type" : "object",
+        "properties" : {
+          "errors" : {
+            "type" : "array",
+            "description" : "고쳐야 만들 수 있는 것. 비면 만들 수 있음",
+            "items" : {
+              "$ref" : "#/components/schemas/RosterImportIssue"
+            }
+          },
+          "warnings" : {
+            "type" : "array",
+            "description" : "만들 수는 있지만 확인할 것",
+            "items" : {
+              "$ref" : "#/components/schemas/RosterImportIssue"
+            }
+          }
+        },
+        "required" : [ "errors", "warnings" ]
+      },
+      "RosterImportClassItem" : {
+        "type" : "object",
+        "description" : "반 항목 하나: 기존 반 id 또는 새 반, 그리고 학생",
+        "properties" : {
+          "existingClassId" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "학생을 넣을 기존 반 id. newClass와 둘 중 하나만"
+          },
+          "newClass" : {
+            "$ref" : "#/components/schemas/ClassCreateRequest",
+            "description" : "새로 만들 반(5.1 반 만들기와 같은 칸). existingClassId와 둘 중 하나만"
+          },
+          "students" : {
+            "type" : "array",
+            "description" : "1~50명. 새 학생으로 만든다(기존 학생을 찾아 옮기지 않음)",
+            "items" : {
+              "$ref" : "#/components/schemas/StudentCreateItem"
+            },
+            "maxItems" : 50,
+            "minItems" : 1
+          }
+        },
+        "required" : [ "students" ]
+      },
+      "RosterImportIssue" : {
+        "type" : "object",
+        "description" : "검사 오류 또는 경고 하나",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "오류: VALIDATION · NOT_FOUND · CLASS_NOT_ACTIVE · LICENSE_INACTIVE · LICENSE_SEATS_FULL (만들기가 실패할 때와 같은 code). 경고: SAME_NAME_STUDENT · SAME_NAME_CLASS"
+          },
+          "field" : {
+            "type" : "string",
+            "description" : "요청 안 위치: classes · classes[1] · classes[1].newClass.bookCode · classes[1].students[3].name",
+            "example" : "classes[1].students[3].name"
+          },
+          "message" : {
+            "type" : "string",
+            "description" : "화면에 그대로 보일 문구"
+          }
+        },
+        "required" : [ "code", "field", "message" ]
+      },
+      "RosterImportRequest" : {
+        "type" : "object",
+        "properties" : {
+          "classes" : {
+            "type" : "array",
+            "description" : "반 항목 1~30개, 요청 순서대로 만든다",
+            "items" : {
+              "$ref" : "#/components/schemas/RosterImportClassItem"
+            },
+            "maxItems" : 30,
+            "minItems" : 1
+          }
+        },
+        "required" : [ "classes" ]
+      },
+      "RosterImportResponse" : {
+        "type" : "object",
+        "properties" : {
+          "classes" : {
+            "type" : "array",
+            "description" : "요청 순서",
+            "items" : {
+              "$ref" : "#/components/schemas/RosterImportedClass"
+            }
+          },
+          "createdClasses" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "이번에 만든 반 수"
+          },
+          "createdStudents" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "이번에 만든 학생 수"
+          }
+        },
+        "required" : [ "classes", "createdClasses", "createdStudents" ]
+      },
+      "RosterImportedClass" : {
+        "type" : "object",
+        "properties" : {
+          "accessCode" : {
+            "type" : "string",
+            "description" : "반 가입 코드(카드 인쇄용)"
+          },
+          "classId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "created" : {
+            "type" : "boolean",
+            "description" : "true = 이번에 만든 반, false = 기존 반"
+          },
+          "level" : {
+            "$ref" : "#/components/schemas/ClassLevel"
+          },
+          "levelCode" : {
+            "type" : "string",
+            "example" : "L2"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "season" : {
+            "type" : "string",
+            "description" : "5.1 반 응답의 season과 같음"
+          },
+          "students" : {
+            "type" : "array",
+            "description" : "이번에 만든 학생, 요청 순서",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonalCodeItem"
+            }
+          }
+        },
+        "required" : [ "accessCode", "classId", "created", "level", "levelCode", "name", "season", "students" ]
       },
       "SessionCancelRequest" : {
         "type" : "object",

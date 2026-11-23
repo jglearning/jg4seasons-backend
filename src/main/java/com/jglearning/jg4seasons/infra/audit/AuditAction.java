@@ -13,5 +13,7 @@ public enum AuditAction {
     /** 운영자 학원 만들기(첫 관리자 포함, SYS-07) */
     ACADEMY_CREATE,
     /** 운영자 교재 사용권 지정·변경(SYS-07, detail에 전·후 값) */
-    LICENSE_SET
+    LICENSE_SET,
+    /** 학원관리자 명단 가져오기(ADR 0036, 대상 = 학원, detail에 반 id·학생 수 — 이름·개인 코드 없음) */
+    ROSTER_IMPORT
 }
