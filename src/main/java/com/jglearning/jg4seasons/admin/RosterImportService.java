@@ -169,9 +169,12 @@ public class RosterImportService {
         return new RosterImportResponse(List.copyOf(imported), createdClassIds.size(), createdStudents);
     }
 
+    /** 만들기 실패 문구. 검사 문구에는 이름·반 이름이 들어 있어 Problem Details(detail·errors[].message)에 싣지 않는다(§9.4) — 화면은 검사를 다시 부른다 */
+    static final String RECHECK = "명단을 다시 검사해 주세요";
+
     private static void throwIfCommon(RosterIssue issue) {
         switch (issue.code()) {
-            case RosterIssue.VALIDATION -> throw ApiException.validation(issue.field(), issue.message());
+            case RosterIssue.VALIDATION -> throw ApiException.validation(issue.field(), RECHECK);
             case RosterIssue.NOT_FOUND -> throw new ApiException(CommonErrorCode.NOT_FOUND, issue.message());
             default -> {
                 // 반 모듈 code — 생성 경로가 던진다

@@ -171,13 +171,16 @@ class RosterImportTest {
     }
 
     @Test
-    void 요청_안_오류는_400_VALIDATION과_위치() {
+    void 요청_안_오류는_400_VALIDATION과_위치() throws Exception {
         MvcTestResult result = create("[{\"existingClassId\":" + greenId + ",\"students\":[{\"name\":\"김민준\"}]},"
                 + "{\"newClass\":" + newClass("새 반", "L2-B1", "[]") + ",\"students\":[{\"name\":\"김민준\"}]}]");
 
         assertThat(result).hasStatus(400);
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
         assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("classes[1].students[0].name");
+        // Problem Details의 detail·errors[].message에 입력값(이름)을 싣지 않는다(§9.4) — 이름이 든 문구는 검사 응답에만
+        assertThat(result).bodyJson().extractingPath("$.errors[0].message").isEqualTo("명단을 다시 검사해 주세요");
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("김민준");
     }
 
     @Test
