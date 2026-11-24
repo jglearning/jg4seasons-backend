@@ -1775,6 +1775,67 @@
         "tags" : [ "teacher-detail-controller" ]
       }
     },
+    "/api/v1/teacher/classes/{classId}/word-tests" : {
+      "get" : {
+        "description" : "그 반 현재 소속 학생(이름 순, 매트릭스와 같은 학생)마다 그 회차·영역의 마지막 시도. 낸 적이 없으면 submission null. 회차 열림·사용권은 보지 않는다. 기능이 꺼진 학원은 404 FEATURE_DISABLED, 범위 밖 반·그 반 진도표에 없는 회차·시험지 없는 영역은 404 NOT_FOUND. 요청한 교사가 비활성화됐으면 401",
+        "operationId" : "listClassWordTests",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        }, {
+          "description" : "회차 코드",
+          "example" : "L2-B1-01",
+          "in" : "query",
+          "name" : "lessonCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[A-Za-z0-9-]{1,10}$"
+          }
+        }, {
+          "description" : "영역(1단계는 B)",
+          "example" : "B",
+          "in" : "query",
+          "name" : "section",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "A", "B", "C", "D" ],
+            "pattern" : "^[ABCD]$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherWordTestList"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "반 학생별 단어시험 최근 제출",
+        "tags" : [ "teacher-word-test-controller" ]
+      }
+    },
     "/api/v1/teacher/students/{studentId}/personal-code/regenerate" : {
       "post" : {
         "description" : "교사는 담당 반에 지금 소속인 학생만, 관리자는 학원 안 어느 반이든 지금 소속인 학생 — 그 밖(다른 학원·담당 아님·퇴원·반 없음)은 404. 새 코드(숫자 4자리, 0으로 시작 가능) 평문은 이 응답에서만(다시 볼 수 없음). 옛 코드는 바로 무효, 그 학생의 refresh는 모두 끊긴다(남은 access는 최대 30분). 감사 로그. 요청한 교사가 비활성화됐으면 401. X-CSRF 필요",
@@ -4921,6 +4982,80 @@
             "pattern" : "^(active|inactive)$"
           }
         }
+      },
+      "TeacherWordTestList" : {
+        "type" : "object",
+        "properties" : {
+          "lessonCode" : {
+            "type" : "string",
+            "example" : "L2-B1-01"
+          },
+          "students" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherWordTestStudent"
+            }
+          }
+        },
+        "required" : [ "lessonCode", "students" ]
+      },
+      "TeacherWordTestStudent" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "example" : "김민준"
+          },
+          "studentId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "submission" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/TeacherWordTestSummary"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "마지막 시도. 낸 적이 없으면 null"
+          }
+        },
+        "required" : [ "name", "studentId", "submission" ]
+      },
+      "TeacherWordTestSummary" : {
+        "type" : "object",
+        "properties" : {
+          "attemptNo" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "그 학생·회차·영역의 몇 번째 제출(1부터)"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "제출 id(D-6 경로)"
+          },
+          "score" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "맞은(correct) 문항 수. graded가 아니면 null"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "pending·grading이면 채점 중, graded·failed에서 멈춤. confirming·rejected는 2단계(지금은 오지 않음)",
+            "enum" : [ "pending", "grading", "confirming", "graded", "rejected", "failed" ]
+          },
+          "submittedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "제출 시각(UTC)"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "그 회차·영역의 문항 수(unclear 포함)"
+          }
+        },
+        "required" : [ "attemptNo", "id", "score", "status", "submittedAt", "total" ]
       },
       "UserInfo" : {
         "type" : "object",
