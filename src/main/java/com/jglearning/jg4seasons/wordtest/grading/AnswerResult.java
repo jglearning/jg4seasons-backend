@@ -2,11 +2,12 @@ package com.jglearning.jg4seasons.wordtest.grading;
 
 import java.util.Locale;
 
-/** 문항 판정. DB 값은 소문자 이름(V12 CHECK) */
+/** 문항 판정. DB 값은 소문자 이름(V13 CHECK). UNCLEAR = 글자가 흐려 판정하지 못함(점수 밖, 문항 수 안) */
 public enum AnswerResult {
     CORRECT,
     WRONG,
-    BLANK;
+    BLANK,
+    UNCLEAR;
 
     public String dbValue() {
         return name().toLowerCase(Locale.ROOT);

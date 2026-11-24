@@ -2,7 +2,7 @@ package com.jglearning.jg4seasons.wordtest.grading;
 
 import java.util.Locale;
 
-/** 읽기가 애매한 이유. 1단계는 UNREADABLE만 쓰고(판정은 wrong), 나머지는 2단계 학생 확인용. DB 값은 소문자 이름(V12 CHECK) */
+/** 읽기가 애매한 이유. 1단계는 UNREADABLE만 쓰고(판정은 unclear), 나머지는 2단계 학생 확인용. DB 값은 소문자 이름(V12 CHECK) */
 public enum UnsureReason {
     /** 두 번 읽은 값이 다름(2단계) */
     READ_MISMATCH,

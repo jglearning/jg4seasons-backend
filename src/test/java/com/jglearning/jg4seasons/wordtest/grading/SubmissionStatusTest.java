@@ -79,13 +79,18 @@ class SubmissionStatusTest {
     }
 
     @Test
-    void 판정은_결과가_있어야_하고_읽을_수_없음은_오답만() {
+    void 판정은_결과가_있어야_하고_읽을_수_없음은_unclear와만() {
         assertThatThrownBy(() -> new Judgement(null, null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new Judgement(AnswerResult.CORRECT, UnsureReason.UNREADABLE))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new Judgement(AnswerResult.BLANK, UnsureReason.UNREADABLE))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThat(new Judgement(AnswerResult.WRONG, UnsureReason.UNREADABLE).result())
-                .isEqualTo(AnswerResult.WRONG);
+        assertThatThrownBy(() -> new Judgement(AnswerResult.WRONG, UnsureReason.UNREADABLE))
+                .isInstanceOf(IllegalArgumentException.class);
+        // unclear는 이유 없이 만들 수 없다
+        assertThatThrownBy(() -> new Judgement(AnswerResult.UNCLEAR, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new Judgement(AnswerResult.UNCLEAR, UnsureReason.UNREADABLE).result())
+                .isEqualTo(AnswerResult.UNCLEAR);
     }
 }

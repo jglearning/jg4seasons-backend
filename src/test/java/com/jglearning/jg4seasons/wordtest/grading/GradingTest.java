@@ -35,7 +35,7 @@ class GradingTest {
                         new GradedAnswer(12, "tmosphere", AnswerResult.CORRECT, null),
                         new GradedAnswer(13, "Judgement", AnswerResult.CORRECT, null),
                         new GradedAnswer(14, null, AnswerResult.BLANK, null),
-                        new GradedAnswer(15, null, AnswerResult.WRONG, UnsureReason.UNREADABLE));
+                        new GradedAnswer(15, null, AnswerResult.UNCLEAR, UnsureReason.UNREADABLE));
     }
 
     @Test

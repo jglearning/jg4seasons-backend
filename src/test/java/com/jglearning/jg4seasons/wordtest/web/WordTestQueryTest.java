@@ -108,7 +108,7 @@ class WordTestQueryTest {
         answer(id, items[1], "beautful", null, "wrong");
         answer(id, items[2], "library", null, "correct");
         answer(id, items[3], null, null, "blank");
-        answer(id, items[4], "atm", "unreadable", "wrong");
+        answer(id, items[4], "atm", "unreadable", "unclear");
 
         MvcTestResult result = get(student(), "/api/v1/word-tests/submissions/" + id);
 

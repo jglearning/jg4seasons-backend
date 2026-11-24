@@ -107,7 +107,7 @@ class WordTestSchemaTest {
         long first = item("B", 1);
         long second = item("B", 2);
         answer(submission, first, "correct", null);
-        answer(submission, second, "wrong", "unreadable");
+        answer(submission, second, "unclear", "unreadable");
 
         violates(() -> answer(submission, first, "wrong", null), "uk_word_test_answer_submission_item");
         long third = item("B", 3);
@@ -126,6 +126,10 @@ class WordTestSchemaTest {
         violates(
                 () -> jdbc.update("update word_test_answer set teacher_result = 'ok' where id = ?", answer),
                 "ck_word_test_answer_teacher_result");
+        // 교사 정정은 판정을 내리는 것이라 unclear가 없다
+        violates(
+                () -> jdbc.update("update word_test_answer set teacher_result = 'unclear' where id = ?", answer),
+                "ck_word_test_answer_teacher_result");
     }
 
     @Test
@@ -143,7 +147,9 @@ class WordTestSchemaTest {
         }
         for (AnswerResult result : AnswerResult.values()) {
             long answer = answer(submission, item("B", ++no), result.dbValue(), null);
-            jdbc.update("update word_test_answer set teacher_result = ? where id = ?", result.dbValue(), answer);
+            if (result != AnswerResult.UNCLEAR) {
+                jdbc.update("update word_test_answer set teacher_result = ? where id = ?", result.dbValue(), answer);
+            }
         }
         for (UnsureReason reason : UnsureReason.values()) {
             answer(submission, item("B", ++no), "wrong", reason.dbValue());

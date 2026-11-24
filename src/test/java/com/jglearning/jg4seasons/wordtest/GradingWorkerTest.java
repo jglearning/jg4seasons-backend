@@ -136,6 +136,12 @@ class GradingWorkerTest {
         assertThat(jdbc.queryForObject(
                         "select count(*) from word_test_answer where submission_id = ?", Integer.class, submissionId))
                 .isEqualTo(4);
+        assertThat(jdbc.queryForList(
+                        "select a.result from word_test_answer a join word_test_item i on i.id = a.item_id"
+                                + " where a.submission_id = ? order by i.no",
+                        String.class,
+                        submissionId))
+                .containsExactly("wrong", "correct", "blank", "unclear");
         var json = assertThat(mvc.get()
                         .uri("/api/v1/word-tests/submissions/" + submissionId)
                         .cookie(cookies.studentAccess(studentId, academyId))

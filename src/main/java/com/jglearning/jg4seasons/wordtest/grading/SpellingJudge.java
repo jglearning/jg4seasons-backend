@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 /**
  * 철자 판정(B·C·D, 기획 §5-3). LLM은 글자를 옮겨 적기만 하고 맞았는지는 여기서 정한다.
  *
- * <p>순서: 읽을 수 없음 → wrong + unreadable(1단계, 2단계에서 학생 확인으로) / 빈칸 → blank / 정규화한 값이 정답·허용 답과 같으면 correct / 인쇄된 첫 글자가 한
+ * <p>순서: 읽을 수 없음 → unclear + unreadable(점수 밖, 2단계에서 학생 확인으로) / 빈칸 → blank / 정규화한 값이 정답·허용 답과 같으면 correct / 인쇄된 첫 글자가 한
  * 글자인 문항은 그 글자 뒤에 이어 쓴 나머지만 써도 correct / 그 밖은 wrong. 숙어 자리표시(~·one's·-ing)는 처리하지 않는다(2단계 허용 답).
  */
 public final class SpellingJudge {
@@ -24,7 +24,7 @@ public final class SpellingJudge {
 
     public static Judgement judge(AnswerKey key, Reading reading) {
         if (reading.unreadable()) {
-            return new Judgement(AnswerResult.WRONG, UnsureReason.UNREADABLE);
+            return new Judgement(AnswerResult.UNCLEAR, UnsureReason.UNREADABLE);
         }
         String written = normalize(reading.text());
         if (written.isEmpty()) {

@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 채점 조립: 문항(정답·허용 답·첫 글자)과 읽은 글자를 번호 순으로 짝지어 {@link SpellingJudge}로 판정한다. 점수 = 맞은 수(읽을 수 없음·빈칸은 0점). 저장 글자는 빈칸·읽을 수
+ * 채점 조립: 문항(정답·허용 답·첫 글자)과 읽은 글자를 번호 순으로 짝지어 {@link SpellingJudge}로 판정한다. 점수 = 맞은 수(unclear·빈칸은 세지 않음). 저장 글자는 빈칸·읽을 수
  * 없음이면 NULL
  */
 public final class Grading {
