@@ -3,13 +3,15 @@
 녹음된 교재 자료 폴더에서 회차별 manifest와 업로드용 음원 폴더를 만든다(ADR 0027). 교재 원문과 음원은 저장소에 넣지 않으므로 출력 폴더는 저장소 밖에 둔다.
 
 ```bash
-python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴더> --vocab <어휘책 all_vocab.tsv> [--only L2-B1-05,K-B1-S1]
+python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴더> --vocab <어휘책 all_vocab.tsv>   [--word-test <단어시험 문항 TSV>] [--only L2-B1-05,K-B1-S1]
 ```
 
 ## 출력
 - `manifest/{회차 코드}.json`: 지문(제목·문장·목소리 4개 트랙의 길이와 문장 길이)과 단어(단어·출처·품사·뜻·예문·예문 해석·음원 키). 앱의 콘텐츠 import 실행기가 읽는다. 회차 제목은 넣지 않는다(자료의 회차 이름은 문법 주제)
 - 단어 = 어휘책 그 강의 단어 → 숙어(교재 순서) + 어휘책에 없는 회차 어휘(ADR 0027 결정 6). 두 쪽에 다 있으면 회차 어휘(음원·새 예문·예문 해석). 어휘책에만 있는 단어는 음원·예문 해석이 null. 음원 키 번호는 회차 어휘 번호 그대로라 단어 순서와 다를 수 있다. 출처 `source`는 어휘책 단어·숙어(겹친 것 포함) `book`, 어휘책에 없는 회차 어휘 `extra`(ADR 0029, 앱이 필수로 검사)
 - 어휘책 품사 `명` `동` `형` `부` `전` `접` `대` `감` → `n` `v` `adj` `adv` `prep` `conj` `pron` `interj`, 숙어 → `phr`
+- `wordTests`(`--word-test`를 줄 때, TSV에 행이 있는 회차만): 단어시험 문항 `{section, no, prompt, answer, hint, accepted}`. 영역 A~D 순, 번호 순. 빈 hint는 null, `accepted`는 빈 목록. 칸이 없는 manifest는 앱이 그 회차 문항을 건드리지 않는다
+  - TSV 열: `lesson_code` `section` `no` `book_page` `prompt` `answer` `hint`(UTF-8, BOM 허용). `book_page`는 버린다
 - `audio/{회차 코드}/…`: S3 키 이름 그대로 둔 음원(하드 링크, 안 되면 복사)
   - 지문 `{코드}_p{n}_{목소리}.mp3`(목소리 `us_w` `us_m` `uk_w` `uk_m`)
   - 단어 `{코드}_w{nn}_us_w.mp3`, 예문 `{코드}_w{nn}_ex_us_w.mp3`
@@ -21,5 +23,6 @@ python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴�
 - 화자가 내레이터면 `speaker`는 null
 - 문장 파일 번호가 1~문장 수와 정확히 같지 않거나, 간격이 0~3000ms 밖이거나(문장이 하나면 문장 길이 = 지문 길이), 칸 길이가 DB 한도를 넘으면 그 회차는 만들지 않고 오류로 보고한다(종료 코드 1). 실패한 회차의 지난 manifest는 지운다
 - 레벨 폴더 아래 이름 규칙이 다른 폴더, `--only`에 없는 코드, 만든 회차 0개도 실패(종료 코드 1)
+- 단어시험 문항: 영역마다 번호가 1부터 이어지지 않거나(빠짐·겹침), 모르는 영역, 빈 뜻·정답, 칸 길이(뜻 200·정답 100·hint 50자) 초과면 그 회차 실패. 번호가 이어진 채 문항이 빠진 것은 잡지 못하므로 답지와 대조한 회차만 넣는다. TSV의 회차가 자료에 없어도 실패
 - 음원을 모두 둔 뒤 manifest를 마지막에 쓴다(중간에 실패하면 manifest가 없어 import되지 않는다)
 - 표준 라이브러리만 쓴다. mp3 길이는 프레임 수로 센다

@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -241,6 +242,67 @@ class LessonManifestTest {
     @Test
     void 길이가_0인_음원은_거부() {
         assertRejected("\"durationMs\": 700", "\"durationMs\": 0", "단어 1");
+    }
+
+    // 단어시험 문항(wordTests). 칸이 없으면 null — 그 회차 문항을 건드리지 않는다
+
+    private static final String WORDS = "\"words\": [";
+
+    private static String withWordTests(String items) {
+        return "\"wordTests\": [" + items + "],\n  " + WORDS;
+    }
+
+    private static String item(String section, int no, String answer) {
+        return "{\"section\": \"" + section + "\", \"no\": " + no + ", \"prompt\": \"뜻\", \"answer\": \"" + answer
+                + "\"}";
+    }
+
+    @Test
+    void 단어시험_문항이_없으면_null이다() throws IOException {
+        assertThat(readWith(null, null).wordTests()).isNull();
+    }
+
+    @Test
+    void 단어시험_문항을_읽는다() throws IOException {
+        LessonManifest manifest = readWith(
+                WORDS,
+                withWordTests(item("B", 1, "kite") + ", {\"section\": \"B\", \"no\": 2, \"prompt\": \"분위기\","
+                        + " \"answer\": \"atmosphere\", \"hint\": \"a\", \"accepted\": [\"atmosfere\"]}, "
+                        + item("A", 1, "연")));
+
+        assertThat(manifest.wordTests())
+                .containsExactly(
+                        new LessonManifest.WordTestItem("B", 1, "뜻", "kite", null, List.of()),
+                        new LessonManifest.WordTestItem("B", 2, "분위기", "atmosphere", "a", List.of("atmosfere")),
+                        new LessonManifest.WordTestItem("A", 1, "뜻", "연", null, List.of()));
+    }
+
+    @Test
+    void 영역마다_문항_번호가_1부터_이어지지_않으면_거부() {
+        assertRejected(WORDS, withWordTests(item("B", 1, "kite") + ", " + item("B", 3, "puddle")), "단어시험 B 2");
+        assertRejected(WORDS, withWordTests(item("B", 1, "kite") + ", " + item("B", 1, "puddle")), "단어시험 B 2");
+    }
+
+    @Test
+    void 모르는_영역은_거부() {
+        assertRejected(WORDS, withWordTests(item("E", 1, "kite")), "모르는 영역");
+        assertRejected(WORDS, withWordTests(item("b", 1, "kite")), "모르는 영역");
+    }
+
+    @Test
+    void 허용_답이_정답과_같거나_겹치면_거부() {
+        String same =
+                "{\"section\": \"B\", \"no\": 1, \"prompt\": \"뜻\", \"answer\": \"kite\", \"accepted\": [\"kite\"]}";
+        String twice =
+                "{\"section\": \"B\", \"no\": 1, \"prompt\": \"뜻\", \"answer\": \"kite\", \"accepted\": [\"kyte\", \"kyte\"]}";
+        assertRejected(WORDS, withWordTests(same), "허용 답");
+        assertRejected(WORDS, withWordTests(twice), "허용 답");
+    }
+
+    @Test
+    void 단어시험_칸_길이가_한도를_넘으면_거부() {
+        assertRejected(WORDS, withWordTests(item("B", 1, "a".repeat(101))), "answer");
+        assertRejected(WORDS, withWordTests(item("B", 1, "")), "answer");
     }
 
     private LessonManifest readWith(String from, String to) throws IOException {
