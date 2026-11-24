@@ -12,6 +12,9 @@ public interface LessonCatalog {
      */
     Optional<LessonContent> findByCode(String lessonCode);
 
+    /** 회차 id → 코드. 없으면 empty(가벼운 조회 — 내용을 조립하지 않는다) */
+    Optional<String> codeOf(long lessonId);
+
     /**
      * 지문 트랙(kind=passage) id로 트랙·회차·권·지문 번호·목소리·길이를 찾는다. 없거나 지문 트랙이 아니면 empty. 트랙의 지문이 없거나 다른 회차 지문이거나
      * variant가 p{지문 no}:{목소리}가 아니면 데이터 오류라 IllegalStateException

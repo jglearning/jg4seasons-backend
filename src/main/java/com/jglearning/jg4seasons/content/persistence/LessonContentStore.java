@@ -52,6 +52,11 @@ public class LessonContentStore {
     }
 
     /** 회차 + 레벨 + 그 레벨 완료 규칙(규칙이 없으면 coverageThreshold·requiredTracksJson이 null — 서비스가 데이터 오류로 다룬다) */
+    public Optional<String> codeOf(long lessonId) {
+        return jdbc.queryForList("select code from lesson where id = ?", String.class, lessonId).stream()
+                .findFirst();
+    }
+
     public Optional<LessonRow> findLesson(String code) {
         return jdbc
                 .query(
