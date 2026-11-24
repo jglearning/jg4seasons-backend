@@ -18,6 +18,6 @@ import org.springframework.test.context.ActiveProfiles;
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, TestClockConfiguration.class})
+@Import({TestcontainersConfiguration.class, TestClockConfiguration.class, TestPhotoStorageConfiguration.class})
 @ActiveProfiles("test")
 public @interface IntegrationTest {}

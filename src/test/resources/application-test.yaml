@@ -8,3 +8,7 @@ jg4seasons:
     # 테스트 전용 값(비밀 아님). 운영 값은 환경 변수로만 넣는다
     personal-code-pepper: test-pepper-0123456789abcdef0123456789
     jwt-secret: test-jwt-secret-0123456789abcdef0123
+  # 사진 저장소는 테스트 설정(TestPhotoStorageConfiguration)의 메모리 구현
+  word-test:
+    storage:
+      type: memory

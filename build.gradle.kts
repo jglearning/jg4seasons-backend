@@ -29,6 +29,14 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.flywaydb:flyway-mysql")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-api:3.2.0")
+	// 숙제 사진 저장소(S3 presigned·HeadObject). HTTP 클라이언트는 JDK URLConnection 하나만(netty·apache 제외 — 의존성 최소)
+	implementation(platform("software.amazon.awssdk:bom:2.59.8"))
+	implementation("software.amazon.awssdk:s3") {
+		exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+		exclude(group = "software.amazon.awssdk", module = "apache-client")
+		exclude(group = "software.amazon.awssdk", module = "apache5-client")
+	}
+	implementation("software.amazon.awssdk:url-connection-client")
 	compileOnly("org.projectlombok:lombok")
 	runtimeOnly("com.mysql:mysql-connector-j")
 	annotationProcessor("org.projectlombok:lombok")
