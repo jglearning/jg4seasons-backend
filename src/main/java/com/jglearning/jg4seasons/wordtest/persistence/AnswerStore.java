@@ -1,9 +1,11 @@
 package com.jglearning.jg4seasons.wordtest.persistence;
 
 import com.jglearning.jg4seasons.wordtest.grading.AnswerResult;
+import com.jglearning.jg4seasons.wordtest.grading.GradedAnswer;
 import com.jglearning.jg4seasons.wordtest.grading.UnsureReason;
 import java.util.List;
 import java.util.Map;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +20,33 @@ public class AnswerStore {
 
     public AnswerStore(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    /**
+     * 채점 결과를 (제출, 문항)으로 넣거나 고친다 — 같은 제출을 두 번 처리해도 한 벌, 값은 뒤의 것. 부르는 쪽 트랜잭션 안에서(제출 graded와 함께 커밋)
+     */
+    public void upsertAll(long submissionId, List<GradedAnswer> graded) {
+        if (graded.isEmpty()) {
+            return;
+        }
+        MapSqlParameterSource[] rows = graded.stream()
+                .map(answer -> new MapSqlParameterSource()
+                        .addValue("submission", submissionId)
+                        .addValue("item", answer.itemId())
+                        .addValue("text", answer.recognizedText())
+                        .addValue(
+                                "reason",
+                                answer.unsureReason() == null
+                                        ? null
+                                        : answer.unsureReason().dbValue())
+                        .addValue("result", answer.result().dbValue()))
+                .toArray(MapSqlParameterSource[]::new);
+        jdbc.batchUpdate(
+                "insert into word_test_answer (submission_id, item_id, recognized_text, unsure_reason, result)"
+                        + " values (:submission, :item, :text, :reason, :result) as new"
+                        + " on duplicate key update recognized_text = new.recognized_text,"
+                        + " unsure_reason = new.unsure_reason, result = new.result",
+                rows);
     }
 
     public List<AnswerRow> answers(long submissionId) {

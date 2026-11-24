@@ -108,7 +108,7 @@ class WordTestQueryTest {
         answer(id, items[1], "beautful", null, "wrong");
         answer(id, items[2], "library", null, "correct");
         answer(id, items[3], null, null, "blank");
-        answer(id, items[4], "atm", "unreadable", "wrong");
+        answer(id, items[4], "atm", "unreadable", "unclear");
 
         MvcTestResult result = get(student(), "/api/v1/word-tests/submissions/" + id);
 
@@ -120,7 +120,9 @@ class WordTestQueryTest {
         json.extractingPath("$.items[*].prompt").isEqualTo(List.of("아름다운", "도서관", "받다", "분위기"));
         json.extractingPath("$.items[*].written").isEqualTo(List.of("beautful", "library", "", "atm"));
         json.extractingPath("$.items[*].result").isEqualTo(List.of("wrong", "correct", "blank", "unclear"));
-        json.extractingPath("$.items[*].answer").isEqualTo(List.of("beautiful", "library", "receive", "atmosphere"));
+        // unclear는 판정 전이라 정답을 주지 않는다(칸은 있고 null — 2단계 글자 확인에서 정답이 새지 않게)
+        json.extractingPath("$.items[*].answer")
+                .isEqualTo(java.util.Arrays.asList("beautiful", "library", "receive", null));
     }
 
     @Test

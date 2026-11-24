@@ -107,13 +107,16 @@ class WordTestSchemaTest {
         long first = item("B", 1);
         long second = item("B", 2);
         answer(submission, first, "correct", null);
-        answer(submission, second, "wrong", "unreadable");
+        answer(submission, second, "unclear", "unreadable");
 
         violates(() -> answer(submission, first, "wrong", null), "uk_word_test_answer_submission_item");
         long third = item("B", 3);
         violates(() -> answer(submission, third, "maybe", null), "ck_word_test_answer_result");
         violates(() -> answer(submission, third, "wrong", "guess"), "ck_word_test_answer_unsure");
         violates(() -> answer(submission, third, "CORRECT", null), "ck_word_test_answer_result");
+        // 판정 규칙(코드의 Judgement와 같음): unclear는 이유 필수, unreadable은 unclear와만
+        violates(() -> answer(submission, third, "unclear", null), "ck_word_test_answer_unclear_reason");
+        violates(() -> answer(submission, third, "wrong", "unreadable"), "ck_word_test_answer_unreadable");
     }
 
     @Test
@@ -125,6 +128,10 @@ class WordTestSchemaTest {
         jdbc.update("update word_test_answer set teacher_result = 'correct' where id = ?", answer);
         violates(
                 () -> jdbc.update("update word_test_answer set teacher_result = 'ok' where id = ?", answer),
+                "ck_word_test_answer_teacher_result");
+        // 교사 정정은 판정을 내리는 것이라 unclear가 없다
+        violates(
+                () -> jdbc.update("update word_test_answer set teacher_result = 'unclear' where id = ?", answer),
                 "ck_word_test_answer_teacher_result");
     }
 
@@ -142,11 +149,19 @@ class WordTestSchemaTest {
             submission(section.dbValue(), 100, "pending");
         }
         for (AnswerResult result : AnswerResult.values()) {
-            long answer = answer(submission, item("B", ++no), result.dbValue(), null);
-            jdbc.update("update word_test_answer set teacher_result = ? where id = ?", result.dbValue(), answer);
+            // unclear는 이유가 있어야 한다(ck_word_test_answer_unclear_reason)
+            String reason = result == AnswerResult.UNCLEAR ? UnsureReason.UNREADABLE.dbValue() : null;
+            long answer = answer(submission, item("B", ++no), result.dbValue(), reason);
+            if (result != AnswerResult.UNCLEAR) {
+                jdbc.update("update word_test_answer set teacher_result = ? where id = ?", result.dbValue(), answer);
+            }
         }
         for (UnsureReason reason : UnsureReason.values()) {
-            answer(submission, item("B", ++no), "wrong", reason.dbValue());
+            answer(
+                    submission,
+                    item("B", ++no),
+                    reason == UnsureReason.UNREADABLE ? "unclear" : "wrong",
+                    reason.dbValue());
         }
     }
 

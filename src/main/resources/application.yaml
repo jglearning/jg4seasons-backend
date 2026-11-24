@@ -63,6 +63,14 @@ jg4seasons:
     storage:
       type: ${JG4SEASONS_WORD_TEST_STORAGE:none}
       bucket: ${JG4SEASONS_WORD_TEST_BUCKET:}
+    # 답안지 읽기. 기본 꺼짐(none) — 채점 워커가 작업을 잡지 않고 제출은 pending으로 쌓인다. 운영은 anthropic + 키(Parameter Store)
+    reader:
+      type: ${JG4SEASONS_WORD_TEST_READER:none}
+      model: ${JG4SEASONS_WORD_TEST_MODEL:claude-sonnet-5-5}
+      api-key: ${JG4SEASONS_LLM_API_KEY:}
+    # 채점 워커 1초 스케줄(테스트는 끄고 runOnce를 직접)
+    worker:
+      scheduled: true
   # 음원 서명 쿠키(ADR 0028). 기본 꺼짐. 켜면 칸이 비었거나 개인 키를 못 읽을 때 서버가 뜨지 않는다
   audio:
     signing:

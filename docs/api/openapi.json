@@ -5078,8 +5078,8 @@
         "type" : "object",
         "properties" : {
           "answer" : {
-            "type" : "string",
-            "description" : "정답",
+            "type" : [ "string", "null" ],
+            "description" : "정답. result가 unclear면 null(판정 전이라 주지 않음)",
             "example" : "beautiful"
           },
           "no" : {

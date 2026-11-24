@@ -1,0 +1,500 @@
+package com.jglearning.jg4seasons.wordtest;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.MutableClock;
+import com.jglearning.jg4seasons.TestData;
+import com.jglearning.jg4seasons.auth.AuthCookieSupport;
+import com.jglearning.jg4seasons.infra.storage.MemoryPhotoStorage;
+import com.jglearning.jg4seasons.wordtest.reading.FakeAnswerSheetReader;
+import com.jglearning.jg4seasons.wordtest.reading.ReadFailure;
+import com.jglearning.jg4seasons.wordtest.reading.ReadItem;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * 채점 워커: 선점 → (잠금 없이) 사진 읽기·옮겨 적기 → 판정·저장. 워커가 자기 트랜잭션을 열므로 @Transactional 없이 돌리고 끝에 지운다. 읽기는 가짜. 1회차 B 4문항(지어낸 것)
+ */
+@IntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
+class GradingWorkerTest {
+
+    static final String CODE = "L2-B1-01";
+    static final Instant NOON = Instant.parse("2026-11-26T03:00:00Z");
+
+    @Autowired
+    GradingWorker worker;
+
+    @Autowired
+    FakeAnswerSheetReader reader;
+
+    @Autowired
+    MemoryPhotoStorage photos;
+
+    @Autowired
+    MutableClock clock;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @Autowired
+    MockMvcTester mvc;
+
+    @Autowired
+    AuthCookieSupport cookies;
+
+    @Autowired
+    PlatformTransactionManager transactions;
+
+    TestData data;
+    long academyId;
+    long classId;
+    long studentId;
+    long lessonId;
+    long submissionId;
+    long jobId;
+    String key;
+
+    @BeforeEach
+    void setUp() {
+        clock.set(NOON);
+        data = new TestData(jdbc);
+        academyId = data.academy("채점 학원");
+        jdbc.update(
+                "update academy set settings = '{\"timezone\":\"Asia/Seoul\",\"features\":{\"wordTest\":true}}' where id = ?",
+                academyId);
+        classId = data.clazz(academyId, "L2-B1", "채점 반", TestData.uniqueAccessCode(), "active");
+        studentId = data.student(academyId, "채점 학생");
+        data.enroll(classId, studentId);
+        data.session(classId, 1, CODE, LocalDate.of(2026, 11, 26), "scheduled");
+        lessonId = data.lessonId(CODE);
+        String[][] rows = {{"아름다운", "beautiful"}, {"도서관", "library"}, {"받다", "receive"}, {"분위기", "atmosphere"}};
+        for (int i = 0; i < rows.length; i++) {
+            jdbc.update(
+                    "insert into word_test_item (lesson_id, section, no, prompt, answer) values (?, 'B', ?, ?, ?)",
+                    lessonId,
+                    i + 1,
+                    rows[i][0],
+                    rows[i][1]);
+        }
+        key = "homework/" + academyId + "/" + studentId + "/" + UUID.randomUUID() + ".jpg";
+        photos.put(key, new byte[] {1, 2, 3}, "image/jpeg");
+        submissionId = submission(key);
+    }
+
+    @AfterEach
+    void cleanUp() {
+        clock.reset();
+        photos.clear();
+        reader.reset();
+        jdbc.update(
+                "delete from word_test_answer where submission_id in (select id from word_test_submission where student_id = ?)",
+                studentId);
+        jdbc.update(
+                "delete from grading_job where submission_id in (select id from word_test_submission where student_id = ?)",
+                studentId);
+        jdbc.update("delete from word_test_submission where student_id = ?", studentId);
+        jdbc.update("delete from word_test_item where lesson_id = ?", lessonId);
+        jdbc.update("delete from class_session where class_id = ?", classId);
+        jdbc.update("delete from enrollment where class_id = ?", classId);
+        jdbc.update("delete from `class` where id = ?", classId);
+        jdbc.update("delete from `user` where academy_id = ?", academyId);
+        jdbc.update("delete from academy where id = ?", academyId);
+    }
+
+    @Test
+    void 제출하면_워커_1회로_graded이고_점수와_문항_수만큼_답안() {
+        reader.willRead(count -> List.of(
+                new ReadItem(1, "beautful", false),
+                new ReadItem(2, "library", false),
+                new ReadItem(3, "", false),
+                new ReadItem(4, "atm", true)));
+
+        assertThat(worker.runOnce()).isEqualTo(1);
+
+        assertThat(submissionRow())
+                .containsEntry("status", "graded")
+                .containsEntry("score", 1)
+                .containsEntry("model", FakeAnswerSheetReader.MODEL)
+                .containsEntry("prompt_version", "v1")
+                .containsEntry("graded_at", LocalDateTime.of(2026, 11, 26, 3, 0));
+        assertThat(jobStatus()).isEqualTo("done");
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from word_test_answer where submission_id = ?", Integer.class, submissionId))
+                .isEqualTo(4);
+        assertThat(jdbc.queryForList(
+                        "select a.result from word_test_answer a join word_test_item i on i.id = a.item_id"
+                                + " where a.submission_id = ? order by i.no",
+                        String.class,
+                        submissionId))
+                .containsExactly("wrong", "correct", "blank", "unclear");
+        var json = assertThat(mvc.get()
+                        .uri("/api/v1/word-tests/submissions/" + submissionId)
+                        .cookie(cookies.studentAccess(studentId, academyId))
+                        .exchange())
+                .bodyJson();
+        json.extractingPath("$.items[*].result").isEqualTo(List.of("wrong", "correct", "blank", "unclear"));
+        json.extractingPath("$.items[*].written").isEqualTo(List.of("beautful", "library", "", ""));
+        assertThat(reader.calls()).isEqualTo(1);
+        assertThat(reader.lastMediaType()).isEqualTo("image/jpeg");
+        assertThat(reader.lastItemCount()).isEqualTo(4);
+        assertThat(reader.lastImage()).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    void PNG_제출은_image_png로_문항_수와_사진_바이트를_넘긴다() {
+        jdbc.update("delete from grading_job where id = ?", jobId);
+        String png = "homework/" + academyId + "/" + studentId + "/" + UUID.randomUUID() + ".png";
+        photos.put(png, new byte[] {9, 8, 7, 6}, "image/png");
+        submission(png);
+
+        worker.runOnce();
+
+        assertThat(reader.lastMediaType()).isEqualTo("image/png");
+        assertThat(reader.lastItemCount()).isEqualTo(4);
+        assertThat(reader.lastImage()).containsExactly(9, 8, 7, 6);
+    }
+
+    @Test
+    void 저장_직전에_문항_수가_바뀌면_저장하지_않고_다시_한다() {
+        reader.willRead(count -> fullyCorrect());
+        reader.duringRead(count -> new TransactionTemplate(transactions)
+                .executeWithoutResult(status -> jdbc.update(
+                        "insert into word_test_item (lesson_id, section, no, prompt, answer) values (?, 'B', 5, '대기', 'air')",
+                        lessonId)));
+
+        worker.runOnce();
+
+        assertThat(jobRow()).containsEntry("status", "queued");
+        assertThat((String) jobRow().get("last_error")).startsWith("COUNT_MISMATCH");
+        assertThat(submissionRow()).containsEntry("status", "grading").containsEntry("score", null);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from word_test_answer where submission_id = ?", Integer.class, submissionId))
+                .isZero();
+    }
+
+    @Test
+    void 처리한_작업은_다시_잡지_않는다() {
+        worker.runOnce();
+        assertThat(jobStatus()).isEqualTo("done");
+
+        worker.runOnce();
+
+        // 다른 테스트가 남긴 작업이 있어도 흔들리지 않게 내 작업 기준으로
+        assertThat(jobStatus()).isEqualTo("done");
+        assertThat(reader.calls()).isEqualTo(1);
+    }
+
+    @Test
+    void 두_번_실패하면_다시_하고_세_번째에_graded() {
+        reader.willFail(ReadFailure.Kind.TIMEOUT, 2);
+
+        assertThat(worker.runOnce()).isEqualTo(1);
+        assertThat(jobRow()).containsEntry("status", "queued").containsEntry("last_error", "TIMEOUT: 가짜 실패");
+        assertThat(submissionStatus()).as("재시도 동안 제출은 grading 그대로").isEqualTo("grading");
+        assertThat(jdbc.queryForObject("select run_after from grading_job where id = ?", LocalDateTime.class, jobId))
+                .isEqualTo(LocalDateTime.of(2026, 11, 26, 3, 0, 30));
+        clock.set(NOON.plusSeconds(29));
+        worker.runOnce();
+        assertThat(reader.calls()).as("30초가 지나기 전에는 다시 잡지 않음").isEqualTo(1);
+
+        clock.set(NOON.plusSeconds(30));
+        worker.runOnce();
+        clock.set(NOON.plusSeconds(60));
+        worker.runOnce();
+
+        assertThat(submissionStatus()).isEqualTo("graded");
+        assertThat(((Number) jobRow().get("attempts")).intValue()).isEqualTo(2);
+        assertThat(reader.calls()).isEqualTo(3);
+    }
+
+    @Test
+    void 세_번_실패하면_작업_dead_제출_failed이고_점수_없음() {
+        reader.willFail(ReadFailure.Kind.API_ERROR, 3);
+
+        for (int i = 0; i < 3; i++) {
+            clock.set(NOON.plusSeconds(30L * i));
+            worker.runOnce();
+        }
+
+        assertThat(jobRow()).containsEntry("status", "dead");
+        assertThat(((Number) jobRow().get("attempts")).intValue()).isEqualTo(3);
+        assertThat(submissionRow())
+                .containsEntry("status", "failed")
+                .containsEntry("score", null)
+                .containsEntry("graded_at", null);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from word_test_answer where submission_id = ?", Integer.class, submissionId))
+                .isZero();
+    }
+
+    @Test
+    void 문항_수가_다르게_읽히면_실패로_다시_한다() {
+        reader.willRead(count -> List.of(new ReadItem(1, "beautiful", false)));
+
+        worker.runOnce();
+
+        assertThat(jobRow()).containsEntry("status", "queued");
+        assertThat((String) jobRow().get("last_error")).startsWith("COUNT_MISMATCH");
+    }
+
+    @Test
+    void 사진이_없거나_키가_비면_다시_하지_않고_failed() {
+        photos.clear();
+        worker.runOnce();
+
+        assertThat(jobRow()).containsEntry("status", "dead");
+        assertThat(((Number) jobRow().get("attempts")).intValue())
+                .as("다시 하지 않음")
+                .isEqualTo(1);
+        assertThat((String) jobRow().get("last_error")).startsWith("PHOTO_MISSING");
+        assertThat(submissionStatus()).isEqualTo("failed");
+        assertThat(reader.calls()).isZero();
+
+        long noPhoto = submission(null);
+        worker.runOnce();
+        assertThat(jdbc.queryForObject("select status from word_test_submission where id = ?", String.class, noPhoto))
+                .isEqualTo("failed");
+        assertThat(jdbc.queryForMap(
+                        "select status, attempts, last_error from grading_job where submission_id = ?", noPhoto))
+                .containsEntry("status", "dead")
+                .containsEntry("attempts", 1)
+                .containsEntry("last_error", "PHOTO_MISSING: 사진 키가 비었다");
+    }
+
+    @Test
+    void 사진이_상한보다_크면_다시_하지_않고_failed() {
+        photos.putSized(key, (int) SubmissionService.MAX_BYTES + 1, "image/jpeg");
+
+        worker.runOnce();
+
+        assertThat((String) jobRow().get("last_error")).startsWith("PHOTO_TOO_LARGE");
+        assertThat(((Number) jobRow().get("attempts")).intValue())
+                .as("다시 하지 않음")
+                .isEqualTo(1);
+        assertThat(submissionStatus()).isEqualTo("failed");
+        assertThat(reader.calls()).isZero();
+    }
+
+    @Test
+    void 선점_때_이미_graded면_읽지_않고_작업만_done() {
+        reader.willRead(count -> fullyCorrect());
+        worker.runOnce();
+        jdbc.update("update grading_job set status = 'queued' where id = ?", jobId);
+        reader.willRead(count -> List.of(
+                new ReadItem(1, "x", false),
+                new ReadItem(2, "x", false),
+                new ReadItem(3, "x", false),
+                new ReadItem(4, "x", false)));
+
+        worker.runOnce();
+
+        assertThat(submissionRow()).containsEntry("status", "graded").containsEntry("score", 4);
+        assertThat(jdbc.queryForList(
+                        "select recognized_text from word_test_answer where submission_id = ?",
+                        String.class,
+                        submissionId))
+                .doesNotContain("x");
+        assertThat(jobStatus()).isEqualTo("done");
+        assertThat(reader.calls()).as("두 번째는 읽지 않음").isEqualTo(1);
+    }
+
+    @Test
+    void 읽는_동안에는_제출과_작업_행에_DB_잠금이_없다() {
+        AtomicReference<String> seen = new AtomicReference<>();
+        reader.duringRead(count -> seen.set(new TransactionTemplate(transactions).execute(status -> {
+            // 다른 트랜잭션이 기다리지 않고(NOWAIT) 잠글 수 있어야 한다 — 워커가 잠금을 쥐고 있으면 즉시 오류
+            jdbc.queryForObject(
+                    "select id from word_test_submission where id = ? for update nowait", Long.class, submissionId);
+            return jdbc.queryForObject(
+                    "select status from grading_job where id = ? for update nowait", String.class, jobId);
+        })));
+
+        worker.runOnce();
+
+        assertThat(seen.get()).isEqualTo("running");
+        assertThat(submissionStatus()).isEqualTo("graded");
+    }
+
+    @Test
+    void 읽기에서_예상_못_한_예외가_나면_종류와_위치만_남기고_다시_한다() {
+        reader.willThrow(new IllegalStateException("sk-secret https://x"));
+
+        assertThat(worker.runOnce()).isEqualTo(1);
+
+        Map<String, Object> job = jobRow();
+        assertThat(job).containsEntry("status", "queued");
+        assertThat(((Number) job.get("attempts")).intValue()).isEqualTo(1);
+        assertThat((String) job.get("last_error"))
+                .matches("UNEXPECTED: IllegalStateException at \\S+\\.\\S+:\\d+")
+                .doesNotContain("sk-secret")
+                .doesNotContain("https");
+        assertThat(submissionStatus()).isEqualTo("grading");
+    }
+
+    @Test
+    void base64로_5MB를_넘는_사진은_보내지_않고_failed() {
+        // 원본 4,000,000바이트 → base64 약 5,333,336바이트 > 5MB(API 이미지 상한, 보수적으로 base64 기준)
+        photos.putSized(key, 4_000_000, "image/jpeg");
+
+        worker.runOnce();
+
+        assertThat(jobRow()).containsEntry("status", "dead");
+        assertThat((String) jobRow().get("last_error")).startsWith("PHOTO_TOO_LARGE");
+        assertThat(submissionStatus()).isEqualTo("failed");
+        assertThat(reader.calls()).isZero();
+    }
+
+    @Test
+    void 실패는_WARN_포기는_ERROR로_남고_읽은_글자는_남지_않는다(CapturedOutput output) {
+        reader.willFail(ReadFailure.Kind.API_ERROR, 3);
+
+        for (int i = 0; i < 3; i++) {
+            clock.set(NOON.plusSeconds(30L * i));
+            worker.runOnce();
+        }
+
+        assertThat(output.getOut())
+                .contains("WARN")
+                .contains("단어시험 읽기 실패: 제출 " + submissionId + " 시도 1 API_ERROR: 가짜 실패(재시도)")
+                .contains("ERROR")
+                .contains("단어시험 채점 포기: 제출 " + submissionId + " 3회 실패, 마지막 API_ERROR: 가짜 실패")
+                .contains("단어시험 채점: 제출 " + submissionId + " 시도 3 dead");
+    }
+
+    @Test
+    void 읽는_사이_제출이_graded가_되면_점수와_답안을_바꾸지_않고_작업만_done() {
+        reader.willRead(count -> fullyCorrect());
+        reader.duringRead(count -> new TransactionTemplate(transactions)
+                .executeWithoutResult(status -> jdbc.update(
+                        "update word_test_submission set status = 'graded', score = 3 where id = ?", submissionId)));
+
+        worker.runOnce();
+
+        assertThat(submissionRow()).containsEntry("status", "graded").containsEntry("score", 3);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from word_test_answer where submission_id = ?", Integer.class, submissionId))
+                .isZero();
+        assertThat(jobStatus()).isEqualTo("done");
+        assertThat(reader.calls()).isEqualTo(1);
+    }
+
+    @Test
+    void 제출_뒤_문항_수가_바뀌면_읽지_않고_failed() {
+        jdbc.update(
+                "insert into word_test_item (lesson_id, section, no, prompt, answer) values (?, 'B', 5, '대기', 'air')",
+                lessonId);
+
+        worker.runOnce();
+
+        assertThat(jobRow()).containsEntry("status", "dead");
+        assertThat((String) jobRow().get("last_error")).isEqualTo("ITEMS_CHANGED: 제출 때 문항 4개, 지금 5개");
+        assertThat(submissionStatus()).isEqualTo("failed");
+        assertThat(reader.calls()).isZero();
+    }
+
+    @Test
+    void 선점_때_제출_행을_해석하지_못하면_그_작업만_dead이고_다음_작업은_처리한다() {
+        reader.willRead(count -> fullyCorrect());
+        // 모르는 영역 값(예: 새 버전이 넣은 값)을 만들려고 검사를 잠시 끈다 — 이 테스트 안에서 되돌림
+        jdbc.execute("alter table word_test_submission alter check ck_word_test_submission_section not enforced");
+        try {
+            jdbc.update("update word_test_submission set section = 'Z' where id = ?", submissionId);
+            long next = submission(key);
+
+            assertThat(worker.runOnce()).isEqualTo(1);
+            assertThat(worker.runOnce()).isEqualTo(1);
+
+            assertThat(jdbc.queryForObject(
+                            "select status from grading_job where submission_id = ?", String.class, submissionId))
+                    .isEqualTo("dead");
+            assertThat(jdbc.queryForObject(
+                            "select last_error from grading_job where submission_id = ?", String.class, submissionId))
+                    .startsWith("CLAIM_FAILED: IllegalArgumentException at ");
+            assertThat(jdbc.queryForObject("select status from word_test_submission where id = ?", String.class, next))
+                    .isEqualTo("graded");
+        } finally {
+            jdbc.update("update word_test_submission set section = 'B' where id = ?", submissionId);
+            jdbc.execute("alter table word_test_submission alter check ck_word_test_submission_section enforced");
+        }
+    }
+
+    @Test
+    void 읽기가_꺼져_있으면_작업을_잡지_않는다() {
+        reader.enabled(false);
+
+        assertThat(worker.runOnce()).isZero();
+        assertThat(jobStatus()).isEqualTo("queued");
+        assertThat(reader.calls()).isZero();
+    }
+
+    private List<ReadItem> fullyCorrect() {
+        String[] answersInOrder = {"beautiful", "library", "receive", "atmosphere"};
+        List<ReadItem> list = new ArrayList<>();
+        for (int i = 0; i < answersInOrder.length; i++) {
+            list.add(new ReadItem(i + 1, answersInOrder[i], false));
+        }
+        return list;
+    }
+
+    private long submission(String imageKey) {
+        jdbc.update(
+                "insert into word_test_submission (client_submission_id, student_id, lesson_id, section, attempt_no,"
+                        + " image_key, status, total, created_at) values (?, ?, ?, 'B',"
+                        + " ?, ?, 'pending', 4, '2026-11-26 03:00:00')",
+                UUID.randomUUID().toString(),
+                studentId,
+                lessonId,
+                jdbc.queryForObject(
+                                "select count(*) from word_test_submission where student_id = ?",
+                                Integer.class,
+                                studentId)
+                        + 1,
+                imageKey);
+        long id = jdbc.queryForObject("select last_insert_id()", Long.class);
+        // 다른 테스트가 남긴 작업보다 먼저 잡히게 이른 시각
+        jdbc.update(
+                "insert into grading_job (submission_id, status, run_after) values (?, 'queued', '2000-01-01 00:00:00')",
+                id);
+        if (imageKey != null) {
+            jobId = jdbc.queryForObject("select last_insert_id()", Long.class);
+        }
+        return id;
+    }
+
+    private Map<String, Object> submissionRow() {
+        return jdbc.queryForMap(
+                "select status, score, graded_at, model, prompt_version from word_test_submission where id = ?",
+                submissionId);
+    }
+
+    private String submissionStatus() {
+        return jdbc.queryForObject("select status from word_test_submission where id = ?", String.class, submissionId);
+    }
+
+    private Map<String, Object> jobRow() {
+        return jdbc.queryForMap("select status, attempts, last_error from grading_job where id = ?", jobId);
+    }
+
+    private String jobStatus() {
+        return (String) jobRow().get("status");
+    }
+}

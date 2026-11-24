@@ -10,7 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /**
- * 철자 판정(기획 §5-3, 11/24 결정): 정규화 → 빈칸 → 정답·허용 답 → 한 글자 hint 뒤에 이어 쓴 답. 읽을 수 없음은 wrong + unreadable. 숙어 자리표시(~·one's·-ing)는
+ * 철자 판정(기획 §5-3, 11/24 결정): 정규화 → 빈칸 → 정답·허용 답 → 한 글자 hint 뒤에 이어 쓴 답. 읽을 수 없음은 unclear + unreadable(11/25 결정, 점수 밖). 숙어 자리표시(~·one's·-ing)는
  * 처리하지 않는다(2단계).
  */
 class SpellingJudgeTest {
@@ -30,8 +30,8 @@ class SpellingJudgeTest {
                 "cheerful;-;-;'   ';false;BLANK;-",
                 "cheerful;-;-;-;false;BLANK;-",
                 // 읽을 수 없음이 정답 글자·빈칸보다 먼저
-                "cheerful;-;-;cheerful;true;WRONG;UNREADABLE",
-                "cheerful;-;-;-;true;WRONG;UNREADABLE",
+                "cheerful;-;-;cheerful;true;UNCLEAR;UNREADABLE",
+                "cheerful;-;-;-;true;UNCLEAR;UNREADABLE",
                 // 숙어: 띄어쓰기 정규화, 낱말별 hint에는 빼기 규칙 없음
                 "point to;-;p... t...;'point  to';false;CORRECT;-",
                 "point to;-;p... t...;pointto;false;WRONG;-",

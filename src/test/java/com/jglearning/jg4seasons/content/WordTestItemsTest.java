@@ -1,6 +1,7 @@
 package com.jglearning.jg4seasons.content;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
@@ -11,7 +12,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** 시험지 문항 읽기(공용 콘텐츠): 회차·영역별, 번호 순, 허용 답 포함. 문항은 지어낸 것 */
 @IntegrationTest
@@ -23,6 +28,9 @@ class WordTestItemsTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    PlatformTransactionManager transactions;
 
     long lesson;
     long other;
@@ -60,6 +68,21 @@ class WordTestItemsTest {
         assertThat(items.count(lesson, "C")).isZero();
         assertThat(items.of(lesson, "C")).isEmpty();
         assertThat(items.count(other, "B")).isEqualTo(1);
+    }
+
+    @Test
+    void 잠금_읽기는_같은_문항을_허용_답과_함께_준다() {
+        assertThat(items.ofLocked(lesson, "B")).isEqualTo(items.of(lesson, "B"));
+    }
+
+    @Test
+    void 잠금_읽기는_트랜잭션_밖에서_부르면_거부한다() {
+        // 테스트 트랜잭션은 그대로 두고(준비한 행은 되돌아감) 이 호출만 트랜잭션 밖에서
+        TransactionTemplate outside = new TransactionTemplate(transactions);
+        outside.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
+
+        assertThatThrownBy(() -> outside.executeWithoutResult(status -> items.ofLocked(lesson, "B")))
+                .isInstanceOf(IllegalTransactionStateException.class);
     }
 
     private long item(long lessonId, String section, int no, String prompt, String answer, String hint) {
