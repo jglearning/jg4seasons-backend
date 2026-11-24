@@ -7,11 +7,13 @@ import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.api.AcademyStudents;
 import com.jglearning.jg4seasons.auth.api.StudentAccounts;
+import com.jglearning.jg4seasons.infra.storage.MemoryPhotoStorage;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.wordtest.api.WordTestResults;
 import com.jglearning.jg4seasons.wordtest.api.WordTestResults.Detail;
 import com.jglearning.jg4seasons.wordtest.api.WordTestResults.Item;
 import com.jglearning.jg4seasons.wordtest.api.WordTestResults.Summary;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,6 +41,9 @@ class WordTestResultsTest {
 
     @Autowired
     StudentAccounts accounts;
+
+    @Autowired
+    MemoryPhotoStorage photos;
 
     @Autowired
     JdbcTemplate jdbc;
@@ -76,8 +81,9 @@ class WordTestResultsTest {
 
     @Test
     void 최근_제출은_학생마다_마지막_시도() {
-        submission(studentA, lessonId, "B", 1, "graded", 2, "homework/a1.jpg");
+        // 시도 2를 먼저 넣는다 — id 순서가 아니라 시도 번호로 마지막을 고르는지
         long a2 = submission(studentA, lessonId, "B", 2, "pending", null, "homework/a2.jpg");
+        submission(studentA, lessonId, "B", 1, "graded", 2, "homework/a1.jpg");
         long b1 = submission(studentB, lessonId, "B", 1, "graded", 3, "homework/b1.jpg");
 
         Map<Long, Summary> latest = results.latestOf(students(studentA, studentB, studentC), lessonId, "B");
@@ -87,6 +93,16 @@ class WordTestResultsTest {
                 .isEqualTo(new Summary(a2, "pending", null, 4, 2, Instant.parse("2026-11-26T03:00:00Z")));
         assertThat(latest.get(studentB).id()).isEqualTo(b1);
         assertThat(latest.get(studentB).score()).isEqualTo(3);
+    }
+
+    @Test
+    void graded가_아닌_최근_제출은_점수가_null() {
+        submission(studentA, lessonId, "B", 1, "grading", 2, "homework/a.jpg");
+
+        assertThat(results.latestOf(students(studentA), lessonId, "B")
+                        .get(studentA)
+                        .score())
+                .isNull();
     }
 
     @Test
@@ -175,6 +191,21 @@ class WordTestResultsTest {
                 .isEqualTo("https://photos.test/homework/a.jpg?view");
         assertThat(results.detailOf(students(studentA), noPhoto).orElseThrow().imageUrl())
                 .isNull();
+    }
+
+    @Test
+    void 사진_보기_주소는_5분이고_저장소가_주소를_주지_않으면_null() {
+        long id = submission(studentA, lessonId, "B", 1, "graded", 1, "homework/a.jpg");
+        try {
+            results.detailOf(students(studentA), id);
+            assertThat(photos.lastViewTtl()).isEqualTo(Duration.ofMinutes(5));
+
+            photos.viewUrls(false);
+            assertThat(results.detailOf(students(studentA), id).orElseThrow().imageUrl())
+                    .isNull();
+        } finally {
+            photos.clear();
+        }
     }
 
     @Test

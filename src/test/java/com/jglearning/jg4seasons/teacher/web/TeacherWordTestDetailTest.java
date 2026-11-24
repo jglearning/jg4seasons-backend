@@ -206,6 +206,45 @@ class TeacherWordTestDetailTest {
     }
 
     @Test
+    void 비활성_교사와_관리자는_401() {
+        long id = graded(kim);
+        long adminId = data.staff(academyId, "관리자", "admin");
+        jdbc.update("update `user` set status = 'inactive' where id in (?, ?)", teacherId, adminId);
+
+        assertThat(detail(teacherId, UserRole.TEACHER, academyId, id)).hasStatus(401);
+        assertThat(detail(adminId, UserRole.ADMIN, academyId, id)).hasStatus(401);
+    }
+
+    @Test
+    void 담당_반이_둘이면_두_반_학생의_제출을_모두_본다() {
+        data.assignTeacher(otherClassId, teacherId);
+        long kims = graded(kim);
+        long parks = graded(park);
+
+        assertThat(detail(teacherId, UserRole.TEACHER, academyId, kims))
+                .bodyJson()
+                .extractingPath("$.student.name")
+                .isEqualTo("김학생");
+        assertThat(detail(teacherId, UserRole.TEACHER, academyId, parks))
+                .bodyJson()
+                .extractingPath("$.student.name")
+                .isEqualTo("박학생");
+    }
+
+    @Test
+    void 관리자는_퇴원한_학생의_제출도_본다() {
+        long id = graded(kim);
+        data.leave(classId, kim);
+        jdbc.update("update `user` set status = 'inactive' where id = ?", kim);
+        long adminId = data.staff(academyId, "관리자", "admin");
+
+        assertThat(detail(adminId, UserRole.ADMIN, academyId, id))
+                .bodyJson()
+                .extractingPath("$.student.name")
+                .isEqualTo("김학생");
+    }
+
+    @Test
     void 학생은_403() {
         long id = graded(kim);
 

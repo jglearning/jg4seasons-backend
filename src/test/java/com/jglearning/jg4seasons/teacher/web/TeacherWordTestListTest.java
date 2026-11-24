@@ -117,8 +117,19 @@ class TeacherWordTestListTest {
     void 관리자도_본다() {
         long adminId = data.staff(academyId, "관리자", "admin");
 
+        // 관리자는 담당하지 않은 반도 같은 명단
         assertThat(list(adminId, UserRole.ADMIN, academyId, "lessonCode=" + CODE + "&section=B"))
-                .hasStatusOk();
+                .bodyJson()
+                .extractingPath("$.students[*].name")
+                .isEqualTo(List.of("김학생", "박학생", "이학생"));
+    }
+
+    @Test
+    void 비활성_교사는_401() {
+        jdbc.update("update `user` set status = 'inactive' where id = ?", teacherId);
+
+        assertThat(list(teacherId, UserRole.TEACHER, academyId, "lessonCode=" + CODE + "&section=B"))
+                .hasStatus(401);
     }
 
     @Test
