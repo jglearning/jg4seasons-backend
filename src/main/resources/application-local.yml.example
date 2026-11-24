@@ -25,3 +25,8 @@ jg4seasons:
   initial-operator:
     login-id: operator
     password: local-operator-pass
+  # 단어시험 숙제 사진: 로컬 폴더. 업로드 주소는 자리표시 — 사진은 <폴더>/<imageKey>에 직접 복사(프론트 로컬은 목 업로드)
+  word-test:
+    storage:
+      type: local
+      local-dir: build/local-photos

@@ -3,6 +3,7 @@ package com.jglearning.jg4seasons.infra.persistence.devseed;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
+import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -65,6 +66,15 @@ class DevSeedTest {
                 .isEqualTo("L2-B1-01");
         // 인증 수단은 인증 이슈에서 시드에 추가한다
         assertThat(count("select count(*) from auth_identity")).isZero();
+    }
+
+    @Test
+    void 데모_학원은_단어시험이_켜져_있다() {
+        devSeed().seed();
+
+        long academyId = jdbc.queryForObject("select id from academy where slug = 'demo'", Long.class);
+        assertThat(context.getBean(AcademyDirectory.class).wordTestEnabled(academyId))
+                .isTrue();
     }
 
     @Test

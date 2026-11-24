@@ -49,6 +49,11 @@ class LessonCatalogService implements LessonCatalog {
     }
 
     @Override
+    public Optional<String> codeOf(long lessonId) {
+        return store.codeOf(lessonId);
+    }
+
+    @Override
     public List<LessonWord> words(long lessonId) {
         return store.words(lessonId).stream()
                 .map(row -> new LessonWord(
