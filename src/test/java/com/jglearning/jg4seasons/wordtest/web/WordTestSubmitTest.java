@@ -301,6 +301,33 @@ class WordTestSubmitTest {
                 "INVALID_IMAGE");
     }
 
+    @Test
+    void 한도가_찬_뒤에도_같은_clientSubmissionId는_429가_아닌_200과_같은_id() {
+        String third = null;
+        String thirdId = null;
+        for (int i = 0; i < 3; i++) {
+            third = UUID.randomUUID().toString();
+            MvcTestResult result = submit(student(), third, TODAY, "B", photo());
+            thirdId = String.valueOf(
+                    assertThat(result).bodyJson().extractingPath("$.id").actual());
+        }
+
+        MvcTestResult again = submit(student(), third, TODAY, "B", photo());
+
+        assertThat(again).hasStatusOk();
+        assertThat(String.valueOf(
+                        assertThat(again).bodyJson().extractingPath("$.id").actual()))
+                .isEqualTo(thirdId);
+
+        // 다음 날 그 회차가 휴강으로 잠겨도 같은 id 재전송은 기존 제출
+        clock.set(Instant.parse("2026-11-26T15:00:00Z"));
+        jdbc.update("update class_session set status = 'cancelled' where class_id = ?", classId);
+        assertThat(submit(student(), third, TODAY, "B", photo())).hasStatusOk();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from word_test_submission where student_id = ?", Integer.class, studentId))
+                .isEqualTo(3);
+    }
+
     private int count(String table) {
         return jdbc.queryForObject("select count(*) from " + table, Integer.class);
     }
