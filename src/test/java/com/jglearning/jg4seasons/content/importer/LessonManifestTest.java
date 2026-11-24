@@ -303,6 +303,37 @@ class LessonManifestTest {
     void 단어시험_칸_길이가_한도를_넘으면_거부() {
         assertRejected(WORDS, withWordTests(item("B", 1, "a".repeat(101))), "answer");
         assertRejected(WORDS, withWordTests(item("B", 1, "")), "answer");
+        assertRejected(WORDS, withWordTests(full("뜻".repeat(201), "kite", null, "")), "prompt");
+        assertRejected(WORDS, withWordTests(full("뜻", "kite", "k".repeat(51), "")), "hint");
+        assertRejected(WORDS, withWordTests(full("뜻", "kite", "", "")), "hint");
+        assertRejected(WORDS, withWordTests(full("뜻", "kite", null, "\"" + "k".repeat(101) + "\"")), "accepted");
+    }
+
+    @Test
+    void 단어시험_빈_목록은_null과_다르다() throws IOException {
+        // [] = 그 회차 문항 전부 삭제, 칸 없음(null) = 건드리지 않음
+        assertThat(readWith(WORDS, withWordTests("")).wordTests()).isNotNull().isEmpty();
+    }
+
+    @Test
+    void 한_글자_hint는_정답의_첫_글자여야_한다() throws IOException {
+        assertRejected(WORDS, withWordTests(full("분위기", "atmosphere", "\"s\"", "")), "첫 글자");
+        assertThat(readWith(WORDS, withWordTests(full("분위기", "atmosphere", "\"A\"", "")))
+                        .wordTests())
+                .as("대소문자는 가리지 않는다")
+                .hasSize(1);
+        assertThat(readWith(WORDS, withWordTests(full("가리키다", "point to", "\"p... t...\"", "")))
+                        .wordTests())
+                .as("숙어의 낱말별 hint는 검사하지 않는다")
+                .hasSize(1);
+    }
+
+    /** prompt·answer는 문자열, hint는 JSON 값 그대로(null·"\"a\""), accepted는 JSON 배열 안쪽 */
+    private static String full(String prompt, String answer, String hint, String accepted) {
+        String hintJson =
+                hint == null ? "null" : hint.isEmpty() ? "\"\"" : hint.startsWith("\"") ? hint : "\"" + hint + "\"";
+        return "{\"section\": \"B\", \"no\": 1, \"prompt\": \"" + prompt + "\", \"answer\": \"" + answer
+                + "\", \"hint\": " + hintJson + ", \"accepted\": [" + accepted + "]}";
     }
 
     private LessonManifest readWith(String from, String to) throws IOException {

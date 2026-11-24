@@ -197,6 +197,52 @@ class WordTestImportTest {
         assertThat(items()).containsExactly("B 1 연 Kite - -");
     }
 
+    @Test
+    void wordTests가_없는_manifest로_단어를_지워도_문항_연결만_끊는다() {
+        importer.importLesson(with(KITE, PUDDLE_2));
+
+        ImportResult result = importer.importLesson(
+                new LessonManifest(CODE, base.passages(), base.words().subList(0, 3), null));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(items()).containsExactly("B 1 연 kite - kite", "B 2 웅덩이 puddle - -");
+    }
+
+    @Test
+    void wordTests가_없는_manifest로_철자가_바뀌어도_연결을_다시_계산한다() {
+        importer.importLesson(with(KITE, PUDDLE_2));
+        List<Word> renamed = new ArrayList<>(base.words());
+        renamed.set(0, copy(renamed.get(0), "kites"));
+
+        importer.importLesson(new LessonManifest(CODE, base.passages(), renamed, null));
+
+        assertThat(items()).containsExactly("B 1 연 kite - -", "B 2 웅덩이 puddle - puddle");
+    }
+
+    @Test
+    void 답안이_없는_문항은_정답을_고치고_연결도_옮긴다() {
+        importer.importLesson(with(KITE));
+        List<Long> before = itemIds();
+
+        ImportResult result = importer.importLesson(with(new WordTestItem("B", 1, "웅덩이", "puddle", null, List.of())));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(items()).containsExactly("B 1 웅덩이 puddle - puddle");
+        assertThat(itemIds()).isEqualTo(before);
+    }
+
+    @Test
+    void 빈_목록이면_문항을_모두_지운다() {
+        importer.importLesson(with(KITE, ALL_DAY, RAINBOW));
+
+        ImportResult result = importer.importLesson(with());
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(items()).isEmpty();
+        assertThat(jdbc.queryForObject("select count(*) from word_test_accepted_answer", Integer.class))
+                .isZero();
+    }
+
     private LessonManifest with(WordTestItem... items) {
         return new LessonManifest(CODE, base.passages(), base.words(), List.of(items));
     }

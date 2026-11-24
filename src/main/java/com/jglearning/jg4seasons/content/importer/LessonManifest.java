@@ -264,6 +264,11 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
             text(where, "answer", answer, TEST_ANSWER_MAX);
             if (hint != null) {
                 text(where, "hint", hint, TEST_HINT_MAX);
+                // 한 글자 hint는 학생 책을 보고 손으로 채운 값 — 정답 첫 글자와 다르면 이어 쓴 학생이 오답이 된다(판정 규칙)
+                String first = hint.strip();
+                if (first.length() == 1 && !answer.strip().regionMatches(true, 0, first, 0, 1)) {
+                    throw new IllegalArgumentException(where + ": 한 글자 hint " + hint + "가 정답의 첫 글자가 아니다");
+                }
             }
             accepted = accepted == null ? List.of() : list(where, "accepted", accepted);
             Set<String> seen = new HashSet<>();
