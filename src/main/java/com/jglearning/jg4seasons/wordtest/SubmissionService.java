@@ -35,8 +35,23 @@ public class SubmissionService {
     static final long MAX_BYTES = 5L * 1024 * 1024;
     static final int DAILY_LIMIT = 3;
 
-    /** 새로 만들었으면 created = true(202), 같은 요청이면 false(200) */
-    public record Result(long id, SubmissionStatus status, boolean created) {}
+    /** 새로 만들었으면 created = true(202, 늘 pending), 같은 요청이면 false(200, 그 제출의 지금 상태) */
+    public record Result(long id, SubmissionStatus status, boolean created) {
+
+        public Result {
+            if (created && status != SubmissionStatus.PENDING) {
+                throw new IllegalArgumentException("새 제출은 pending이어야 한다: " + status);
+            }
+        }
+
+        static Result created(long id) {
+            return new Result(id, SubmissionStatus.PENDING, true);
+        }
+
+        static Result replayed(long id, SubmissionStatus status) {
+            return new Result(id, status, false);
+        }
+    }
 
     private final WordTestAccess access;
     private final WordTestItems items;
@@ -94,7 +109,7 @@ public class SubmissionService {
             try {
                 long id = store.insertWithJob(
                         new NewSubmission(clientId, studentId, lessonId, section, attempt, imageKey, total), now);
-                return new Result(id, SubmissionStatus.PENDING, true);
+                return Result.created(id);
             } catch (DuplicateKeyException e) {
                 if (SubmissionStore.isClientIdConflict(e)) {
                     return store.lockByClientId(clientId)
@@ -113,7 +128,7 @@ public class SubmissionService {
         if (row.studentId() != studentId) {
             throw ApiException.validation("clientSubmissionId", "이미 쓰인 제출 번호예요");
         }
-        return new Result(row.id(), row.status(), false);
+        return Result.replayed(row.id(), row.status());
     }
 
     /** 내 경로의 키이고, 올라간 사진이 5MB 이하 JPEG·PNG. 키는 학생 id를 담으므로 오류 문구에 넣지 않는다 */
