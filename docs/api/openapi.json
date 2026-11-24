@@ -1814,6 +1814,46 @@
         "summary" : "개인 코드 재발급",
         "tags" : [ "teacher-detail-controller" ]
       }
+    },
+    "/api/v1/word-tests/uploads" : {
+      "post" : {
+        "description" : "S3에 바로 PUT할 서명 주소(5분)와 제출에 쓸 imageKey. PUT에는 headers를 그대로 넣고 쿠키는 보내지 않는다. JPEG·PNG만(그 밖 400 INVALID_IMAGE). 크기(5MB)는 제출 때 확인한다. 기능 꺼짐 404 FEATURE_DISABLED, 없는 회차·진도표에 없는 회차 404 NOT_FOUND, 사용 기간 아님 403 LICENSE_INACTIVE, 수업일 전 423 LESSON_LOCKED",
+        "operationId" : "issueWordTestUpload",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/WordTestUploadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WordTestUploadResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "단어시험 사진 업로드 주소",
+        "tags" : [ "word-test-controller" ]
+      }
     }
   },
   "components" : {
@@ -4881,6 +4921,56 @@
           }
         },
         "required" : [ "allViewed", "cardsViewed", "memKnown", "recallBest", "spellBest" ]
+      },
+      "WordTestUploadRequest" : {
+        "type" : "object",
+        "properties" : {
+          "contentType" : {
+            "type" : "string",
+            "description" : "사진 형식. image/jpeg · image/png만(그 밖은 400 INVALID_IMAGE)",
+            "example" : "image/jpeg",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "lessonCode" : {
+            "type" : "string",
+            "description" : "회차 코드",
+            "example" : "L2-B1-05",
+            "minLength" : 1,
+            "pattern" : "^[A-Za-z0-9-]{1,10}$"
+          }
+        },
+        "required" : [ "contentType", "lessonCode" ]
+      },
+      "WordTestUploadResponse" : {
+        "type" : "object",
+        "properties" : {
+          "expiresAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "주소 만료 시각(UTC)"
+          },
+          "headers" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "PUT 요청에 그대로 넣을 헤더(서명에 포함 — 다르면 S3가 403)",
+            "example" : {
+              "Content-Type" : "image/jpeg"
+            }
+          },
+          "imageKey" : {
+            "type" : "string",
+            "description" : "제출(D-2)에 그대로 보낼 키",
+            "example" : "homework/1/42/0b9e1c2d-3f4a-4b5c-8d6e-7f8091a2b3c4.jpg"
+          },
+          "uploadUrl" : {
+            "type" : "string",
+            "description" : "사진을 PUT할 서명 주소(5분). 쿠키를 보내지 않는다(credentials omit)"
+          }
+        },
+        "required" : [ "expiresAt", "headers", "imageKey", "uploadUrl" ]
       }
     }
   }
