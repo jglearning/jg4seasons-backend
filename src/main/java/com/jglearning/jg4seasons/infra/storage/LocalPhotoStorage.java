@@ -49,9 +49,13 @@ class LocalPhotoStorage implements PhotoStorage {
     }
 
     @Override
-    public byte[] read(String key) {
+    public byte[] read(String key, long maxBytes) {
         try {
-            return Files.readAllBytes(resolve(key));
+            Path file = resolve(key);
+            if (Files.size(file) > maxBytes) {
+                throw new PhotoTooLargeException(maxBytes);
+            }
+            return Files.readAllBytes(file);
         } catch (NoSuchFileException e) {
             throw new NoSuchElementException("사진이 없다");
         } catch (IOException e) {

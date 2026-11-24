@@ -73,15 +73,28 @@ class S3PhotoStorage implements PhotoStorage {
         }
     }
 
+    /** 크기를 먼저 보고(넘으면 내려받지 않음), 받을 때도 상한 + 1바이트까지만 범위로 — 그 사이 더 큰 파일로 바뀌었어도 메모리에 다 올리지 않는다 */
     @Override
-    public byte[] read(String key) {
+    public byte[] read(String key, long maxBytes) {
+        StoredPhoto photo = head(key).orElseThrow(() -> new NoSuchElementException("사진이 없다"));
+        if (photo.contentLength() > maxBytes) {
+            throw new PhotoTooLargeException(maxBytes);
+        }
+        byte[] bytes;
         try {
-            return client.getObjectAsBytes(
-                            GetObjectRequest.builder().bucket(bucket).key(key).build())
+            bytes = client.getObjectAsBytes(GetObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(key)
+                            .range("bytes=0-" + maxBytes)
+                            .build())
                     .asByteArray();
         } catch (NoSuchKeyException e) {
             throw new NoSuchElementException("사진이 없다");
         }
+        if (bytes.length > maxBytes) {
+            throw new PhotoTooLargeException(maxBytes);
+        }
+        return bytes;
     }
 
     @Override

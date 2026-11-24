@@ -50,10 +50,13 @@ public class MemoryPhotoStorage implements PhotoStorage {
     }
 
     @Override
-    public byte[] read(String key) {
+    public byte[] read(String key, long maxBytes) {
         Photo photo = photos.get(key);
         if (photo == null) {
             throw new NoSuchElementException("사진이 없다");
+        }
+        if (photo.bytes().length > maxBytes) {
+            throw new PhotoTooLargeException(maxBytes);
         }
         return photo.bytes().clone();
     }

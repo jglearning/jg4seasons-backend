@@ -38,9 +38,19 @@ class LocalPhotoStorageTest {
         Files.write(file, new byte[] {1, 2, 3});
 
         assertThat(storage.head(KEY)).contains(new StoredPhoto(3, "image/jpeg"));
-        assertThat(storage.read(KEY)).containsExactly(1, 2, 3);
+        assertThat(storage.read(KEY, 3)).containsExactly(1, 2, 3);
         assertThat(storage.head(KEY.replace(".jpg", ".png"))).isEmpty();
-        assertThatThrownBy(() -> storage.read("homework/1/42/none.jpg")).isInstanceOf(NoSuchElementException.class);
+        assertThatThrownBy(() -> storage.read("homework/1/42/none.jpg", 100))
+                .isInstanceOf(NoSuchElementException.class);
+    }
+
+    @Test
+    void 상한을_넘는_사진은_읽지_않고_거부한다() throws IOException {
+        Path file = dir.resolve(KEY);
+        Files.createDirectories(file.getParent());
+        Files.write(file, new byte[] {1, 2, 3});
+
+        assertThatThrownBy(() -> storage.read(KEY, 2)).isInstanceOf(PhotoTooLargeException.class);
     }
 
     @Test

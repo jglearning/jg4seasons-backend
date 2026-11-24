@@ -16,8 +16,10 @@ public interface PhotoStorage {
     /** 올라간 사진의 크기·형식. 없으면 empty */
     Optional<StoredPhoto> head(String key);
 
-    /** 사진 바이트. 없으면 NoSuchElementException */
-    byte[] read(String key);
+    /**
+     * 사진 바이트. maxBytes를 넘으면 내려받지 않고 PhotoTooLargeException(제출 뒤 같은 주소로 큰 파일을 덮어쓴 경우), 없으면 NoSuchElementException
+     */
+    byte[] read(String key, long maxBytes);
 
     /** 짧은 유효 시간의 보기 주소(교사 화면). 만들 수 없는 저장소면 empty */
     Optional<URI> presignGet(String key, Duration ttl);

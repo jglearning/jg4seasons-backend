@@ -68,7 +68,7 @@ class PhotoStorageConfig {
         }
 
         @Override
-        public byte[] read(String key) {
+        public byte[] read(String key, long maxBytes) {
             throw off();
         }
 
