@@ -19,13 +19,17 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 교사 조회용 결과 api: 학원 경계는 학생 묶음(AcademyStudents)만. 1회차 B 문항 4개(지어낸 것) */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class WordTestResultsTest {
 
     static final String CODE = "L2-B1-01";
@@ -133,6 +137,22 @@ class WordTestResultsTest {
                         new Item(2, "도서관", "library", "correct", "library"),
                         new Item(3, "받다", "", "blank", "receive"),
                         new Item(4, "분위기", "", "unclear", "atmosphere"));
+    }
+
+    @Test
+    void 채점된_제출에_답안이_빠진_문항은_빼고_WARN을_남긴다(CapturedOutput output) {
+        long id = submission(studentA, lessonId, "B", 1, "graded", 1, "homework/a.jpg");
+        answer(id, items[1], "beautful", null, "wrong");
+        answer(id, items[2], "library", null, "correct");
+        answer(id, items[3], null, null, "blank");
+
+        Detail detail = results.detailOf(students(studentA), id).orElseThrow();
+
+        assertThat(detail.items()).extracting(Item::no).containsExactly(1, 2, 3);
+        assertThat(output.getOut())
+                .contains("WARN")
+                .contains("채점된 제출의 답안 수가 문항과 다르다: submission " + id)
+                .doesNotContain("가학생");
     }
 
     @Test

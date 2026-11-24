@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 class WordTestResultsService implements WordTestResults {
+
+    private static final Logger log = LoggerFactory.getLogger(WordTestResultsService.class);
 
     /** 사진 보기 주소 유효 시간(업로드 주소와 같음) */
     static final Duration IMAGE_URL_TTL = Duration.ofMinutes(5);
@@ -119,9 +123,11 @@ class WordTestResultsService implements WordTestResults {
         Map<Long, AnswerRow> byItem =
                 answers.answers(row.id()).stream().collect(Collectors.toMap(AnswerRow::itemId, Function.identity()));
         List<Item> result = new ArrayList<>();
+        int skipped = 0;
         for (WordTestItem item : items.of(row.lessonId(), row.section().dbValue())) {
             AnswerRow answer = byItem.get(item.id());
             if (answer == null) {
+                skipped++;
                 continue;
             }
             result.add(new Item(
@@ -130,6 +136,17 @@ class WordTestResultsService implements WordTestResults {
                     ResultView.written(answer.recognizedText()),
                     answer.result().dbValue(),
                     item.answer()));
+        }
+        if (skipped > 0 || result.size() != row.total()) {
+            // 채점이 모든 문항에 답안을 만든다 — 다르면 채점 중단·채점 뒤 문항 import. 화면은 있는 답안만, 원인은 로그로(이름·글자 없이)
+            log.warn(
+                    "채점된 제출의 답안 수가 문항과 다르다: submission {} lesson {} section {} 문항 {} 답안 {} total {}",
+                    row.id(),
+                    row.lessonId(),
+                    row.section().dbValue(),
+                    result.size() + skipped,
+                    byItem.size(),
+                    row.total());
         }
         return result;
     }

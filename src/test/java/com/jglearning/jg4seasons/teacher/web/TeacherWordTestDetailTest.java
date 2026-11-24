@@ -15,7 +15,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
@@ -27,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class TeacherWordTestDetailTest {
 
     static final String CODE = "L2-B1-01";
@@ -184,6 +188,21 @@ class TeacherWordTestDetailTest {
         enable(academyId, false);
 
         assertNotFound(detail(teacherId, UserRole.TEACHER, academyId, id), "FEATURE_DISABLED");
+    }
+
+    @Test
+    void 담당_반_소속에_다른_학원_학생이_섞이면_빼고_WARN을_남긴다(CapturedOutput output) {
+        long otherAcademy = data.academy("어긋난 학원");
+        long stranger = data.student(otherAcademy, "남학생");
+        data.enroll(classId, stranger);
+        long theirs = graded(stranger);
+
+        assertNotFound(detail(teacherId, UserRole.TEACHER, academyId, theirs), "NOT_FOUND");
+        assertThat(output.getOut())
+                .contains("WARN")
+                .contains("담당 반 소속에 그 학원 학생이 아닌 id가 있다")
+                .contains(String.valueOf(stranger))
+                .doesNotContain("남학생");
     }
 
     @Test

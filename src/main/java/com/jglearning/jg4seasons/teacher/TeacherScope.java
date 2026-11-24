@@ -136,7 +136,17 @@ class TeacherScope {
         for (TeacherClass clazz : teacherClasses.activeClasses(academyId, actorId, false, today(academyId))) {
             ids.addAll(clazz.studentIds());
         }
-        return students.roster(academyId, ids);
+        StudentRoster roster = students.roster(academyId, ids);
+        if (roster.accounts().size() != ids.size()) {
+            // roster(ScopedClass)와 같은 정책: 화면은 그 학원 학생만, 빠진 id는 로그로(그 학생 제출은 404가 된다)
+            Set<Long> kept = roster.accounts().stream().map(StudentAccount::id).collect(Collectors.toSet());
+            log.warn(
+                    "담당 반 소속에 그 학원 학생이 아닌 id가 있다: academy {} actor {} ids {}",
+                    academyId,
+                    actorId,
+                    ids.stream().filter(id -> !kept.contains(id)).toList());
+        }
+        return roster;
     }
 
     /** 요청한 사람이 지금 활성 관리자면 true, 활성 교사면 false. 둘 다 아니면 401(DB의 지금 역할 — JWT 역할 아님) */
