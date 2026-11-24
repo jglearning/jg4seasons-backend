@@ -22,6 +22,12 @@ public interface AcademyDirectory {
     ZoneId zoneOf(long academyId);
 
     /**
+     * 단어시험 사진 채점을 켠 학원인가. settings의 {@code features.wordTest}가 JSON true일 때만 true(없음·false·문자열 "true" 등은 꺼짐 — 기본 꺼짐).
+     * 없는 학원·객체가 아닌 settings는 데이터 오류라 IllegalStateException
+     */
+    boolean wordTestEnabled(long academyId);
+
+    /**
      * 관리 쓰기(교사 계정·담당 반·반 생성·변경·가입 코드 재발급)를 학원 단위로 줄 세운다: 학원 행을 FOR UPDATE로 잠근다. 호출한 트랜잭션 안에서만
      * 쓰고(MANDATORY), 그 트랜잭션의 첫 읽기보다 먼저 부른다 — REPEATABLE READ 스냅샷이 잠금을 얻은 뒤에 잡혀야 앞선 관리 쓰기의 결과를 본다. 담당
      * 교사 배정은 교사 행·반 행·class_teacher(FK로 user 행)를 경로마다 다른 순서로 잠그므로, 이 잠금 하나로 교착을 막는다. 학원이 없으면 아무것도

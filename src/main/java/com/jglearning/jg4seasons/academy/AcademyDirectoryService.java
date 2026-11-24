@@ -47,14 +47,9 @@ class AcademyDirectoryService implements AcademyDirectory {
 
     @Override
     public ZoneId zoneOf(long academyId) {
-        Academy academy =
-                academies.findById(academyId).orElseThrow(() -> new IllegalStateException("학원이 없다: " + academyId));
-        if (academy.getSettings() == null) {
+        JsonNode settings = settingsOf(academyId);
+        if (settings == null) {
             return DEFAULT_ZONE;
-        }
-        JsonNode settings = jsonMapper.readTree(academy.getSettings());
-        if (!settings.isObject()) {
-            throw new IllegalStateException("학원 settings가 객체가 아니다: " + academyId);
         }
         JsonNode timezone = settings.get("timezone");
         if (timezone == null || timezone.isNull()) {
@@ -68,6 +63,34 @@ class AcademyDirectoryService implements AcademyDirectory {
         } catch (DateTimeException e) {
             throw new IllegalStateException("학원 타임존이 잘못됐다: " + academyId, e);
         }
+    }
+
+    @Override
+    public boolean wordTestEnabled(long academyId) {
+        JsonNode settings = settingsOf(academyId);
+        if (settings == null) {
+            return false;
+        }
+        JsonNode features = settings.get("features");
+        if (features == null || !features.isObject()) {
+            return false;
+        }
+        JsonNode wordTest = features.get("wordTest");
+        return wordTest != null && wordTest.isBoolean() && wordTest.booleanValue();
+    }
+
+    /** settings JSON 객체, 비어 있으면 null. 없는 학원·객체가 아닌 settings는 IllegalStateException */
+    private JsonNode settingsOf(long academyId) {
+        Academy academy =
+                academies.findById(academyId).orElseThrow(() -> new IllegalStateException("학원이 없다: " + academyId));
+        if (academy.getSettings() == null) {
+            return null;
+        }
+        JsonNode settings = jsonMapper.readTree(academy.getSettings());
+        if (!settings.isObject()) {
+            throw new IllegalStateException("학원 settings가 객체가 아니다: " + academyId);
+        }
+        return settings;
     }
 
     @Override

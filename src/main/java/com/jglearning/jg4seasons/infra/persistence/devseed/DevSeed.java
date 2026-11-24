@@ -69,7 +69,8 @@ public class DevSeed {
                 "insert into academy (name, slug, status, settings) values (?, ?, 'active', ?)",
                 "데모 학원",
                 ACADEMY_SLUG,
-                "{\"timezone\":\"Asia/Seoul\"}");
+                // 단어시험 사진 채점은 실제 학생이 없는 데모 학원에서만 켠다(기본 꺼짐)
+                "{\"timezone\":\"Asia/Seoul\",\"features\":{\"wordTest\":true}}");
         long adminId = insert(
                 "insert into `user` (academy_id, role, name, status) values (?, 'admin', ?, 'active')",
                 academyId,
