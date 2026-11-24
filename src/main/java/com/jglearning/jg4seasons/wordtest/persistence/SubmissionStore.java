@@ -7,6 +7,8 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -52,6 +54,13 @@ public class SubmissionStore {
         }
     }
 
+    /**
+     * 채점할 제출.
+     *
+     * @param imageKey 사진 키, 사진을 지웠으면 null(그때는 채점하지 않고 failed)
+     */
+    public record GradingTarget(long id, long lessonId, Section section, String imageKey, SubmissionStatus status) {}
+
     private static final String COLUMNS =
             "id, client_submission_id, student_id, lesson_id, section, attempt_no, status,"
                     + " score, total, created_at, graded_at";
@@ -60,6 +69,78 @@ public class SubmissionStore {
 
     public SubmissionStore(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    public Optional<GradingTarget> findForGrading(long id) {
+        return jdbc
+                .query(
+                        "select id, lesson_id, section, image_key, status from word_test_submission where id = :id",
+                        Map.of("id", id),
+                        (rs, i) -> new GradingTarget(
+                                rs.getLong("id"),
+                                rs.getLong("lesson_id"),
+                                Section.fromDb(rs.getString("section")),
+                                rs.getString("image_key"),
+                                SubmissionStatus.fromDb(rs.getString("status"))))
+                .stream()
+                .findFirst();
+    }
+
+    /**
+     * pending → grading. 이미 grading이면(재시도) 그대로 true. 그 밖의 상태(graded·failed 등)면 false — 처리하지 않는다.
+     * 상태 변경은 이 셋(markGrading·markGraded·markFailed)에서만, 모두 조건부 UPDATE
+     */
+    public boolean markGrading(long id) {
+        SubmissionStatus.PENDING.moveTo(SubmissionStatus.GRADING);
+        if (moveFrom(id, SubmissionStatus.PENDING, SubmissionStatus.GRADING, Map.of())) {
+            return true;
+        }
+        return findForGrading(id)
+                .map(target -> target.status() == SubmissionStatus.GRADING)
+                .orElse(false);
+    }
+
+    /** grading → graded, 점수·채점 시각·모델·프롬프트 버전을 함께. grading이 아니면(이미 채점됨 등) false, 아무것도 바꾸지 않음 */
+    public boolean markGraded(long id, int score, Instant gradedAt, String model, String promptVersion) {
+        SubmissionStatus.GRADING.moveTo(SubmissionStatus.GRADED);
+        Map<String, Object> extra = new HashMap<>();
+        extra.put("score", score);
+        extra.put("gradedAt", utc(gradedAt.truncatedTo(ChronoUnit.SECONDS)));
+        extra.put("model", model);
+        extra.put("promptVersion", promptVersion);
+        return moveFrom(
+                id,
+                SubmissionStatus.GRADING,
+                SubmissionStatus.GRADED,
+                extra,
+                ", score = :score, graded_at = :gradedAt, model = :model, prompt_version = :promptVersion");
+    }
+
+    /** pending·grading → failed(점수·채점 시각은 비운 채). 그 밖이면 false */
+    public boolean markFailed(long id) {
+        SubmissionStatus.GRADING.moveTo(SubmissionStatus.FAILED);
+        if (moveFrom(id, SubmissionStatus.GRADING, SubmissionStatus.FAILED, Map.of())) {
+            return true;
+        }
+        // 선점 직후(아직 pending) 사진이 없어 바로 실패하는 경우 — pending → failed는 1단계 전이 표에 없어 grading을 거친 것으로 본다
+        return markGrading(id) && moveFrom(id, SubmissionStatus.GRADING, SubmissionStatus.FAILED, Map.of());
+    }
+
+    private boolean moveFrom(long id, SubmissionStatus from, SubmissionStatus to, Map<String, Object> extra) {
+        return moveFrom(id, from, to, extra, "");
+    }
+
+    private boolean moveFrom(
+            long id, SubmissionStatus from, SubmissionStatus to, Map<String, Object> extra, String extraColumns) {
+        Map<String, Object> params = new HashMap<>(extra);
+        params.put("id", id);
+        params.put("from", from.dbValue());
+        params.put("to", to.dbValue());
+        return jdbc.update(
+                        "update word_test_submission set status = :to" + extraColumns
+                                + " where id = :id and status = :from",
+                        params)
+                == 1;
     }
 
     /** 일반 읽기(REPEATABLE READ 스냅숏) */

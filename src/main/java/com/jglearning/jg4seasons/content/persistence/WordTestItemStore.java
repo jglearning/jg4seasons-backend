@@ -18,12 +18,14 @@ public class WordTestItemStore {
         this.jdbc = jdbc;
     }
 
-    public List<WordTestItem> items(long lessonId, String section) {
+    /** lock이면 문항·허용 답 행을 FOR SHARE로 읽는다(트랜잭션 안에서) */
+    public List<WordTestItem> items(long lessonId, String section, boolean lock) {
+        String suffix = lock ? " for share" : "";
         Map<String, Object> params = Map.of("lesson", lessonId, "section", section);
         Map<Long, List<String>> accepted = new HashMap<>();
         jdbc.query(
                 "select a.item_id, a.text from word_test_accepted_answer a join word_test_item i on i.id = a.item_id"
-                        + " where i.lesson_id = :lesson and i.section = :section order by a.id",
+                        + " where i.lesson_id = :lesson and i.section = :section order by a.id" + suffix,
                 params,
                 rs -> {
                     accepted.computeIfAbsent(rs.getLong("item_id"), k -> new ArrayList<>())
@@ -31,7 +33,7 @@ public class WordTestItemStore {
                 });
         return jdbc.query(
                 "select id, no, prompt, answer, hint from word_test_item where lesson_id = :lesson and section = :section"
-                        + " order by no",
+                        + " order by no" + suffix,
                 params,
                 (rs, i) -> new WordTestItem(
                         rs.getLong("id"),
