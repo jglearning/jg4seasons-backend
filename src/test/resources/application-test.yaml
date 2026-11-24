@@ -12,3 +12,8 @@ jg4seasons:
   word-test:
     storage:
       type: memory
+    # 답안지 읽기는 테스트 설정(TestAnswerSheetReaderConfiguration)의 가짜, 워커는 테스트가 runOnce로 직접
+    reader:
+      type: fake
+    worker:
+      scheduled: false
