@@ -150,6 +150,21 @@ class GradingJobStoreCommitTest {
         assertThat(job()).containsEntry("status", "done");
     }
 
+    @Test
+    void running이_아닌_작업은_끝_다시_포기를_기록하지_않고_false() {
+        claim();
+        Boolean first = tx().execute(status -> jobs.done(jobId));
+        assertThat(first).isTrue();
+
+        Boolean dead = tx().execute(status -> jobs.dead(jobId, 3, "API_ERROR: x"));
+        Boolean retry = tx().execute(status -> jobs.retry(jobId, 1, NOW.plusSeconds(30), "TIMEOUT: x"));
+        Boolean again = tx().execute(status -> jobs.done(jobId));
+        assertThat(dead).isFalse();
+        assertThat(retry).isFalse();
+        assertThat(again).isFalse();
+        assertThat(job()).containsEntry("status", "done").containsEntry("last_error", null);
+    }
+
     private Optional<ClaimedJob> claim() {
         return tx().execute(status -> jobs.claimNext(NOW));
     }

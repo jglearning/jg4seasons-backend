@@ -149,7 +149,16 @@ public class GradingWorker {
         if (job == null) {
             return null;
         }
-        GradingTarget target = submissions.findForGrading(job.submissionId()).orElse(null);
+        GradingTarget target;
+        try {
+            target = submissions.findForGrading(job.submissionId()).orElse(null);
+        } catch (IllegalArgumentException unreadableRow) {
+            // 제출 행을 해석하지 못함(모르는 영역·상태 값). 그대로 두면 매 틱 같은 작업을 맨 앞에서 다시 잡아 큐 전체가 멈춘다 — 이 작업만 포기
+            String where = where(unreadableRow);
+            log.error("단어시험 작업 {}(제출 {}) 선점 중 제출 행 해석 실패 — 이 작업은 포기: {}", job.jobId(), job.submissionId(), where);
+            jobs.dead(job.jobId(), job.attempts() + 1, "CLAIM_FAILED: " + where);
+            return new Claim(job, null);
+        }
         if (target == null || !submissions.markGrading(job.submissionId())) {
             jobs.done(job.jobId());
             return new Claim(job, null);
@@ -157,9 +166,15 @@ public class GradingWorker {
         return new Claim(job, target);
     }
 
-    /** @return graded */
+    /** @return graded · skipped(이미 다른 결과) */
     private String grade(Claim claim) {
         GradingTarget target = claim.target();
+        String section = target.section().dbValue();
+        int count = items.count(target.lessonId(), section);
+        if (count != target.total()) {
+            // 제출 뒤 문항 import로 문항 수가 바뀜 — 새 문항 수로 채점하면 total과 어긋난다(49/48). 다시 찍어 내게
+            throw new ReadFailure(ReadFailure.Kind.ITEMS_CHANGED, "제출 때 문항 " + target.total() + "개, 지금 " + count + "개");
+        }
         if (target.imageKey() == null) {
             throw new ReadFailure(ReadFailure.Kind.PHOTO_MISSING, "사진 키가 비었다");
         }
@@ -175,24 +190,29 @@ public class GradingWorker {
             // API 이미지 상한(5MB)이 base64 길이 기준일 수 있어 보수적으로 — 앱은 올리기 전에 긴 변 1600px로 줄인다
             throw new ReadFailure(ReadFailure.Kind.PHOTO_TOO_LARGE, "base64로 5MB를 넘는다");
         }
-        String section = target.section().dbValue();
-        int count = items.count(target.lessonId(), section);
         ReadResult result = reader.read(image, mediaTypeOf(target.imageKey()), count);
         List<Reading> readings = ReadValidation.check(result, count);
-        tx.executeWithoutResult(status -> {
+        return tx.execute(status -> {
             // 문항을 공유 잠금으로 다시 읽어 판정 — 그새 import가 정답을 바꾸는 것과 겹치지 않게
             List<WordTestItem> locked = items.ofLocked(target.lessonId(), section);
             if (locked.size() != readings.size()) {
                 throw new ReadFailure(ReadFailure.Kind.COUNT_MISMATCH, "채점 중 문항 수가 바뀌었다");
             }
             Graded graded = Grading.grade(locked, readings);
+            String outcome = "graded";
             if (submissions.markGraded(
                     target.id(), graded.score(), clock.instant(), result.model(), result.promptVersion())) {
                 answers.upsertAll(target.id(), graded.answers());
+            } else {
+                // 읽는 사이 제출이 이미 다른 결과(graded·failed)가 됨 — 답안을 덮지 않는다
+                log.warn("단어시험 제출 {}이 grading이 아니어서 결과를 저장하지 않음", target.id());
+                outcome = "skipped";
             }
-            jobs.done(claim.job().jobId());
+            if (!jobs.done(claim.job().jobId())) {
+                log.warn("단어시험 작업 {}(제출 {})이 이미 running이 아님", claim.job().jobId(), target.id());
+            }
+            return outcome;
         });
-        return "graded";
     }
 
     /** 실패 기록: 재시도면 queued(30초 뒤), 아니면 작업 dead·제출 failed. 기록 자체가 실패하면 원래 실패를 남기고 다시 던진다 @return retry·dead */
@@ -202,11 +222,18 @@ public class GradingWorker {
         boolean retry = retryable && attempts < MAX_ATTEMPTS;
         try {
             tx.executeWithoutResult(status -> {
-                if (retry) {
-                    jobs.retry(claim.job().jobId(), attempts, clock.instant().plus(RETRY_DELAY), error);
-                } else {
-                    jobs.dead(claim.job().jobId(), attempts, error);
-                    submissions.markFailed(submissionId);
+                boolean recorded = retry
+                        ? jobs.retry(
+                                claim.job().jobId(), attempts, clock.instant().plus(RETRY_DELAY), error)
+                        : jobs.dead(claim.job().jobId(), attempts, error);
+                if (!recorded) {
+                    log.warn(
+                            "단어시험 작업 {}(제출 {})이 이미 running이 아니어서 실패를 기록하지 않음",
+                            claim.job().jobId(),
+                            submissionId);
+                }
+                if (!retry && !submissions.markFailed(submissionId)) {
+                    log.warn("단어시험 제출 {}이 pending·grading이 아니어서 failed로 바꾸지 않음", submissionId);
                 }
             });
         } catch (RuntimeException e) {

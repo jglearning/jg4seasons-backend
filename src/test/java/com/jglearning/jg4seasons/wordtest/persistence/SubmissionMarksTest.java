@@ -62,7 +62,7 @@ class SubmissionMarksTest {
 
         assertThat(target)
                 .isEqualTo(new GradingTarget(
-                        submissionId, lessonId, Section.B, "homework/1/2/k.jpg", SubmissionStatus.PENDING));
+                        submissionId, lessonId, Section.B, "homework/1/2/k.jpg", SubmissionStatus.PENDING, 2));
         long noPhoto = submission("pending", null);
         assertThat(submissions.findForGrading(noPhoto).orElseThrow().imageKey()).isNull();
         assertThat(submissions.findForGrading(-1)).isEmpty();

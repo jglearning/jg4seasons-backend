@@ -59,7 +59,8 @@ public class SubmissionStore {
      *
      * @param imageKey 사진 키, 사진을 지웠으면 null(그때는 채점하지 않고 failed)
      */
-    public record GradingTarget(long id, long lessonId, Section section, String imageKey, SubmissionStatus status) {}
+    public record GradingTarget(
+            long id, long lessonId, Section section, String imageKey, SubmissionStatus status, int total) {}
 
     private static final String COLUMNS =
             "id, client_submission_id, student_id, lesson_id, section, attempt_no, status,"
@@ -74,14 +75,15 @@ public class SubmissionStore {
     public Optional<GradingTarget> findForGrading(long id) {
         return jdbc
                 .query(
-                        "select id, lesson_id, section, image_key, status from word_test_submission where id = :id",
+                        "select id, lesson_id, section, image_key, status, total from word_test_submission where id = :id",
                         Map.of("id", id),
                         (rs, i) -> new GradingTarget(
                                 rs.getLong("id"),
                                 rs.getLong("lesson_id"),
                                 Section.fromDb(rs.getString("section")),
                                 rs.getString("image_key"),
-                                SubmissionStatus.fromDb(rs.getString("status"))))
+                                SubmissionStatus.fromDb(rs.getString("status")),
+                                rs.getInt("total")))
                 .stream()
                 .findFirst();
     }

@@ -22,6 +22,8 @@ public class ReadFailure extends RuntimeException {
         REJECTED(false),
         /** 설정 오류(401·403·404 — 키·권한·모델 이름, 다시 해도 같음) */
         CONFIG(false),
+        /** 제출 뒤 그 회차·영역의 문항 수가 바뀜(문항 import) — 다시 찍어 내야 함 */
+        ITEMS_CHANGED(false),
         /** 사진이 없음(올라가지 않음·지워짐·키 없음) */
         PHOTO_MISSING(false),
         /** 사진이 상한보다 큼(제출 뒤 덮어씀) */

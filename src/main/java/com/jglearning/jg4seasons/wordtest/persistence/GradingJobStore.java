@@ -45,35 +45,42 @@ public class GradingJobStore {
         return job;
     }
 
+    /** running → done. running이 아니면(이미 다른 결과로 바뀜) false, 아무것도 바꾸지 않음 */
     @Transactional(propagation = Propagation.MANDATORY)
-    public void done(long jobId) {
-        jdbc.update("update grading_job set status = 'done' where id = :id", Map.of("id", jobId));
+    public boolean done(long jobId) {
+        return jdbc.update(
+                        "update grading_job set status = 'done' where id = :id and status = 'running'",
+                        Map.of("id", jobId))
+                == 1;
     }
 
-    /** 다시 해보기: queued로 돌리고 runAfter 뒤에 잡히게. error는 실패 종류와 짧은 설명만(원문 없음) */
+    /** 다시 해보기: running → queued, runAfter 뒤에 잡히게. error는 실패 종류와 짧은 설명만(원문 없음). running이 아니면 false */
     @Transactional(propagation = Propagation.MANDATORY)
-    public void retry(long jobId, int attempts, Instant runAfter, String error) {
+    public boolean retry(long jobId, int attempts, Instant runAfter, String error) {
         Map<String, Object> params = new HashMap<>();
         params.put("id", jobId);
         params.put("attempts", attempts);
         params.put("runAfter", utc(runAfter));
         params.put("error", truncate(error));
-        jdbc.update(
-                "update grading_job set status = 'queued', attempts = :attempts, run_after = :runAfter,"
-                        + " last_error = :error, locked_at = null where id = :id",
-                params);
+        return jdbc.update(
+                        "update grading_job set status = 'queued', attempts = :attempts, run_after = :runAfter,"
+                                + " last_error = :error, locked_at = null where id = :id and status = 'running'",
+                        params)
+                == 1;
     }
 
-    /** 포기: 다시 잡지 않는다 */
+    /** 포기: running → dead, 다시 잡지 않는다. running이 아니면 false */
     @Transactional(propagation = Propagation.MANDATORY)
-    public void dead(long jobId, int attempts, String error) {
+    public boolean dead(long jobId, int attempts, String error) {
         Map<String, Object> params = new HashMap<>();
         params.put("id", jobId);
         params.put("attempts", attempts);
         params.put("error", truncate(error));
-        jdbc.update(
-                "update grading_job set status = 'dead', attempts = :attempts, last_error = :error where id = :id",
-                params);
+        return jdbc.update(
+                        "update grading_job set status = 'dead', attempts = :attempts, last_error = :error"
+                                + " where id = :id and status = 'running'",
+                        params)
+                == 1;
     }
 
     /** last_error VARCHAR(500) */

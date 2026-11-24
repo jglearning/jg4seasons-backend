@@ -325,6 +325,63 @@ class GradingWorkerTest {
     }
 
     @Test
+    void 읽는_사이_제출이_graded가_되면_점수와_답안을_바꾸지_않고_작업만_done() {
+        reader.willRead(count -> fullyCorrect());
+        reader.duringRead(count -> new TransactionTemplate(transactions)
+                .executeWithoutResult(status -> jdbc.update(
+                        "update word_test_submission set status = 'graded', score = 3 where id = ?", submissionId)));
+
+        worker.runOnce();
+
+        assertThat(submissionRow()).containsEntry("status", "graded").containsEntry("score", 3);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from word_test_answer where submission_id = ?", Integer.class, submissionId))
+                .isZero();
+        assertThat(jobStatus()).isEqualTo("done");
+        assertThat(reader.calls()).isEqualTo(1);
+    }
+
+    @Test
+    void 제출_뒤_문항_수가_바뀌면_읽지_않고_failed() {
+        jdbc.update(
+                "insert into word_test_item (lesson_id, section, no, prompt, answer) values (?, 'B', 5, '대기', 'air')",
+                lessonId);
+
+        worker.runOnce();
+
+        assertThat(jobRow()).containsEntry("status", "dead");
+        assertThat((String) jobRow().get("last_error")).isEqualTo("ITEMS_CHANGED: 제출 때 문항 4개, 지금 5개");
+        assertThat(submissionStatus()).isEqualTo("failed");
+        assertThat(reader.calls()).isZero();
+    }
+
+    @Test
+    void 선점_때_제출_행을_해석하지_못하면_그_작업만_dead이고_다음_작업은_처리한다() {
+        reader.willRead(count -> fullyCorrect());
+        // 모르는 영역 값(예: 새 버전이 넣은 값)을 만들려고 검사를 잠시 끈다 — 이 테스트 안에서 되돌림
+        jdbc.execute("alter table word_test_submission alter check ck_word_test_submission_section not enforced");
+        try {
+            jdbc.update("update word_test_submission set section = 'Z' where id = ?", submissionId);
+            long next = submission(key);
+
+            assertThat(worker.runOnce()).isEqualTo(1);
+            assertThat(worker.runOnce()).isEqualTo(1);
+
+            assertThat(jdbc.queryForObject(
+                            "select status from grading_job where submission_id = ?", String.class, submissionId))
+                    .isEqualTo("dead");
+            assertThat(jdbc.queryForObject(
+                            "select last_error from grading_job where submission_id = ?", String.class, submissionId))
+                    .startsWith("CLAIM_FAILED: IllegalArgumentException at ");
+            assertThat(jdbc.queryForObject("select status from word_test_submission where id = ?", String.class, next))
+                    .isEqualTo("graded");
+        } finally {
+            jdbc.update("update word_test_submission set section = 'B' where id = ?", submissionId);
+            jdbc.execute("alter table word_test_submission alter check ck_word_test_submission_section enforced");
+        }
+    }
+
+    @Test
     void 읽기가_꺼져_있으면_작업을_잡지_않는다() {
         reader.enabled(false);
 
