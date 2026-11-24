@@ -123,6 +123,9 @@ public class SubmissionService {
         }
         StoredPhoto photo = storage.head(imageKey)
                 .orElseThrow(() -> new ApiException(WordTestErrorCode.INVALID_IMAGE, "사진이 올라가지 않았어요. 다시 올려 주세요"));
+        if (photo.contentLength() <= 0) {
+            throw new ApiException(WordTestErrorCode.INVALID_IMAGE, "사진이 비어 있어요. 다시 올려 주세요");
+        }
         if (photo.contentLength() > MAX_BYTES) {
             throw new ApiException(WordTestErrorCode.INVALID_IMAGE, "5MB 이하 사진만 낼 수 있어요");
         }

@@ -290,6 +290,17 @@ class WordTestSubmitTest {
         }
     }
 
+    @Test
+    void 빈_사진은_400_INVALID_IMAGE() {
+        String key = key();
+        photos.put(key, new byte[0], "image/jpeg");
+
+        assertProblem(
+                submit(student(), UUID.randomUUID().toString(), TODAY, "B", key),
+                HttpStatus.BAD_REQUEST,
+                "INVALID_IMAGE");
+    }
+
     private int count(String table) {
         return jdbc.queryForObject("select count(*) from " + table, Integer.class);
     }
