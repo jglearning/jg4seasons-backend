@@ -262,7 +262,7 @@ class LessonImporterTest {
                         + " join track t on t.id = s.track_id where t.lesson_id = ?",
                 lessonId());
         LessonManifest full = manifest();
-        LessonManifest shorter = new LessonManifest(full.code(), full.passages().subList(0, 1), full.words());
+        LessonManifest shorter = new LessonManifest(full.code(), full.passages().subList(0, 1), full.words(), null);
 
         ImportResult result = importer.importLesson(shorter);
 
@@ -280,7 +280,7 @@ class LessonImporterTest {
         LessonManifest full = manifest();
 
         ImportResult result = importer.importLesson(new LessonManifest(
-                full.code(), full.passages().subList(0, 1), full.words().subList(0, 1)));
+                full.code(), full.passages().subList(0, 1), full.words().subList(0, 1), null));
 
         assertThat(result.status()).isEqualTo(Status.IMPORTED);
         assertThat(jdbc.queryForList("select no from passage where lesson_id = ?", Integer.class, lessonId()))

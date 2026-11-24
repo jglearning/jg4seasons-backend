@@ -8,6 +8,7 @@ import com.jglearning.jg4seasons.content.persistence.ContentImportStore.Sentence
 import com.jglearning.jg4seasons.content.persistence.ContentImportStore.TimingRow;
 import com.jglearning.jg4seasons.content.persistence.ContentImportStore.TrackRow;
 import com.jglearning.jg4seasons.content.persistence.ContentImportStore.WordRow;
+import com.jglearning.jg4seasons.content.persistence.ContentImportStore.WordTestItemRow;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,6 +19,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>자연키(지문 no, 문장 no, 트랙 kind+variant, 단어 sort_order)로 있는 행은 고치고 없는 행은 넣고 manifest에 없는 행은 지운다. 행 id는 바뀌지 않으므로 청취
  * 기록이 그대로 이어진다. 다만 청취 기록이 있는 트랙의 길이가 바뀌거나 그 트랙이 없어지면 집계(coverage)가 어긋나므로 그 회차는 아무것도 바꾸지 않고 거부한다. 검사(문장 시각,
  * 기준 데이터, 청취 기록)는 모두 쓰기 전에 한다.
+ *
+ * <p>단어시험 문항(wordTests)은 (영역, 번호)가 자연키다. manifest에 칸이 없으면 손대지 않는다. 학생 답안이 있는 문항이 지워지거나 정답이 바뀌면 지난 채점의 근거가 바뀌므로
+ * 회차 전체를 거부한다. 문항의 단어 연결(word_id)은 import마다 다시 계산한다 — 정답과 글자 그대로 같은 단어가 회차에 정확히 하나일 때만 잇는다.
  */
 @Component
 public class LessonImporter {
@@ -34,6 +40,8 @@ public class LessonImporter {
     static final String PASSAGE = "passage";
     static final String WORD = "word";
     static final String WORD_EXAMPLE = "word_example";
+
+    private static final Logger log = LoggerFactory.getLogger(LessonImporter.class);
 
     private final ContentImportStore store;
 
@@ -75,6 +83,10 @@ public class LessonImporter {
         if (violation != null) {
             return ImportResult.rejected(code, violation);
         }
+        String wordTestViolation = wordTestViolation(manifest, lesson.id());
+        if (wordTestViolation != null) {
+            return ImportResult.rejected(code, wordTestViolation);
+        }
 
         Changes changes = new Changes();
         deleteRemoved(manifest, lesson.id(), desiredTracks, existingTracks, changes);
@@ -89,6 +101,8 @@ public class LessonImporter {
         Map<String, Long> trackIds = upsertTracks(lesson.id(), desiredTracks, existingTracks, passageIds, changes);
         replaceTimings(manifest, lesson.id(), timings, sentenceIds, trackIds, changes);
         upsertWords(manifest, lesson.id(), trackIds, changes);
+        upsertWordTests(manifest, lesson.id(), changes);
+        relinkWordTestItems(code, lesson.id(), changes);
 
         return new ImportResult(
                 code, changes.count == 0 ? ImportResult.Status.UNCHANGED : ImportResult.Status.IMPORTED, null);
@@ -172,6 +186,33 @@ public class LessonImporter {
         return "청취 기록이 있는 트랙: " + String.join(", ", problems);
     }
 
+    /** 답안이 있는 단어시험 문항이 지워지거나 정답이 바뀌면 그 목록, 없으면(또는 manifest에 문항 칸이 없으면) null */
+    private String wordTestViolation(LessonManifest manifest, long lessonId) {
+        if (manifest.wordTests() == null) {
+            return null;
+        }
+        Map<String, LessonManifest.WordTestItem> desired = new HashMap<>();
+        manifest.wordTests().forEach(item -> desired.put(itemKey(item.section(), item.no()), item));
+        Map<Long, String> touched = new LinkedHashMap<>();
+        for (WordTestItemRow row : store.wordTestItems(lessonId)) {
+            LessonManifest.WordTestItem item = desired.get(itemKey(row.section(), row.no()));
+            if (item == null) {
+                touched.put(row.id(), row.section() + " " + row.no() + " 삭제");
+            } else if (!item.answer().equals(row.answer())) {
+                touched.put(row.id(), row.section() + " " + row.no() + " 정답 변경");
+            }
+        }
+        Set<Long> answered = store.wordTestItemsWithAnswers(touched.keySet());
+        if (answered.isEmpty()) {
+            return null;
+        }
+        List<String> problems = touched.entrySet().stream()
+                .filter(e -> answered.contains(e.getKey()))
+                .map(Map.Entry::getValue)
+                .toList();
+        return "답안이 있는 단어시험 문항: " + String.join(", ", problems);
+    }
+
     /** manifest에 없는 행을 외래 키 순서대로 지운다: 시각 → 단어 → 단어 연결 끊기 → 트랙 → 문장 → 지문 */
     private void deleteRemoved(
             LessonManifest manifest,
@@ -209,6 +250,7 @@ public class LessonImporter {
 
         store.deleteTimingsOfTracks(removedTracks);
         store.deleteTimingsOfSentences(removedSentences);
+        store.detachWordTestItemsFromWords(removedWords);
         store.deleteWords(removedWords);
         store.detachWords(removedPassages, removedTracks);
         store.deleteTracks(removedTracks);
@@ -394,6 +436,81 @@ public class LessonImporter {
                     exampleTrackId);
             changes.add();
         }
+    }
+
+    /** 문항을 (영역, 번호)로 맞춘다. manifest에 문항 칸이 없으면 아무것도 하지 않는다 */
+    private void upsertWordTests(LessonManifest manifest, long lessonId, Changes changes) {
+        if (manifest.wordTests() == null) {
+            return;
+        }
+        Map<String, WordTestItemRow> existing = new HashMap<>();
+        store.wordTestItems(lessonId).forEach(row -> existing.put(itemKey(row.section(), row.no()), row));
+        Map<Long, List<String>> accepted = store.acceptedAnswers(lessonId);
+        for (LessonManifest.WordTestItem item : manifest.wordTests()) {
+            WordTestItemRow row = existing.remove(itemKey(item.section(), item.no()));
+            long id;
+            if (row == null) {
+                id = store.insertWordTestItem(
+                        lessonId, item.section(), item.no(), item.prompt(), item.answer(), item.hint());
+                changes.add();
+            } else {
+                id = row.id();
+                if (!row.prompt().equals(item.prompt())
+                        || !row.answer().equals(item.answer())
+                        || !Objects.equals(row.hint(), item.hint())) {
+                    store.updateWordTestItem(id, item.prompt(), item.answer(), item.hint());
+                    changes.add();
+                }
+            }
+            if (!accepted.getOrDefault(id, List.of()).equals(item.accepted())) {
+                store.replaceAcceptedAnswers(id, item.accepted());
+                changes.add();
+            }
+        }
+        List<Long> removed = existing.values().stream().map(WordTestItemRow::id).toList();
+        store.deleteWordTestItems(removed);
+        changes.add(removed.size());
+        if (!removed.isEmpty()) {
+            // manifest의 wordTests는 회차 전체 목록 — 영역 하나만 담은 manifest가 다른 영역을 지운 것인지 나중에 찾을 수 있게
+            List<String> keys = existing.values().stream()
+                    .map(row -> row.section() + " " + row.no())
+                    .sorted()
+                    .toList();
+            log.info("content import: {} 단어시험 문항 {}개 삭제: {}", manifest.code(), keys.size(), keys);
+        }
+    }
+
+    /** 문항마다 정답과 글자 그대로 같은 단어가 회차에 정확히 하나면 잇고, 아니면 끊는다. 못 이은 문항은 로그(콘텐츠라 개인정보 없음) */
+    private void relinkWordTestItems(String code, long lessonId, Changes changes) {
+        List<WordTestItemRow> items = store.wordTestItems(lessonId);
+        if (items.isEmpty()) {
+            return;
+        }
+        Map<String, List<Long>> wordsByEnglish = new HashMap<>();
+        for (WordRow word : store.words(lessonId)) {
+            wordsByEnglish
+                    .computeIfAbsent(word.english(), k -> new ArrayList<>())
+                    .add(word.id());
+        }
+        List<String> unlinked = new ArrayList<>();
+        for (WordTestItemRow item : items) {
+            List<Long> same = wordsByEnglish.getOrDefault(item.answer(), List.of());
+            Long wordId = same.size() == 1 ? same.getFirst() : null;
+            if (!Objects.equals(wordId, item.wordId())) {
+                store.setWordTestItemWord(item.id(), wordId);
+                changes.add();
+            }
+            if (wordId == null) {
+                unlinked.add(item.section() + " " + item.no() + " " + item.answer());
+            }
+        }
+        if (!unlinked.isEmpty()) {
+            log.info("content import: {} 단어시험 문항 {}개를 단어에 잇지 못함: {}", code, unlinked.size(), unlinked);
+        }
+    }
+
+    private static String itemKey(String section, int no) {
+        return section + ":" + no;
     }
 
     static String passageVariant(int passageNo, String voice) {

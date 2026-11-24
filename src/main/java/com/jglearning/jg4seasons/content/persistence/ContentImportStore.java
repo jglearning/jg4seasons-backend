@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.content.persistence;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +43,10 @@ public class ContentImportStore {
             Integer moeLevel,
             Long trackId,
             Long exampleTrackId) {}
+
+    /** 단어시험 문항. wordId = 같은 철자로 이은 단어, 없으면 null */
+    public record WordTestItemRow(
+            long id, String section, int no, String prompt, String answer, String hint, Long wordId) {}
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -315,6 +320,93 @@ public class ContentImportStore {
             jdbc.update(
                     "update word set example_track_id = null where example_track_id in (:ids)",
                     Map.of("ids", trackIds));
+        }
+    }
+
+    public List<WordTestItemRow> wordTestItems(long lessonId) {
+        return jdbc.query(
+                "select id, section, no, prompt, answer, hint, word_id from word_test_item where lesson_id = :lesson"
+                        + " order by section, no",
+                Map.of("lesson", lessonId),
+                (rs, i) -> new WordTestItemRow(
+                        rs.getLong("id"),
+                        rs.getString("section"),
+                        rs.getInt("no"),
+                        rs.getString("prompt"),
+                        rs.getString("answer"),
+                        rs.getString("hint"),
+                        rs.getObject("word_id", Long.class)));
+    }
+
+    public long insertWordTestItem(long lessonId, String section, int no, String prompt, String answer, String hint) {
+        return insert(
+                "insert into word_test_item (lesson_id, section, no, prompt, answer, hint)"
+                        + " values (:lesson, :section, :no, :prompt, :answer, :hint)",
+                params(
+                        "lesson", lessonId,
+                        "section", section,
+                        "no", no,
+                        "prompt", prompt,
+                        "answer", answer,
+                        "hint", hint));
+    }
+
+    public void updateWordTestItem(long id, String prompt, String answer, String hint) {
+        jdbc.update(
+                "update word_test_item set prompt = :prompt, answer = :answer, hint = :hint where id = :id",
+                params("id", id, "prompt", prompt, "answer", answer, "hint", hint));
+    }
+
+    /** 허용 답을 먼저 지운다(외래 키). 답안이 있는 문항은 부르는 쪽이 먼저 거른다 */
+    public void deleteWordTestItems(Collection<Long> ids) {
+        if (!ids.isEmpty()) {
+            jdbc.update("delete from word_test_accepted_answer where item_id in (:ids)", Map.of("ids", ids));
+            jdbc.update("delete from word_test_item where id in (:ids)", Map.of("ids", ids));
+        }
+    }
+
+    /** 문항 id → 허용 답(넣은 순서) */
+    public Map<Long, List<String>> acceptedAnswers(long lessonId) {
+        Map<Long, List<String>> byItem = new HashMap<>();
+        jdbc.query(
+                "select a.item_id, a.text from word_test_accepted_answer a join word_test_item i on i.id = a.item_id"
+                        + " where i.lesson_id = :lesson order by a.id",
+                Map.of("lesson", lessonId),
+                rs -> {
+                    byItem.computeIfAbsent(rs.getLong("item_id"), k -> new ArrayList<>())
+                            .add(rs.getString("text"));
+                });
+        return byItem;
+    }
+
+    public void replaceAcceptedAnswers(long itemId, List<String> texts) {
+        jdbc.update("delete from word_test_accepted_answer where item_id = :item", Map.of("item", itemId));
+        for (String text : texts) {
+            jdbc.update(
+                    "insert into word_test_accepted_answer (item_id, text) values (:item, :text)",
+                    Map.of("item", itemId, "text", text));
+        }
+    }
+
+    /** ids 가운데 학생 답안이 하나라도 있는 문항 */
+    public Set<Long> wordTestItemsWithAnswers(Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList(
+                "select distinct item_id from word_test_answer where item_id in (:ids)",
+                Map.of("ids", ids),
+                Long.class));
+    }
+
+    public void setWordTestItemWord(long itemId, Long wordId) {
+        jdbc.update("update word_test_item set word_id = :word where id = :id", params("id", itemId, "word", wordId));
+    }
+
+    /** 지울 단어를 가리키는 문항의 연결을 먼저 끊는다(외래 키) */
+    public void detachWordTestItemsFromWords(Collection<Long> wordIds) {
+        if (!wordIds.isEmpty()) {
+            jdbc.update("update word_test_item set word_id = null where word_id in (:ids)", Map.of("ids", wordIds));
         }
     }
 

@@ -3,8 +3,10 @@ package com.jglearning.jg4seasons.content.importer;
 import com.jglearning.jg4seasons.content.api.PassageVoices;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -15,8 +17,10 @@ import java.util.regex.Pattern;
  *
  * <p>생성자가 DB에 넣기 전에 알 수 있는 것을 모두 검사한다: 번호가 1부터 이어지는지, 지문마다 목소리 4개인지, 트랙의 문장 길이 수가 문장 수와 같은지, 파일 키가 S3 키
  * 규칙과 같은지, 칸 길이가 DB 한도 안인지. 문장 시각(간격)은 {@link PassageTimings}가 검사한다. 위반하면 IllegalArgumentException.
+ *
+ * <p>wordTests(단어시험 문항)는 선택 칸이다. 없으면(null) 그 회차 문항을 건드리지 않고, 있으면 그 회차 모든 영역의 전체 목록이다(영역마다 번호 1부터).
  */
-public record LessonManifest(String code, List<Passage> passages, List<Word> words) {
+public record LessonManifest(String code, List<Passage> passages, List<Word> words, List<WordTestItem> wordTests) {
 
     /** 레벨 1~4는 L1~L4, 블랙은 K. 회차는 두 자리 번호이거나 블랙 보충 S1~S4 */
     private static final Pattern CODE = Pattern.compile("^(?:L[1-4]|K)-B[1-4]-(?:\\d{2}|S[1-4])$");
@@ -44,6 +48,12 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
     static final int ENGLISH_MAX = 50;
     static final int KOREAN_MAX = 100;
     static final int EXAMPLE_MAX = 300;
+    static final int TEST_PROMPT_MAX = 200;
+    static final int TEST_ANSWER_MAX = 100;
+    static final int TEST_HINT_MAX = 50;
+
+    /** 단어시험 영역(V12 CHECK). A 뜻 쓰기 / B 철자 쓰기 / C 짧은 글 빈칸 / D 파생어 쓰기 */
+    private static final List<String> TEST_SECTIONS = List.of("A", "B", "C", "D");
 
     public LessonManifest {
         if (code == null || !CODE.matcher(code).matches()) {
@@ -52,6 +62,10 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
         String where = code;
         passages = list(where, "passages", passages);
         words = list(where, "words", words);
+        if (wordTests != null) {
+            wordTests = list(where, "wordTests", wordTests);
+            checkWordTestNumbers(where, wordTests);
+        }
         if (passages.isEmpty()) {
             throw new IllegalArgumentException(where + ": 지문이 없다");
         }
@@ -92,6 +106,18 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
             expectKey(at, word.exampleTrack().fileKey(), wordKey(code, audioNo, true));
             if (!audioNos.add(audioNo)) {
                 throw new IllegalArgumentException(at + ": 음원 번호 " + audioNo + "가 다른 단어와 겹친다");
+            }
+        }
+    }
+
+    /** 영역마다 번호가 나온 순서대로 1부터 이어진다(겹침·빠짐 거부) */
+    private static void checkWordTestNumbers(String where, List<WordTestItem> items) {
+        Map<String, Integer> next = new HashMap<>();
+        for (WordTestItem item : items) {
+            int expected = next.merge(item.section(), 1, Integer::sum);
+            if (item.no() != expected) {
+                throw new IllegalArgumentException(where + " 단어시험 " + item.section() + " " + expected + "번째 문항의 번호가 "
+                        + item.no() + "다(영역마다 1부터 이어져야 한다)");
             }
         }
     }
@@ -217,6 +243,43 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
 
     /** 단어·예문 음원 */
     public record Audio(String fileKey, int durationMs) {}
+
+    /**
+     * 단어시험 문항 하나. 정답은 이 answer로 채점한다(word와 따로 — 문항 순서가 단어 목록과 다르고 C·D 정답은 word에 없다).
+     *
+     * @param hint 인쇄된 첫 글자(a, p... t...), 없으면 null
+     * @param accepted 허용 답(두 철자가 모두 표준인 말 등), 없으면 빈 목록
+     */
+    public record WordTestItem(
+            String section, int no, String prompt, String answer, String hint, List<String> accepted) {
+        public WordTestItem {
+            String where = "단어시험 " + section + " " + no;
+            if (section == null || !TEST_SECTIONS.contains(section)) {
+                throw new IllegalArgumentException(where + ": 모르는 영역: " + section);
+            }
+            if (no < 1) {
+                throw new IllegalArgumentException(where + ": 번호는 1부터");
+            }
+            text(where, "prompt", prompt, TEST_PROMPT_MAX);
+            text(where, "answer", answer, TEST_ANSWER_MAX);
+            if (hint != null) {
+                text(where, "hint", hint, TEST_HINT_MAX);
+                // 한 글자 hint는 학생 책을 보고 손으로 채운 값 — 정답 첫 글자와 다르면 이어 쓴 학생이 오답이 된다(판정 규칙)
+                String first = hint.strip();
+                if (first.length() == 1 && !answer.strip().regionMatches(true, 0, first, 0, 1)) {
+                    throw new IllegalArgumentException(where + ": 한 글자 hint " + hint + "가 정답의 첫 글자가 아니다");
+                }
+            }
+            accepted = accepted == null ? List.of() : list(where, "accepted", accepted);
+            Set<String> seen = new HashSet<>();
+            for (String text : accepted) {
+                text(where, "accepted", text, TEST_ANSWER_MAX);
+                if (text.equals(answer) || !seen.add(text)) {
+                    throw new IllegalArgumentException(where + ": 허용 답이 정답이나 다른 허용 답과 같다: " + text);
+                }
+            }
+        }
+    }
 
     private static void text(String where, String field, String value, int max) {
         if (value == null || value.isBlank()) {

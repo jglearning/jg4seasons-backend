@@ -45,6 +45,12 @@ class SchemaTest {
             "lesson_progress",
             "passage_progress",
             "word_study",
+            // 단어시험 사진 채점(V12) — 문항 정의는 공용 콘텐츠, 나머지는 학습 기록
+            "word_test_item",
+            "word_test_accepted_answer",
+            "word_test_submission",
+            "word_test_answer",
+            "grading_job",
             // 인증·운영
             "refresh_token",
             "audit_log",
@@ -72,7 +78,13 @@ class SchemaTest {
             List.of("class_session", "class_id,seq"),
             List.of("book_license", "academy_id,book_id"),
             List.of("listening_session", "client_session_id"),
-            List.of("refresh_token", "token_hash"));
+            List.of("refresh_token", "token_hash"),
+            List.of("word_test_item", "lesson_id,section,no"),
+            List.of("word_test_accepted_answer", "item_id,text"),
+            List.of("word_test_submission", "client_submission_id"),
+            List.of("word_test_submission", "student_id,lesson_id,section,attempt_no"),
+            List.of("word_test_answer", "submission_id,item_id"),
+            List.of("grading_job", "submission_id"));
 
     @Autowired
     JdbcTemplate jdbc;
@@ -85,8 +97,8 @@ class SchemaTest {
     }
 
     @Test
-    void 테이블은_ERD의_1차_29개다() {
-        assertThat(FIRST_RELEASE_TABLES).hasSize(29);
+    void 테이블은_ERD의_1차_29개와_단어시험_5개다() {
+        assertThat(FIRST_RELEASE_TABLES).hasSize(34);
         assertThat(tables()).containsExactlyInAnyOrderElementsOf(FIRST_RELEASE_TABLES);
     }
 
