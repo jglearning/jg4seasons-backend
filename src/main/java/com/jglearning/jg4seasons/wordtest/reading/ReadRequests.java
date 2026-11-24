@@ -124,13 +124,17 @@ public final class ReadRequests {
             JsonNode no = item.get("no");
             JsonNode value = item.get("text");
             JsonNode unreadable = item.get("unreadable");
-            if (no == null || !no.isIntegralNumber() || (value != null && !value.isNull() && !value.isString())) {
+            // 세 칸 모두 필수·타입 그대로(스키마와 같음). 빠지거나 다르면 빈칸·읽음으로 넘기지 않고 실패 — 점수가 조용히 틀려지지 않게
+            if (no == null
+                    || !no.isIntegralNumber()
+                    || !no.canConvertToInt()
+                    || value == null
+                    || !value.isString()
+                    || unreadable == null
+                    || !unreadable.isBoolean()) {
                 throw new ReadFailure(ReadFailure.Kind.MALFORMED, "items의 칸 형식이 다르다");
             }
-            result.add(new ReadItem(
-                    no.asInt(),
-                    value == null || value.isNull() ? null : value.asString(),
-                    unreadable != null && unreadable.isBoolean() && unreadable.booleanValue()));
+            result.add(new ReadItem(no.asInt(), value.asString(), unreadable.booleanValue()));
         }
         return new ReadResult(List.copyOf(result), model, PROMPT_VERSION, inputTokens, outputTokens);
     }

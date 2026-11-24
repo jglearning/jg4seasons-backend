@@ -65,6 +65,24 @@ class ReadValidationTest {
     }
 
     @Test
+    void 결과_목록은_고칠_수_없다() {
+        List<Reading> readings = ReadValidation.check(result(new ReadItem(1, "a", false)), 1);
+
+        assertThatThrownBy(() -> readings.set(0, new Reading("b", false)))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void 읽기_결과는_모델_프롬프트_버전이_있고_토큰이_음수가_아니다() {
+        assertThatThrownBy(() -> new ReadResult(List.of(), null, "v1", 0, 0)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ReadResult(List.of(), "m", null, 0, 0)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ReadResult(List.of(), "m", "v1", -1, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ReadResult(List.of(), "m", "v1", 0, -1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void 항목이_없거나_빈_항목이_있으면_MALFORMED() {
         assertFailure(() -> ReadValidation.check(new ReadResult(null, "m", "v1", 0, 0), 1), ReadFailure.Kind.MALFORMED);
         List<ReadItem> withNull = new ArrayList<>();

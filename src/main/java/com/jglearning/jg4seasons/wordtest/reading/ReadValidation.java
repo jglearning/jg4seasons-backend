@@ -1,7 +1,6 @@
 package com.jglearning.jg4seasons.wordtest.reading;
 
 import com.jglearning.jg4seasons.wordtest.grading.Reading;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,7 +32,7 @@ public final class ReadValidation {
             }
             byNo[item.no() - 1] = reading(item);
         }
-        return Arrays.asList(byNo);
+        return List.of(byNo);
     }
 
     private static Reading reading(ReadItem item) {

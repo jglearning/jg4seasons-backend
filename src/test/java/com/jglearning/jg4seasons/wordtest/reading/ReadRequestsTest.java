@@ -8,6 +8,8 @@ import com.anthropic.models.beta.messages.BetaOutputConfig;
 import com.anthropic.models.beta.messages.MessageCreateParams;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** 답안지 읽기 요청 만들기·응답 해석(네트워크 없음). 프롬프트에는 문항 수만 들어가고 정답은 들어가지 않는다 */
 class ReadRequestsTest {
@@ -70,6 +72,23 @@ class ReadRequestsTest {
         assertKind(
                 () -> ReadRequests.parse("end_turn", "{\"items\":[{\"no\":\"one\"}]}", "m", 0, 0),
                 ReadFailure.Kind.MALFORMED);
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(
+            strings = {
+                "",
+                "{\"items\":[1]}",
+                "{\"items\":[{\"no\":1.5,\"text\":\"a\",\"unreadable\":false}]}",
+                "{\"items\":[{\"no\":1,\"text\":5,\"unreadable\":false}]}",
+                "{\"items\":[{\"no\":1,\"text\":null,\"unreadable\":false}]}",
+                "{\"items\":[{\"no\":1,\"unreadable\":false}]}",
+                "{\"items\":[{\"no\":1,\"text\":\"a\",\"unreadable\":\"true\"}]}",
+                "{\"items\":[{\"no\":1,\"text\":\"a\"}]}",
+                "{\"items\":[{\"no\":99999999999,\"text\":\"a\",\"unreadable\":false}]}",
+            })
+    void 칸이_빠지거나_타입이_다르면_빈칸으로_넘기지_않고_MALFORMED(String body) {
+        assertKind(() -> ReadRequests.parse("end_turn", body, "m", 0, 0), ReadFailure.Kind.MALFORMED);
     }
 
     @Test
