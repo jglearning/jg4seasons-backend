@@ -59,8 +59,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 /** CLAUDE.md §9.1의 아키텍처 규칙. 실제 코드(ArchitectureTest)와 위반 예제(ArchitectureRulesFixtureTest)에 함께 쓴다. */
 final class ArchitectureRules {
 
-    static final List<String> MODULES =
-            List.of("academy", "auth", "clazz", "content", "listening", "words", "teacher", "admin", "system", "infra");
+    static final List<String> MODULES = List.of(
+            "academy",
+            "auth",
+            "clazz",
+            "content",
+            "listening",
+            "words",
+            "wordtest",
+            "teacher",
+            "admin",
+            "system",
+            "infra");
 
     private static final String SHARED_MODULE = "infra";
     private static final String ACADEMY_ID = "academyId";
