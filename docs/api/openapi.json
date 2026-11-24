@@ -1815,6 +1815,56 @@
         "tags" : [ "teacher-detail-controller" ]
       }
     },
+    "/api/v1/word-tests/submissions" : {
+      "post" : {
+        "description" : "업로드한 사진을 회차·영역의 답안지로 제출한다. 제출과 채점 작업을 함께 만들고 바로 돌아간다(채점 결과는 제출 조회를 2초 간격으로). 같은 clientSubmissionId를 다시 보내면 새로 만들지 않고 기존 제출을 200으로(다른 학생이 쓴 값이면 400 VALIDATION). 남의 imageKey·올라가지 않은 사진·5MB 초과·JPEG·PNG 아님 400 INVALID_IMAGE, 그 회차·영역 시험지가 없으면 404 NOT_FOUND, 학생·회차·영역별 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT. 기능 꺼짐 404 FEATURE_DISABLED, 회차 검사는 업로드 주소와 같다",
+        "operationId" : "submitWordTest",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/WordTestSubmitRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WordTestSubmitResponse"
+                }
+              }
+            },
+            "description" : "같은 clientSubmissionId의 기존 제출"
+          },
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WordTestSubmitResponse"
+                }
+              }
+            },
+            "description" : "새 제출(status pending)"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "단어시험 사진 제출",
+        "tags" : [ "word-test-controller" ]
+      }
+    },
     "/api/v1/word-tests/uploads" : {
       "post" : {
         "description" : "S3에 바로 PUT할 서명 주소(5분)와 제출에 쓸 imageKey. PUT에는 headers를 그대로 넣고 쿠키는 보내지 않는다. JPEG·PNG만(그 밖 400 INVALID_IMAGE). 크기(5MB)는 제출 때 확인한다. 기능 꺼짐 404 FEATURE_DISABLED, 없는 회차·진도표에 없는 회차 404 NOT_FOUND, 사용 기간 아님 403 LICENSE_INACTIVE, 수업일 전 423 LESSON_LOCKED",
@@ -4921,6 +4971,55 @@
           }
         },
         "required" : [ "allViewed", "cardsViewed", "memKnown", "recallBest", "spellBest" ]
+      },
+      "WordTestSubmitRequest" : {
+        "type" : "object",
+        "properties" : {
+          "clientSubmissionId" : {
+            "type" : "string",
+            "description" : "클라이언트가 만든 UUID(소문자). 같은 값으로 다시 보내면 새로 만들지 않고 기존 제출을 200으로",
+            "example" : "0b9e1c2d-3f4a-4b5c-8d6e-7f8091a2b3c4",
+            "minLength" : 1,
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "imageKey" : {
+            "type" : "string",
+            "description" : "업로드 주소 발급(D-1)이 준 키 그대로",
+            "example" : "homework/1/42/0b9e1c2d-3f4a-4b5c-8d6e-7f8091a2b3c4.jpg",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "lessonCode" : {
+            "type" : "string",
+            "description" : "회차 코드",
+            "example" : "L2-B1-05",
+            "minLength" : 1,
+            "pattern" : "^[A-Za-z0-9-]{1,10}$"
+          },
+          "section" : {
+            "type" : "string",
+            "description" : "영역. 1단계는 B(철자 쓰기)만 문항이 있다",
+            "enum" : [ "A", "B", "C", "D" ],
+            "example" : "B"
+          }
+        },
+        "required" : [ "clientSubmissionId", "imageKey", "lessonCode", "section" ]
+      },
+      "WordTestSubmitResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "제출 id"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "제출 상태. 새 제출은 pending",
+            "enum" : [ "pending", "grading", "confirming", "graded", "rejected", "failed" ]
+          }
+        },
+        "required" : [ "id", "status" ]
       },
       "WordTestUploadRequest" : {
         "type" : "object",
