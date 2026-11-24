@@ -1777,7 +1777,7 @@
     },
     "/api/v1/teacher/classes/{classId}/word-tests" : {
       "get" : {
-        "description" : "그 반 현재 소속 학생(이름 순, 매트릭스와 같은 학생)마다 그 회차·영역의 마지막 시도. 낸 적이 없으면 submission null. 회차 열림·사용권은 보지 않는다. 기능이 꺼진 학원은 404 FEATURE_DISABLED, 범위 밖 반·그 반 진도표에 없는 회차·시험지 없는 영역은 404 NOT_FOUND. 요청한 교사가 비활성화됐으면 401",
+        "description" : "그 반 현재 소속 학생(이름 순, 매트릭스와 같은 학생)마다 그 회차·영역의 마지막 시도. 낸 적이 없으면 submission null. 회차 열림·사용권은 보지 않는다. 기능이 꺼진 학원은 404 FEATURE_DISABLED, 범위 밖 반(교사는 진행 중 담당 반만)·그 반 진도표에 없는 회차·시험지 없는 영역은 404 NOT_FOUND. 요청한 교사가 비활성화됐으면 401",
         "operationId" : "listClassWordTests",
         "parameters" : [ {
           "in" : "path",

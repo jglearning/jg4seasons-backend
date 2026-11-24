@@ -8,12 +8,15 @@ import com.jglearning.jg4seasons.auth.api.StudentAccounts;
 import com.jglearning.jg4seasons.auth.api.StudentRoster;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.ClassSchedules;
+import com.jglearning.jg4seasons.clazz.api.ClassStatus;
 import com.jglearning.jg4seasons.clazz.api.ScheduleChange;
 import com.jglearning.jg4seasons.clazz.api.ScheduleEntry;
 import com.jglearning.jg4seasons.clazz.api.TeacherClass;
 import com.jglearning.jg4seasons.clazz.api.TeacherClasses;
 import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonSummary;
+import com.jglearning.jg4seasons.infra.web.error.ApiException;
+import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
 import java.time.Clock;
@@ -105,6 +108,20 @@ class TeacherScope {
         LocalDate today = today(academyId);
         return new ScopedClass(
                 academyId, teacherClasses.classOf(academyId, actorId, wholeAcademy, classId, today), today);
+    }
+
+    /**
+     * 반 하나, 교사에게는 진행 중 반만(끝난·보관 반은 404). 관리자는 classOf와 같다(상태 무관). 단어시험 조회(D-5)용 — 제출 상세(D-6)의 교사 범위가 진행 중 담당 반이라
+     * 목록과 상세가 같은 반을 보게
+     */
+    ScopedClass activeClassOf(long academyId, long actorId, long classId) {
+        boolean wholeAcademy = wholeAcademy(academyId, actorId);
+        LocalDate today = today(academyId);
+        TeacherClass clazz = teacherClasses.classOf(academyId, actorId, wholeAcademy, classId, today);
+        if (!wholeAcademy && clazz.status() != ClassStatus.ACTIVE) {
+            throw new ApiException(CommonErrorCode.NOT_FOUND, "반을 찾을 수 없어요");
+        }
+        return new ScopedClass(academyId, clazz, today);
     }
 
     /**

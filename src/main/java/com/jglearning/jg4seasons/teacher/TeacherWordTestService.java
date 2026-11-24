@@ -38,9 +38,9 @@ public class TeacherWordTestService {
         this.results = results;
     }
 
-    /** 순서: 범위(401·404) → 기능 켜짐(404 FEATURE_DISABLED) → 그 반 진도표의 회차(404) → 시험지(404) → 명단·마지막 시도 */
+    /** 순서: 범위(401·404, 교사는 진행 중 반만) → 기능 켜짐(404 FEATURE_DISABLED) → 그 반 진도표의 회차(404) → 시험지(404) → 명단·마지막 시도 */
     public TeacherWordTestList list(long academyId, long actorId, long classId, String lessonCode, String section) {
-        TeacherScope.ScopedClass scoped = scope.classOf(academyId, actorId, classId);
+        TeacherScope.ScopedClass scoped = scope.activeClassOf(academyId, actorId, classId);
         results.requireEnabled(academyId);
         TeacherClass clazz = scoped.clazz();
         LessonContent lesson = catalog.findByCode(lessonCode)

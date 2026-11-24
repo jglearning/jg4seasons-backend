@@ -122,6 +122,17 @@ class TeacherWordTestListTest {
     }
 
     @Test
+    void 끝난_반은_교사에게_404이고_관리자는_본다() {
+        // D-6(제출 상세)의 교사 범위가 진행 중 반만이라 목록도 같게 — 목록에서 누른 행이 404가 되지 않게
+        jdbc.update("update `class` set status = 'finished' where id = ?", classId);
+        long adminId = data.staff(academyId, "관리자", "admin");
+
+        assertNotFound(list(teacherId, UserRole.TEACHER, academyId, "lessonCode=" + CODE + "&section=B"), "NOT_FOUND");
+        assertThat(list(adminId, UserRole.ADMIN, academyId, "lessonCode=" + CODE + "&section=B"))
+                .hasStatusOk();
+    }
+
+    @Test
     void 반을_떠난_학생은_목록에_없다() {
         submission(lee, 1, "graded", 4);
         data.leave(classId, lee);

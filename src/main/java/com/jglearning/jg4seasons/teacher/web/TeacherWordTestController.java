@@ -32,7 +32,7 @@ public class TeacherWordTestController {
             summary = "반 학생별 단어시험 최근 제출",
             description = "그 반 현재 소속 학생(이름 순, 매트릭스와 같은 학생)마다 그 회차·영역의 마지막 시도. 낸 적이 없으면 submission null."
                     + " 회차 열림·사용권은 보지 않는다. 기능이 꺼진 학원은 404 FEATURE_DISABLED,"
-                    + " 범위 밖 반·그 반 진도표에 없는 회차·시험지 없는 영역은 404 NOT_FOUND. 요청한 교사가 비활성화됐으면 401")
+                    + " 범위 밖 반(교사는 진행 중 담당 반만)·그 반 진도표에 없는 회차·시험지 없는 영역은 404 NOT_FOUND. 요청한 교사가 비활성화됐으면 401")
     @GetMapping("/api/v1/teacher/classes/{classId}/word-tests")
     public TeacherWordTestList listClassWordTests(
             @AuthenticationPrincipal Jwt jwt,
