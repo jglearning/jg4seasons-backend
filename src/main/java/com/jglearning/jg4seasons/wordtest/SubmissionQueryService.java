@@ -95,7 +95,7 @@ public class SubmissionQueryService {
                     item.no(),
                     item.prompt(),
                     ResultView.written(answer.recognizedText()),
-                    ResultView.of(answer.result(), answer.unsureReason()),
+                    answer.result().dbValue(),
                     item.answer()));
         }
         return result;
