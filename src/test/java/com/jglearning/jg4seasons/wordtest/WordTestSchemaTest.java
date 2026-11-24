@@ -114,6 +114,9 @@ class WordTestSchemaTest {
         violates(() -> answer(submission, third, "maybe", null), "ck_word_test_answer_result");
         violates(() -> answer(submission, third, "wrong", "guess"), "ck_word_test_answer_unsure");
         violates(() -> answer(submission, third, "CORRECT", null), "ck_word_test_answer_result");
+        // 판정 규칙(코드의 Judgement와 같음): unclear는 이유 필수, unreadable은 unclear와만
+        violates(() -> answer(submission, third, "unclear", null), "ck_word_test_answer_unclear_reason");
+        violates(() -> answer(submission, third, "wrong", "unreadable"), "ck_word_test_answer_unreadable");
     }
 
     @Test
@@ -146,13 +149,19 @@ class WordTestSchemaTest {
             submission(section.dbValue(), 100, "pending");
         }
         for (AnswerResult result : AnswerResult.values()) {
-            long answer = answer(submission, item("B", ++no), result.dbValue(), null);
+            // unclear는 이유가 있어야 한다(ck_word_test_answer_unclear_reason)
+            String reason = result == AnswerResult.UNCLEAR ? UnsureReason.UNREADABLE.dbValue() : null;
+            long answer = answer(submission, item("B", ++no), result.dbValue(), reason);
             if (result != AnswerResult.UNCLEAR) {
                 jdbc.update("update word_test_answer set teacher_result = ? where id = ?", result.dbValue(), answer);
             }
         }
         for (UnsureReason reason : UnsureReason.values()) {
-            answer(submission, item("B", ++no), "wrong", reason.dbValue());
+            answer(
+                    submission,
+                    item("B", ++no),
+                    reason == UnsureReason.UNREADABLE ? "unclear" : "wrong",
+                    reason.dbValue());
         }
     }
 

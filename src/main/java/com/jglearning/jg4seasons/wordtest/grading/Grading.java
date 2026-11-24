@@ -18,18 +18,18 @@ public final class Grading {
             throw new IllegalArgumentException("문항 " + items.size() + "개와 읽은 " + readings.size() + "개가 다르다");
         }
         List<GradedAnswer> answers = new ArrayList<>(items.size());
-        int score = 0;
         for (int i = 0; i < items.size(); i++) {
             WordTestItem item = items.get(i);
+            if (item.no() != i + 1) {
+                // readings는 번호 1..N 순(ReadValidation) — 문항도 1부터 이어져야 위치로 짝지을 수 있다
+                throw new IllegalArgumentException("문항 번호가 1부터 이어지지 않는다: " + (i + 1) + "번 자리에 " + item.no());
+            }
             Reading reading = readings.get(i);
             Judgement judgement =
                     SpellingJudge.judge(new AnswerKey(item.answer(), item.accepted(), item.hint()), reading);
             String stored = judgement.result() == AnswerResult.BLANK || reading.unreadable() ? null : reading.text();
             answers.add(new GradedAnswer(item.id(), stored, judgement.result(), judgement.unsureReason()));
-            if (judgement.result() == AnswerResult.CORRECT) {
-                score++;
-            }
         }
-        return new Graded(List.copyOf(answers), score);
+        return new Graded(answers);
     }
 }

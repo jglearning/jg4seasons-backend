@@ -47,6 +47,39 @@ class GradingTest {
     }
 
     @Test
+    void 문항_번호가_1부터_이어지지_않으면_거부한다() {
+        List<WordTestItem> skipped = List.of(ITEMS.get(0), ITEMS.get(2));
+
+        assertThatThrownBy(() -> Grading.grade(skipped, List.of(new Reading("a", false), new Reading("b", false))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("번호");
+    }
+
+    @Test
+    void 점수는_답안에서_계산한다() {
+        Graded graded = new Graded(List.of(
+                new GradedAnswer(1, "a", AnswerResult.CORRECT, null),
+                new GradedAnswer(2, "b", AnswerResult.WRONG, null),
+                new GradedAnswer(3, null, AnswerResult.UNCLEAR, UnsureReason.UNREADABLE)));
+
+        assertThat(graded.score()).isEqualTo(1);
+    }
+
+    @Test
+    void 저장할_답안은_판정_규칙과_빈칸_글자_규칙을_지킨다() {
+        assertThatThrownBy(() -> new GradedAnswer(1, null, AnswerResult.UNCLEAR, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GradedAnswer(1, null, AnswerResult.WRONG, UnsureReason.UNREADABLE))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GradedAnswer(1, "abc", AnswerResult.BLANK, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GradedAnswer(1, "abc", AnswerResult.UNCLEAR, UnsureReason.UNREADABLE))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new GradedAnswer(1, null, AnswerResult.UNCLEAR, UnsureReason.UNREADABLE).result())
+                .isEqualTo(AnswerResult.UNCLEAR);
+    }
+
+    @Test
     void 문항과_읽은_수가_다르면_거부한다() {
         assertThatThrownBy(() -> Grading.grade(ITEMS, List.of(new Reading("a", false))))
                 .isInstanceOf(IllegalArgumentException.class);

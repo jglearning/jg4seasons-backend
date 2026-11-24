@@ -127,7 +127,7 @@ class SubmissionMarksTest {
                 submissionId,
                 List.of(
                         new GradedAnswer(item1, "beautful", AnswerResult.WRONG, null),
-                        new GradedAnswer(item2, null, AnswerResult.WRONG, UnsureReason.UNREADABLE)));
+                        new GradedAnswer(item2, null, AnswerResult.UNCLEAR, UnsureReason.UNREADABLE)));
         answers.upsertAll(
                 submissionId,
                 List.of(

@@ -1,7 +1,5 @@
 package com.jglearning.jg4seasons.wordtest.grading;
 
-import java.util.Objects;
-
 /**
  * 한 문항의 채점 결과(저장할 모양).
  *
@@ -10,7 +8,11 @@ import java.util.Objects;
  */
 public record GradedAnswer(long itemId, String recognizedText, AnswerResult result, UnsureReason unsureReason) {
 
+    /** 판정 규칙은 Judgement와 같다(unclear는 이유 필수, unreadable은 unclear와만). 빈칸·unclear는 글자가 없다 */
     public GradedAnswer {
-        Objects.requireNonNull(result, "판정 결과가 없다");
+        new Judgement(result, unsureReason);
+        if ((result == AnswerResult.BLANK || result == AnswerResult.UNCLEAR) && recognizedText != null) {
+            throw new IllegalArgumentException(result + "에는 읽은 글자를 두지 않는다");
+        }
     }
 }
