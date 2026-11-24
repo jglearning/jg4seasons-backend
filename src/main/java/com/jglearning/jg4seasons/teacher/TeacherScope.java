@@ -18,6 +18,7 @@ import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,6 +105,21 @@ class TeacherScope {
         LocalDate today = today(academyId);
         return new ScopedClass(
                 academyId, teacherClasses.classOf(academyId, actorId, wholeAcademy, classId, today), today);
+    }
+
+    /**
+     * 요청한 사람이 볼 수 있는 학생(그 학원 학생만, 이름 순): 관리자는 학원 학생 전체(퇴원 포함), 교사는 진행 중 담당 반에 지금 소속된 학생. 반 id 없이 학생의
+     * 기록을 여는 조회(단어시험 제출 상세 D-6)의 범위
+     */
+    StudentRoster studentsInScope(long academyId, long actorId) {
+        if (wholeAcademy(academyId, actorId)) {
+            return students.roster(academyId, students.studentIds(academyId));
+        }
+        Set<Long> ids = new LinkedHashSet<>();
+        for (TeacherClass clazz : teacherClasses.activeClasses(academyId, actorId, false, today(academyId))) {
+            ids.addAll(clazz.studentIds());
+        }
+        return students.roster(academyId, ids);
     }
 
     /** 요청한 사람이 지금 활성 관리자면 true, 활성 교사면 false. 둘 다 아니면 401(DB의 지금 역할 — JWT 역할 아님) */

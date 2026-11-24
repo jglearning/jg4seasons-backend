@@ -2,6 +2,7 @@ package com.jglearning.jg4seasons.teacher.web;
 
 import com.jglearning.jg4seasons.infra.security.Principals;
 import com.jglearning.jg4seasons.teacher.TeacherWordTestService;
+import com.jglearning.jg4seasons.teacher.web.dto.TeacherWordTestDetail;
 import com.jglearning.jg4seasons.teacher.web.dto.TeacherWordTestList;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -48,5 +49,16 @@ public class TeacherWordTestController {
                     @Pattern(regexp = "^[ABCD]$", message = "영역은 A·B·C·D 중 하나예요")
                     String section) {
         return wordTests.list(Principals.academyId(jwt), Principals.userId(jwt), classId, lessonCode, section);
+    }
+
+    @Operation(
+            summary = "단어시험 제출 상세",
+            description = "답안지 사진 보기 서명 주소(5분)와 문항별 결과(graded일 때만, unclear에도 정답)."
+                    + " 교사는 진행 중 담당 반에 지금 소속된 학생의 제출만, 관리자는 학원 학생 전체 — 그 밖·없는 제출은 404 NOT_FOUND."
+                    + " 기능이 꺼진 학원은 404 FEATURE_DISABLED. 요청한 교사가 비활성화됐으면 401")
+    @GetMapping("/api/v1/teacher/word-tests/{id}")
+    public TeacherWordTestDetail getTeacherWordTestSubmission(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
+        return wordTests.detail(Principals.academyId(jwt), Principals.userId(jwt), id);
     }
 }
