@@ -11,8 +11,14 @@ import java.util.regex.Pattern;
  */
 public final class SpellingJudge {
 
-    /** 일반 공백·탭·줄바꿈에 NBSP(U+00A0)·전각 공백(U+3000) — 읽은 글자에 섞일 수 있다 */
-    private static final Pattern SPACES = Pattern.compile("[\\s\\u00A0\\u3000]+");
+    /** 공백류 전부(일반·탭·줄바꿈과 유니코드 Z 범주 — NBSP·얇은 공백·전각 공백 등). 읽은 글자에 섞일 수 있다 */
+    private static final Pattern SPACES = Pattern.compile("[\\s\\p{Z}]+");
+    /** 폭 없는 공백·BOM. 글자 사이에 끼어도 보이지 않는다 */
+    private static final Pattern INVISIBLE = Pattern.compile("[\\u200B\\u200C\\u200D\\u2060\\uFEFF]");
+    /** 하이픈·대시·빼기 변형. 손글씨에서는 구분되지 않아 '-'로 통일 */
+    private static final Pattern DASHES = Pattern.compile("[\\u2010-\\u2015\\u2212\\uFE58\\uFE63\\uFF0D]");
+    /** 작은따옴표 변형(one's). 일반 작은따옴표로 통일 */
+    private static final Pattern APOSTROPHES = Pattern.compile("[\\u2018\\u2019\\u02BC\\uFF07]");
 
     private SpellingJudge() {}
 
@@ -30,12 +36,15 @@ public final class SpellingJudge {
         return new Judgement(AnswerResult.WRONG, null);
     }
 
-    /** 앞뒤 공백 제거, 소문자, 연속 공백 하나로. null은 빈 문자열 */
+    /** 보이지 않는 글자 제거, 하이픈·작은따옴표 변형 통일, 앞뒤 공백 제거, 소문자, 연속 공백 하나로. null은 빈 문자열 */
     public static String normalize(String text) {
         if (text == null) {
             return "";
         }
-        return SPACES.matcher(text).replaceAll(" ").strip().toLowerCase(Locale.ROOT);
+        String visible = INVISIBLE.matcher(text).replaceAll("");
+        String unified =
+                APOSTROPHES.matcher(DASHES.matcher(visible).replaceAll("-")).replaceAll("'");
+        return SPACES.matcher(unified).replaceAll(" ").strip().toLowerCase(Locale.ROOT);
     }
 
     private static boolean matches(AnswerKey key, String written) {

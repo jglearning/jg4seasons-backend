@@ -52,6 +52,17 @@ class SpellingJudgeTest {
                 // 다른 공백 문자(NBSP, 전각 공백, 탭)
                 "as a result;-;a... a r...;as a　result;false;CORRECT;-",
                 "as a result;-;a... a r...;as\ta result;false;CORRECT;-",
+                // 얇은 공백·폭 없는 공백, 하이픈·작은따옴표 변형(손글씨에서는 구분되지 않는 글자)
+                "as a result;-;-;as a result;false;CORRECT;-",
+                "cheerful;-;-;cheer​ful﻿;false;CORRECT;-",
+                "second-hand;-;-;second‑hand;false;CORRECT;-",
+                "second-hand;-;-;second–hand;false;CORRECT;-",
+                "second-hand;-;-;second−hand;false;CORRECT;-",
+                "hold one's breath;-;-;hold one’s breath;false;CORRECT;-",
+                "second-hand;-;-;secondhand;false;WRONG;-",
+                // 한 글자 hint와 허용 답, 대문자 hint
+                "rainbow;rain bow;r;ain bow;false;CORRECT;-",
+                "atmosphere;-;A;tmosphere;false;CORRECT;-",
                 // 숙어 자리표시는 2단계
                 "be used to -ing;-;-;be used to;false;WRONG;-",
             })
