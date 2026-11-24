@@ -55,5 +55,6 @@ public record TeacherWordTestDetail(
         @Schema(
                 requiredMode = Schema.RequiredMode.REQUIRED,
                 nullable = true,
-                description = "답안지 사진 보기 서명 주소(5분). 쿠키 없이 바로 연다. 사진이 없거나 서버가 주소를 만들지 못하면 null")
+                description =
+                        "답안지 사진 보기 서명 주소(5분). 쿠키 없이 바로 연다. 사진 키가 없거나 저장소가 보기 주소를 주지 않으면(로컬 서버) null. 서명 실패는 null이 아니라 500")
         String imageUrl) {}

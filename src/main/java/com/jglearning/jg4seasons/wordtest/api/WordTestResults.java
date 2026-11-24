@@ -32,7 +32,7 @@ public interface WordTestResults {
 
     /**
      * @param items 번호 순, graded가 아니면 null
-     * @param imageUrl 짧은 서명 주소(5분), 사진 키가 없거나 저장소가 주소를 주지 않으면(로컬) null
+     * @param imageUrl 짧은 서명 주소(5분), 사진 키가 없거나 저장소가 주소를 주지 않으면(로컬) null. 서명 실패는 예외(500)
      */
     record Detail(
             long id,
