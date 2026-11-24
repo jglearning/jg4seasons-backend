@@ -1,7 +1,12 @@
 package com.jglearning.jg4seasons.wordtest;
 
+import com.anthropic.client.AnthropicClient;
+import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.jglearning.jg4seasons.wordtest.reading.AnswerSheetReader;
+import com.jglearning.jg4seasons.wordtest.reading.AnthropicAnswerSheetReader;
+import com.jglearning.jg4seasons.wordtest.reading.ReadRequests;
 import com.jglearning.jg4seasons.wordtest.reading.ReadResult;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -15,10 +20,21 @@ class WordTestReaderConfig {
 
     private static final Logger log = LoggerFactory.getLogger(WordTestReaderConfig.class);
 
+    static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
+
     @Bean
     AnswerSheetReader answerSheetReader(WordTestReaderProperties properties) {
         return switch (properties.type()) {
-            case ANTHROPIC -> throw new IllegalStateException("anthropic 읽기는 아직 없다(다음 커밋)");
+            case ANTHROPIC -> {
+                // 제한 시간 30초, SDK 재시도 0(워커가 30초 간격으로 3회). 키는 로그에 남기지 않는다
+                AnthropicClient client = AnthropicOkHttpClient.builder()
+                        .apiKey(properties.apiKey())
+                        .timeout(READ_TIMEOUT)
+                        .maxRetries(0)
+                        .build();
+                log.info("답안지 읽기: Anthropic {}", properties.model());
+                yield new AnthropicAnswerSheetReader(client, properties.model(), ReadRequests.loadPrompt());
+            }
             case NONE, FAKE -> {
                 log.info("답안지 읽기 꺼짐 — 채점 워커가 작업을 잡지 않는다");
                 yield NoReader.INSTANCE;

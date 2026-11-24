@@ -37,6 +37,8 @@ dependencies {
 		exclude(group = "software.amazon.awssdk", module = "apache5-client")
 	}
 	implementation("software.amazon.awssdk:url-connection-client")
+	// 단어시험 답안지 읽기(Anthropic 공식 Java SDK)
+	implementation("com.anthropic:anthropic-java:3.13.0")
 	compileOnly("org.projectlombok:lombok")
 	runtimeOnly("com.mysql:mysql-connector-j")
 	annotationProcessor("org.projectlombok:lombok")
