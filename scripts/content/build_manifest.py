@@ -2,7 +2,8 @@
 """녹음된 교재 자료 폴더에서 회차별 manifest와 업로드용 음원 폴더를 만든다(ADR-27).
 
 사용법:
-    python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴더> --vocab <어휘책 all_vocab.tsv>         [--word-test <단어시험 문항 TSV>] [--only 코드,코드]
+    python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴더> --vocab <어휘책 all_vocab.tsv>
+        [--word-test <단어시험 문항 TSV> ...] [--only 코드,코드]
 
 - 자료 폴더: 레벨 폴더(1_…~5_…) 아래 회차 폴더(`NN회 · 제목`, `보충N회 · 제목`)가 있는 결과물 폴더
 - 출력 폴더: 저장소 밖에 둔다. 교재 원문(manifest)과 음원은 저장소에 넣지 않는다
@@ -12,6 +13,9 @@
 - 오류는 회차별로 모아 마지막에 보이고 종료 코드 1
 - --word-test: 단어시험 문항 TSV(열 lesson_code section no book_page prompt answer hint). 행이 있는 회차만 manifest에
   wordTests를 넣는다(없는 회차는 칸이 없어 앱이 그 회차 문항을 건드리지 않는다). book_page는 버린다
+  - wordTests는 그 회차 모든 영역의 전체 목록이다. 영역별 파일이면 그 회차에 넣을 파일을 모두 준다(여러 번 줄 수 있음).
+    하나만 주면 앱이 다른 영역 문항을 지운다
+  - 따옴표를 특별히 다루지 않는다(칸 안의 "는 글자 그대로). 칸 수가 7이 아닌 행은 행 번호와 함께 실패
 """
 import argparse
 import csv
@@ -254,12 +258,29 @@ def read_book(path):
     return book
 
 
-def read_word_tests(path):
-    """단어시험 문항 TSV → {DB 코드: [행]}"""
+WORD_TEST_COLUMNS = ["lesson_code", "section", "no", "book_page", "prompt", "answer", "hint"]
+
+
+def read_word_tests(paths):
+    """단어시험 문항 TSV 여러 개 → {DB 코드: [행]}. 칸이 밀리거나 모자란 행은 파일·행 번호와 함께 ValueError.
+
+    따옴표 규칙을 끈다(QUOTE_NONE): 기본값이면 "로 시작하는 칸의 따옴표가 사라지고, 닫히지 않은 따옴표는 여러 행을 한 칸으로 합친다.
+    같은 (회차, 영역, 번호)가 두 파일에 있으면 build_word_tests의 번호 검사가 겹침으로 잡는다.
+    """
     tests = {}
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        for r in csv.DictReader(f, delimiter="	"):
-            tests.setdefault(r["lesson_code"].strip(), []).append(r)
+    for path in paths:
+        with open(path, encoding="utf-8-sig", newline="") as f:
+            reader = csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
+            header = next(reader, None)
+            if header != WORD_TEST_COLUMNS:
+                raise ValueError(f"{path}: 머리 행이 {WORD_TEST_COLUMNS}가 아니다: {header}")
+            for line, cells in enumerate(reader, start=2):
+                if not cells:
+                    continue
+                if len(cells) != len(WORD_TEST_COLUMNS):
+                    raise ValueError(f"{path} {line}행: 칸이 {len(cells)}개다({len(WORD_TEST_COLUMNS)}개여야 한다)")
+                r = dict(zip(WORD_TEST_COLUMNS, cells))
+                tests.setdefault(r["lesson_code"].strip(), []).append(r)
     return tests
 
 
@@ -351,7 +372,8 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("out", type=Path)
     parser.add_argument("--vocab", type=Path, required=True, help="어휘책 all_vocab.tsv(단어·숙어, ADR-27 결정 6)")
-    parser.add_argument("--word-test", type=Path, help="단어시험 문항 TSV(행이 있는 회차만 wordTests를 넣는다)")
+    parser.add_argument("--word-test", type=Path, action="append", default=[],
+                        help="단어시험 문항 TSV(여러 번 줄 수 있음). 행이 있는 회차만 wordTests를 넣고, 그 회차의 전체 목록이 된다")
     parser.add_argument("--only", default="", help="회차 코드(DB 코드) 쉼표 목록")
     args = parser.parse_args()
     only = {c.strip() for c in args.only.split(",") if c.strip()}
@@ -361,7 +383,11 @@ def main():
     lessons = sorted(d for level in args.source.iterdir() if level.is_dir() and level.name[:1].isdigit()
                      for d in level.iterdir() if d.is_dir())
     book = read_book(args.vocab)
-    word_tests = read_word_tests(args.word_test) if args.word_test else {}
+    try:
+        word_tests = read_word_tests(args.word_test)
+    except ValueError as e:  # 파일이 깨졌으면 회차별로 모을 이유가 없다
+        print(f"단어시험 TSV 오류: {e}", file=sys.stderr)
+        sys.exit(1)
     gaps, failed, seen = [], [], set()
     done = passages = files = size = 0
     for lesson_dir in lessons:
@@ -390,6 +416,14 @@ def main():
         failed.append(f"단어시험 TSV {code}: 자료에 그런 회차가 없다")
     if done == 0:
         failed.append("만든 회차가 0개다(자료 폴더·--only 확인)")
+    # 단어시험 영역 구성: manifest의 wordTests는 회차 전체 목록이라, 빠진 영역이 있으면 import가 그 영역 문항을 지운다
+    for code in sorted(c for c in word_tests if c in seen):
+        if manifest_path(args.out, code).exists():
+            counts = {}
+            for r in word_tests[code]:
+                counts[r["section"].strip()] = counts.get(r["section"].strip(), 0) + 1
+            print(f"단어시험 {code}: " + " ".join(f"{s}{counts[s]}" for s in sorted(counts))
+                  + " (이 영역 밖의 문항은 import 때 지워진다)")
 
     print(f"회차 {done}개 · 지문 {passages}개 · 음원 {files}개 · {size / 1024 / 1024:.1f}MB")
     values = sorted(g for g, _ in gaps)  # 문장이 2개 이상인 지문 × 목소리만(간격 0 포함)

@@ -470,6 +470,14 @@ public class LessonImporter {
         List<Long> removed = existing.values().stream().map(WordTestItemRow::id).toList();
         store.deleteWordTestItems(removed);
         changes.add(removed.size());
+        if (!removed.isEmpty()) {
+            // manifest의 wordTests는 회차 전체 목록 — 영역 하나만 담은 manifest가 다른 영역을 지운 것인지 나중에 찾을 수 있게
+            List<String> keys = existing.values().stream()
+                    .map(row -> row.section() + " " + row.no())
+                    .sorted()
+                    .toList();
+            log.info("content import: {} 단어시험 문항 {}개 삭제: {}", manifest.code(), keys.size(), keys);
+        }
     }
 
     /** 문항마다 정답과 글자 그대로 같은 단어가 회차에 정확히 하나면 잇고, 아니면 끊는다. 못 이은 문항은 로그(콘텐츠라 개인정보 없음) */
