@@ -8,7 +8,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -177,6 +179,44 @@ public class SubmissionStore {
                         Map.of("student", studentId, "lesson", lessonId, "section", section.dbValue()),
                         SubmissionStore::row)
                 .stream()
+                .findFirst();
+    }
+
+    /** 학생들의 그 회차·영역 제출, 학생 id 순·시도 번호 큰 것부터(학생마다 첫 행이 마지막 시도). 학생이 없으면 빈 목록 */
+    public List<SubmissionRow> latestAmong(Collection<Long> studentIds, long lessonId, Section section) {
+        if (studentIds.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.query(
+                "select " + COLUMNS + " from word_test_submission where student_id in (:students)"
+                        + " and lesson_id = :lesson and section = :section order by student_id, attempt_no desc",
+                Map.of("students", studentIds, "lesson", lessonId, "section", section.dbValue()),
+                SubmissionStore::row);
+    }
+
+    /** 그 학생들 중 누구의 제출이면(학원 칸이 없어 학생 묶음이 학원 경계를 겸한다). 밖·없음은 empty */
+    public Optional<SubmissionRow> findAmong(long id, Collection<Long> studentIds) {
+        if (studentIds.isEmpty()) {
+            return Optional.empty();
+        }
+        return jdbc
+                .query(
+                        "select " + COLUMNS + " from word_test_submission where id = :id and student_id in (:students)",
+                        Map.of("id", id, "students", studentIds),
+                        SubmissionStore::row)
+                .stream()
+                .findFirst();
+    }
+
+    /** 사진 키. 키가 비었거나(NULL) 제출이 없으면 empty — 범위 확인(findAmong) 뒤에만 부른다 */
+    public Optional<String> imageKeyOf(long id) {
+        return jdbc
+                .query(
+                        "select image_key from word_test_submission where id = :id",
+                        Map.of("id", id),
+                        (rs, i) -> rs.getString("image_key"))
+                .stream()
+                .filter(Objects::nonNull)
                 .findFirst();
     }
 

@@ -14,6 +14,8 @@ public class MemoryPhotoStorage implements PhotoStorage {
     private record Photo(byte[] bytes, String contentType) {}
 
     private final Map<String, Photo> photos = new ConcurrentHashMap<>();
+    private volatile Duration lastViewTtl;
+    private volatile boolean viewUrls = true;
     private final Clock clock;
 
     public MemoryPhotoStorage(Clock clock) {
@@ -29,8 +31,20 @@ public class MemoryPhotoStorage implements PhotoStorage {
         put(key, new byte[size], contentType);
     }
 
+    /** 마지막 보기 주소 요청의 유효 시간 */
+    public Duration lastViewTtl() {
+        return lastViewTtl;
+    }
+
+    /** false면 보기 주소를 주지 않는다(로컬 폴더 저장소처럼) */
+    public void viewUrls(boolean on) {
+        this.viewUrls = on;
+    }
+
     public void clear() {
         photos.clear();
+        lastViewTtl = null;
+        viewUrls = true;
     }
 
     @Override
@@ -63,6 +77,10 @@ public class MemoryPhotoStorage implements PhotoStorage {
 
     @Override
     public Optional<URI> presignGet(String key, Duration ttl) {
+        lastViewTtl = ttl;
+        if (!viewUrls) {
+            return Optional.empty();
+        }
         return Optional.of(URI.create("https://photos.test/" + key + "?view"));
     }
 }

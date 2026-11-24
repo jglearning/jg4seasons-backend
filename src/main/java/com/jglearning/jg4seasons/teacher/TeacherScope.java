@@ -8,16 +8,20 @@ import com.jglearning.jg4seasons.auth.api.StudentAccounts;
 import com.jglearning.jg4seasons.auth.api.StudentRoster;
 import com.jglearning.jg4seasons.clazz.api.ClassLesson;
 import com.jglearning.jg4seasons.clazz.api.ClassSchedules;
+import com.jglearning.jg4seasons.clazz.api.ClassStatus;
 import com.jglearning.jg4seasons.clazz.api.ScheduleChange;
 import com.jglearning.jg4seasons.clazz.api.ScheduleEntry;
 import com.jglearning.jg4seasons.clazz.api.TeacherClass;
 import com.jglearning.jg4seasons.clazz.api.TeacherClasses;
 import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonSummary;
+import com.jglearning.jg4seasons.infra.web.error.ApiException;
+import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import com.jglearning.jg4seasons.listening.api.LessonProgressStatus;
 import com.jglearning.jg4seasons.listening.api.LessonProgressSummary;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,6 +108,45 @@ class TeacherScope {
         LocalDate today = today(academyId);
         return new ScopedClass(
                 academyId, teacherClasses.classOf(academyId, actorId, wholeAcademy, classId, today), today);
+    }
+
+    /**
+     * 반 하나, 교사에게는 진행 중 반만(끝난·보관 반은 404). 관리자는 classOf와 같다(상태 무관). 단어시험 조회(D-5)용 — 제출 상세(D-6)의 교사 범위가 진행 중 담당 반이라
+     * 목록과 상세가 같은 반을 보게
+     */
+    ScopedClass activeClassOf(long academyId, long actorId, long classId) {
+        boolean wholeAcademy = wholeAcademy(academyId, actorId);
+        LocalDate today = today(academyId);
+        TeacherClass clazz = teacherClasses.classOf(academyId, actorId, wholeAcademy, classId, today);
+        if (!wholeAcademy && clazz.status() != ClassStatus.ACTIVE) {
+            throw new ApiException(CommonErrorCode.NOT_FOUND, "반을 찾을 수 없어요");
+        }
+        return new ScopedClass(academyId, clazz, today);
+    }
+
+    /**
+     * 요청한 사람이 볼 수 있는 학생(그 학원 학생만, 이름 순): 관리자는 학원 학생 전체(퇴원 포함), 교사는 진행 중 담당 반에 지금 소속된 학생. 반 id 없이 학생의
+     * 기록을 여는 조회(단어시험 제출 상세 D-6)의 범위
+     */
+    StudentRoster studentsInScope(long academyId, long actorId) {
+        if (wholeAcademy(academyId, actorId)) {
+            return students.roster(academyId, students.studentIds(academyId));
+        }
+        Set<Long> ids = new LinkedHashSet<>();
+        for (TeacherClass clazz : teacherClasses.activeClasses(academyId, actorId, false, today(academyId))) {
+            ids.addAll(clazz.studentIds());
+        }
+        StudentRoster roster = students.roster(academyId, ids);
+        if (roster.accounts().size() != ids.size()) {
+            // roster(ScopedClass)와 같은 정책: 화면은 그 학원 학생만, 빠진 id는 로그로(그 학생 제출은 404가 된다)
+            Set<Long> kept = roster.accounts().stream().map(StudentAccount::id).collect(Collectors.toSet());
+            log.warn(
+                    "담당 반 소속에 그 학원 학생이 아닌 id가 있다: academy {} actor {} ids {}",
+                    academyId,
+                    actorId,
+                    ids.stream().filter(id -> !kept.contains(id)).toList());
+        }
+        return roster;
     }
 
     /** 요청한 사람이 지금 활성 관리자면 true, 활성 교사면 false. 둘 다 아니면 401(DB의 지금 역할 — JWT 역할 아님) */
