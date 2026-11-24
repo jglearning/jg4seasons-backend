@@ -271,6 +271,25 @@ class WordTestSubmitTest {
                 .isEqualTo(4);
     }
 
+    @Test
+    void 자정_직전_소수_초_제출은_내림해_저장해_다음_날_횟수에_들어가지_않는다() {
+        // DATETIME은 소수 초를 반올림한다 — 23:59:59.6이 다음 날 00:00:00으로 저장되면 다음 날 한도를 하나 먹는다
+        clock.set(Instant.parse("2026-11-26T14:59:59.600Z")); // 서울 23:59:59.6
+        MvcTestResult late = submit(student(), UUID.randomUUID().toString(), TODAY, "B", photo());
+        assertThat(late).hasStatus(HttpStatus.ACCEPTED);
+        assertThat(jdbc.queryForObject(
+                        "select created_at from word_test_submission where student_id = ?",
+                        LocalDateTime.class,
+                        studentId))
+                .isEqualTo(LocalDateTime.of(2026, 11, 26, 14, 59, 59));
+
+        clock.set(Instant.parse("2026-11-26T15:00:00Z")); // 서울 다음 날 00:00
+        for (int i = 0; i < 3; i++) {
+            assertThat(submit(student(), UUID.randomUUID().toString(), TODAY, "B", photo()))
+                    .hasStatus(HttpStatus.ACCEPTED);
+        }
+    }
+
     private int count(String table) {
         return jdbc.queryForObject("select count(*) from " + table, Integer.class);
     }
