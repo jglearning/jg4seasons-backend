@@ -18,11 +18,15 @@ import java.time.ZoneId;
 import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * D-2 제출. 검사 순서: 기능 → 같은 clientSubmissionId(있으면 기존 제출) → 회차·열림 → 문항 정의 → imageKey 경로 → 올라간 사진의 크기·형식 → 하루 3회. 제출과 채점 작업은
- * 한 트랜잭션. 같은 요청이 동시에 오면 UNIQUE가 하나만 통과시키고 다른 하나는 잠금 읽기로 그 제출을 돌려준다
+ * 한 트랜잭션. 같은 요청이 동시에 오면 UNIQUE가 하나만 통과시키고 다른 하나는 잠금 읽기로 그 제출을 돌려준다.
+ *
+ * <p>격리 수준 READ_COMMITTED: 시도 번호가 겹쳐 다시 셀 때 상대가 방금 커밋한 번호가 보여야 한다(REPEATABLE READ면 트랜잭션 첫 읽기의 스냅숏을 다시 읽어
+ * 같은 번호로 또 충돌한다). 범위를 FOR UPDATE로 잠그지 않는 것은, 빈 범위의 갭 잠금끼리는 서로 막지 않아 두 INSERT가 교착되기 때문
  */
 @Service
 public class SubmissionService {
@@ -55,7 +59,7 @@ public class SubmissionService {
         this.clock = clock;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public Result submit(
             long academyId, long studentId, String clientId, String lessonCode, Section section, String imageKey) {
         access.requireEnabled(academyId);
@@ -75,27 +79,24 @@ public class SubmissionService {
         if (store.countSince(studentId, lessonId, section, startOfToday(academyId, now)) >= DAILY_LIMIT) {
             throw new ApiException(WordTestErrorCode.DAILY_LIMIT, "이 영역은 하루에 " + DAILY_LIMIT + "번까지 낼 수 있어요");
         }
-        return insert(new NewSubmission(clientId, studentId, lessonId, section, 0, imageKey, total), now);
+        return insert(clientId, studentId, lessonId, section, imageKey, total, now);
     }
 
-    /** 시도 번호는 마지막 + 1. 다른 요청이 같은 번호를 먼저 가져갔으면 한 번 다시 센다. 같은 client id가 먼저 커밋됐으면 그 제출 */
-    private Result insert(NewSubmission draft, Instant now) {
+    /**
+     * 시도 번호는 마지막 + 1(READ_COMMITTED라 커밋된 최신 값). 다른 요청이 같은 번호를 먼저 가져갔으면 한 번 다시 센다. 같은 client id가 먼저 커밋됐으면 그 제출
+     */
+    private Result insert(
+            String clientId, long studentId, long lessonId, Section section, String imageKey, int total, Instant now) {
         for (int round = 0; ; round++) {
-            int attempt = store.maxAttempt(draft.studentId(), draft.lessonId(), draft.section()) + 1;
-            NewSubmission submission = new NewSubmission(
-                    draft.clientId(),
-                    draft.studentId(),
-                    draft.lessonId(),
-                    draft.section(),
-                    attempt,
-                    draft.imageKey(),
-                    draft.total());
+            int attempt = store.maxAttempt(studentId, lessonId, section) + 1;
             try {
-                return new Result(store.insertWithJob(submission, now), SubmissionStatus.PENDING, true);
+                long id = store.insertWithJob(
+                        new NewSubmission(clientId, studentId, lessonId, section, attempt, imageKey, total), now);
+                return new Result(id, SubmissionStatus.PENDING, true);
             } catch (DuplicateKeyException e) {
                 if (SubmissionStore.isClientIdConflict(e)) {
-                    return store.lockByClientId(draft.clientId())
-                            .map(row -> replay(row, draft.studentId()))
+                    return store.lockByClientId(clientId)
+                            .map(row -> replay(row, studentId))
                             .orElseThrow(() -> e);
                 }
                 if (round >= 1) {

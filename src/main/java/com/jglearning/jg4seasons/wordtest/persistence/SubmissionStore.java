@@ -44,7 +44,13 @@ public class SubmissionStore {
             Section section,
             int attemptNo,
             String imageKey,
-            int total) {}
+            int total) {
+        public NewSubmission {
+            if (attemptNo < 1) {
+                throw new IllegalArgumentException("시도 번호는 1부터");
+            }
+        }
+    }
 
     private static final String COLUMNS =
             "id, client_submission_id, student_id, lesson_id, section, attempt_no, status,"
