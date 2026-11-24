@@ -20,11 +20,21 @@ public class FakeAnswerSheetReader implements AnswerSheetReader {
     private final AtomicInteger failuresLeft = new AtomicInteger();
     private volatile IntConsumer duringRead = count -> {};
     private volatile boolean enabled = true;
+    private volatile RuntimeException toThrow;
+    private volatile byte[] lastImage;
+    private volatile String lastMediaType;
+    private volatile int lastItemCount = -1;
 
     @Override
     public ReadResult read(byte[] image, String mediaType, int itemCount) {
         calls.incrementAndGet();
+        lastImage = image;
+        lastMediaType = mediaType;
+        lastItemCount = itemCount;
         duringRead.accept(itemCount);
+        if (toThrow != null) {
+            throw toThrow;
+        }
         if (failure != null && failuresLeft.getAndDecrement() > 0) {
             throw new ReadFailure(failure, "가짜 실패");
         }
@@ -52,6 +62,23 @@ public class FakeAnswerSheetReader implements AnswerSheetReader {
         this.duringRead = hook;
     }
 
+    /** 읽기에서 이 예외를 던진다(예상 못 한 오류) */
+    public void willThrow(RuntimeException exception) {
+        this.toThrow = exception;
+    }
+
+    public byte[] lastImage() {
+        return lastImage;
+    }
+
+    public String lastMediaType() {
+        return lastMediaType;
+    }
+
+    public int lastItemCount() {
+        return lastItemCount;
+    }
+
     public void enabled(boolean enabled) {
         this.enabled = enabled;
     }
@@ -67,6 +94,10 @@ public class FakeAnswerSheetReader implements AnswerSheetReader {
         failuresLeft.set(0);
         duringRead = count -> {};
         enabled = true;
+        toThrow = null;
+        lastImage = null;
+        lastMediaType = null;
+        lastItemCount = -1;
     }
 
     private static List<ReadItem> blanks(int count) {

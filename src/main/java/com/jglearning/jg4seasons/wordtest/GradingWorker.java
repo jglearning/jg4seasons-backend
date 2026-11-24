@@ -4,6 +4,7 @@ import com.jglearning.jg4seasons.content.api.WordTestItem;
 import com.jglearning.jg4seasons.content.api.WordTestItems;
 import com.jglearning.jg4seasons.infra.storage.PhotoStorage;
 import com.jglearning.jg4seasons.infra.storage.PhotoTooLargeException;
+import com.jglearning.jg4seasons.infra.web.requestid.RequestIds;
 import com.jglearning.jg4seasons.wordtest.grading.Graded;
 import com.jglearning.jg4seasons.wordtest.grading.Grading;
 import com.jglearning.jg4seasons.wordtest.grading.Reading;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -35,13 +37,17 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>저장: 문항을 공유 잠금으로 다시 읽고 판정 → 제출 graded(이미 바뀌었으면 아무것도 안 함) → 답안 upsert → 작업 done
  * </ol>
  *
- * 실패는 30초 뒤 다시(3회까지), 사진 문제는 바로 포기. 3회째면 작업 dead·제출 failed. 로그에는 제출 id·시도·실패 종류·걸린 ms·토큰만(사진·글자·키 없음)
+ * 실패는 30초 뒤 다시(3회까지), 사진 문제·요청 거절·설정 오류는 바로 포기. 3회째면 작업 dead·제출 failed. 로그: 실패 WARN, 포기 ERROR, 끝에 결과(graded·retry·dead)와 걸린 ms. 처리 중 로그의 requestId는 word-test-제출 id. 사진·읽은 글자·키는 남기지 않는다
  */
 @Component
 public class GradingWorker {
 
     static final int MAX_ATTEMPTS = 3;
     static final Duration RETRY_DELAY = Duration.ofSeconds(30);
+    /** API 이미지 상한(base64 길이로 비교) */
+    static final long API_IMAGE_LIMIT = 5L * 1024 * 1024;
+
+    private static final String MDC_KEY = RequestIds.MDC_KEY;
 
     private static final Logger log = LoggerFactory.getLogger(GradingWorker.class);
 
@@ -87,27 +93,55 @@ public class GradingWorker {
         if (claim.target() == null) {
             return 1; // 이미 채점·실패한 제출의 작업 — 선점 트랜잭션에서 done으로 정리함
         }
+        long submissionId = claim.target().id();
+        int attempt = claim.job().attempts() + 1;
         long started = System.nanoTime();
+        String outcome = "error";
+        // 이 제출을 처리하는 동안의 로그(읽기 응답 포함)에 제출 id가 붙게
+        String previous = MDC.get(MDC_KEY);
+        MDC.put(MDC_KEY, "word-test-" + submissionId);
         try {
-            grade(claim);
+            outcome = grade(claim);
         } catch (ReadFailure failure) {
-            fail(claim, failure.kind().retryable(), failure.getMessage());
+            boolean retry = failure.kind().retryable() && attempt < MAX_ATTEMPTS;
+            log.warn(
+                    "단어시험 읽기 실패: 제출 {} 시도 {} {}({})",
+                    submissionId,
+                    attempt,
+                    failure.getMessage(),
+                    retry ? "재시도" : "포기");
+            outcome = recordFailure(claim, failure.kind().retryable(), failure.getMessage());
         } catch (RuntimeException unexpected) {
-            // 메시지에 키·주소가 섞일 수 있어 종류만 남긴다
-            log.error(
-                    "단어시험 채점 중 예상 못 한 오류: 제출 {} 시도 {} — {}",
-                    claim.target().id(),
-                    claim.job().attempts() + 1,
-                    unexpected.getClass().getName());
-            fail(claim, true, "UNEXPECTED: " + unexpected.getClass().getSimpleName());
+            // 메시지에 키·주소가 섞일 수 있어 종류와 던진 위치만 남긴다
+            String where = where(unexpected);
+            log.error("단어시험 채점 중 예상 못 한 오류: 제출 {} 시도 {} {}", submissionId, attempt, where);
+            outcome = recordFailure(claim, true, "UNEXPECTED: " + where);
         } finally {
             log.info(
-                    "단어시험 채점: 제출 {} 시도 {} {}ms",
-                    claim.target().id(),
-                    claim.job().attempts() + 1,
+                    "단어시험 채점: 제출 {} 시도 {} {} {}ms",
+                    submissionId,
+                    attempt,
+                    outcome,
                     (System.nanoTime() - started) / 1_000_000);
+            if (previous == null) {
+                MDC.remove(MDC_KEY);
+            } else {
+                MDC.put(MDC_KEY, previous);
+            }
         }
         return 1;
+    }
+
+    /** 예외 종류와 던진 위치(클래스.메서드:줄). 메시지는 넣지 않는다(키·주소가 섞일 수 있음) */
+    static String where(Throwable e) {
+        StackTraceElement[] trace = e.getStackTrace();
+        String type = e.getClass().getSimpleName();
+        if (trace.length == 0) {
+            return type;
+        }
+        String className = trace[0].getClassName();
+        return type + " at " + className.substring(className.lastIndexOf('.') + 1) + "." + trace[0].getMethodName()
+                + ":" + trace[0].getLineNumber();
     }
 
     private Claim claim() {
@@ -123,7 +157,8 @@ public class GradingWorker {
         return new Claim(job, target);
     }
 
-    private void grade(Claim claim) {
+    /** @return graded */
+    private String grade(Claim claim) {
         GradingTarget target = claim.target();
         if (target.imageKey() == null) {
             throw new ReadFailure(ReadFailure.Kind.PHOTO_MISSING, "사진 키가 비었다");
@@ -136,16 +171,14 @@ public class GradingWorker {
         } catch (PhotoTooLargeException e) {
             throw new ReadFailure(ReadFailure.Kind.PHOTO_TOO_LARGE, "사진이 상한보다 크다");
         }
+        if (base64Length(image.length) > API_IMAGE_LIMIT) {
+            // API 이미지 상한(5MB)이 base64 길이 기준일 수 있어 보수적으로 — 앱은 올리기 전에 긴 변 1600px로 줄인다
+            throw new ReadFailure(ReadFailure.Kind.PHOTO_TOO_LARGE, "base64로 5MB를 넘는다");
+        }
         String section = target.section().dbValue();
         int count = items.count(target.lessonId(), section);
         ReadResult result = reader.read(image, mediaTypeOf(target.imageKey()), count);
         List<Reading> readings = ReadValidation.check(result, count);
-        log.info(
-                "단어시험 읽기: 제출 {} 모델 {} 토큰 입력 {} 출력 {}",
-                target.id(),
-                result.model(),
-                result.inputTokens(),
-                result.outputTokens());
         tx.executeWithoutResult(status -> {
             // 문항을 공유 잠금으로 다시 읽어 판정 — 그새 import가 정답을 바꾸는 것과 겹치지 않게
             List<WordTestItem> locked = items.ofLocked(target.lessonId(), section);
@@ -159,18 +192,35 @@ public class GradingWorker {
             }
             jobs.done(claim.job().jobId());
         });
+        return "graded";
     }
 
-    private void fail(Claim claim, boolean retryable, String error) {
+    /** 실패 기록: 재시도면 queued(30초 뒤), 아니면 작업 dead·제출 failed. 기록 자체가 실패하면 원래 실패를 남기고 다시 던진다 @return retry·dead */
+    private String recordFailure(Claim claim, boolean retryable, String error) {
+        long submissionId = claim.target().id();
         int attempts = claim.job().attempts() + 1;
-        tx.executeWithoutResult(status -> {
-            if (retryable && attempts < MAX_ATTEMPTS) {
-                jobs.retry(claim.job().jobId(), attempts, clock.instant().plus(RETRY_DELAY), error);
-            } else {
-                jobs.dead(claim.job().jobId(), attempts, error);
-                submissions.markFailed(claim.target().id());
-            }
-        });
+        boolean retry = retryable && attempts < MAX_ATTEMPTS;
+        try {
+            tx.executeWithoutResult(status -> {
+                if (retry) {
+                    jobs.retry(claim.job().jobId(), attempts, clock.instant().plus(RETRY_DELAY), error);
+                } else {
+                    jobs.dead(claim.job().jobId(), attempts, error);
+                    submissions.markFailed(submissionId);
+                }
+            });
+        } catch (RuntimeException e) {
+            log.error("단어시험 제출 {} 실패 기록 못 함(원래 {}): {}", submissionId, error, where(e));
+            throw e;
+        }
+        if (!retry) {
+            log.error("단어시험 채점 포기: 제출 {} {}회 실패, 마지막 {}", submissionId, attempts, error);
+        }
+        return retry ? "retry" : "dead";
+    }
+
+    static long base64Length(long bytes) {
+        return (bytes + 2) / 3 * 4;
     }
 
     private static String mediaTypeOf(String key) {

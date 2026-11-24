@@ -21,7 +21,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -31,6 +34,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 채점 워커: 선점 → (잠금 없이) 사진 읽기·옮겨 적기 → 판정·저장. 워커가 자기 트랜잭션을 열므로 @Transactional 없이 돌리고 끝에 지운다. 읽기는 가짜. 1회차 B 4문항(지어낸 것)
  */
 @IntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class GradingWorkerTest {
 
     static final String CODE = "L2-B1-01";
@@ -272,6 +276,52 @@ class GradingWorkerTest {
 
         assertThat(seen.get()).isEqualTo("running");
         assertThat(submissionStatus()).isEqualTo("graded");
+    }
+
+    @Test
+    void 읽기에서_예상_못_한_예외가_나면_종류와_위치만_남기고_다시_한다() {
+        reader.willThrow(new IllegalStateException("sk-secret https://x"));
+
+        assertThat(worker.runOnce()).isEqualTo(1);
+
+        Map<String, Object> job = jobRow();
+        assertThat(job).containsEntry("status", "queued");
+        assertThat(((Number) job.get("attempts")).intValue()).isEqualTo(1);
+        assertThat((String) job.get("last_error"))
+                .matches("UNEXPECTED: IllegalStateException at \\S+\\.\\S+:\\d+")
+                .doesNotContain("sk-secret")
+                .doesNotContain("https");
+        assertThat(submissionStatus()).isEqualTo("grading");
+    }
+
+    @Test
+    void base64로_5MB를_넘는_사진은_보내지_않고_failed() {
+        // 원본 4,000,000바이트 → base64 약 5,333,336바이트 > 5MB(API 이미지 상한, 보수적으로 base64 기준)
+        photos.putSized(key, 4_000_000, "image/jpeg");
+
+        worker.runOnce();
+
+        assertThat(jobRow()).containsEntry("status", "dead");
+        assertThat((String) jobRow().get("last_error")).startsWith("PHOTO_TOO_LARGE");
+        assertThat(submissionStatus()).isEqualTo("failed");
+        assertThat(reader.calls()).isZero();
+    }
+
+    @Test
+    void 실패는_WARN_포기는_ERROR로_남고_읽은_글자는_남지_않는다(CapturedOutput output) {
+        reader.willFail(ReadFailure.Kind.API_ERROR, 3);
+
+        for (int i = 0; i < 3; i++) {
+            clock.set(NOON.plusSeconds(30L * i));
+            worker.runOnce();
+        }
+
+        assertThat(output.getOut())
+                .contains("WARN")
+                .contains("단어시험 읽기 실패: 제출 " + submissionId + " 시도 1 API_ERROR: 가짜 실패(재시도)")
+                .contains("ERROR")
+                .contains("단어시험 채점 포기: 제출 " + submissionId + " 3회 실패, 마지막 API_ERROR: 가짜 실패")
+                .contains("단어시험 채점: 제출 " + submissionId + " 시도 3 dead");
     }
 
     @Test
