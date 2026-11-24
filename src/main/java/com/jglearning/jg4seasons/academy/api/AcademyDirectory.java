@@ -22,8 +22,8 @@ public interface AcademyDirectory {
     ZoneId zoneOf(long academyId);
 
     /**
-     * 단어시험 사진 채점을 켠 학원인가. settings의 {@code features.wordTest}가 JSON true일 때만 true(없음·false·문자열 "true" 등은 꺼짐 — 기본 꺼짐).
-     * 없는 학원·객체가 아닌 settings는 데이터 오류라 IllegalStateException
+     * 단어시험 사진 채점을 켠 학원인가. settings의 {@code features.wordTest}가 JSON true일 때만 true(키가 없거나 null·false면 꺼짐 — 기본 꺼짐). 없는 학원,
+     * 객체가 아닌 settings·features, 불리언이 아닌 wordTest(문자열 "true" 등)는 데이터 오류라 IllegalStateException
      */
     boolean wordTestEnabled(long academyId);
 

@@ -43,16 +43,31 @@ class AcademyWordTestFeatureTest {
     @ValueSource(
             strings = {
                 "{\"timezone\":\"Asia/Seoul\"}",
-                "{\"features\":{\"wordTest\":false}}",
-                "{\"features\":{\"wordTest\":\"true\"}}",
-                "{\"features\":{\"wordTest\":1}}",
-                "{\"features\":true}",
+                "{\"features\":null}",
                 "{\"features\":{}}",
+                "{\"features\":{\"wordTest\":false}}",
+                "{\"features\":{\"wordTest\":null}}",
             })
-    void 그_밖은_꺼져_있다(String json) {
+    void 키가_없거나_null_false면_꺼져_있다(String json) {
         settings(json);
 
         assertThat(academies.wordTestEnabled(academyId)).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "{\"features\":{\"wordTest\":\"true\"}}",
+                "{\"features\":{\"wordTest\":1}}",
+                "{\"features\":true}",
+                "{\"features\":[\"wordTest\"]}",
+                "[]",
+            })
+    void 형식이_틀리면_조용히_끄지_않고_데이터_오류(String json) {
+        // 운영은 SQL로 직접 켠다 — 문자열 "true" 같은 입력 실수가 "켰는데 안 보인다"로 묻히지 않게(500 + ERROR 로그)
+        settings(json);
+
+        assertThatThrownBy(() -> academies.wordTestEnabled(academyId)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
