@@ -53,11 +53,39 @@ class SubmissionStatusTest {
     }
 
     @Test
-    void 결과와_사유의_DB_값은_V12_CHECK와_같다() {
+    void 재시도는_전이가_아니다_grading에서_grading으로는_옮기지_않는다() {
+        // 워커는 PENDING일 때만 GRADING으로 옮기고, 재시도 동안 제출은 grading에 그대로 둔다
+        assertThat(SubmissionStatus.GRADING.canMoveTo(SubmissionStatus.GRADING)).isFalse();
+        assertThat(SubmissionStatus.GRADING.canMoveTo(SubmissionStatus.PENDING)).isFalse();
+    }
+
+    @Test
+    void 결과_사유_영역도_DB_값으로_왕복한다() {
         assertThat(AnswerResult.CORRECT.dbValue()).isEqualTo("correct");
-        assertThat(AnswerResult.BLANK.dbValue()).isEqualTo("blank");
         assertThat(UnsureReason.READ_MISMATCH.dbValue()).isEqualTo("read_mismatch");
-        assertThat(UnsureReason.UNREADABLE.dbValue()).isEqualTo("unreadable");
-        assertThat(Section.valueOf("B").name()).isEqualTo("B");
+        assertThat(Section.B.dbValue()).isEqualTo("B");
+        for (AnswerResult result : AnswerResult.values()) {
+            assertThat(AnswerResult.fromDb(result.dbValue())).isEqualTo(result);
+        }
+        for (UnsureReason reason : UnsureReason.values()) {
+            assertThat(UnsureReason.fromDb(reason.dbValue())).isEqualTo(reason);
+        }
+        for (Section section : Section.values()) {
+            assertThat(Section.fromDb(section.dbValue())).isEqualTo(section);
+        }
+        assertThatThrownBy(() -> AnswerResult.fromDb("CORRECT")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> UnsureReason.fromDb("guess")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Section.fromDb("b")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 판정은_결과가_있어야_하고_읽을_수_없음은_오답만() {
+        assertThatThrownBy(() -> new Judgement(null, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new Judgement(AnswerResult.CORRECT, UnsureReason.UNREADABLE))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new Judgement(AnswerResult.BLANK, UnsureReason.UNREADABLE))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new Judgement(AnswerResult.WRONG, UnsureReason.UNREADABLE).result())
+                .isEqualTo(AnswerResult.WRONG);
     }
 }

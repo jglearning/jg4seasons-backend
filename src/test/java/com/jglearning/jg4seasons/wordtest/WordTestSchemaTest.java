@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
+import com.jglearning.jg4seasons.wordtest.grading.AnswerResult;
+import com.jglearning.jg4seasons.wordtest.grading.Section;
+import com.jglearning.jg4seasons.wordtest.grading.SubmissionStatus;
+import com.jglearning.jg4seasons.wordtest.grading.UnsureReason;
 import java.util.UUID;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
@@ -122,6 +126,35 @@ class WordTestSchemaTest {
         violates(
                 () -> jdbc.update("update word_test_answer set teacher_result = 'ok' where id = ?", answer),
                 "ck_word_test_answer_teacher_result");
+    }
+
+    @Test
+    void 자바_값_목록은_모두_CHECK를_통과한다() {
+        // wordtest.grading의 dbValue()가 V12 CHECK 목록과 어긋나면 다음 PR의 저장에서 처음 터진다 — 여기서 미리 대 본다
+        int attempt = 1;
+        for (SubmissionStatus status : SubmissionStatus.values()) {
+            submission("B", attempt++, status.dbValue());
+        }
+        long submission = submission("B", attempt, "graded");
+        int no = 1;
+        for (Section section : Section.values()) {
+            item(section.dbValue(), 1);
+            submission(section.dbValue(), 100, "pending");
+        }
+        for (AnswerResult result : AnswerResult.values()) {
+            long answer = answer(submission, item("B", ++no), result.dbValue(), null);
+            jdbc.update("update word_test_answer set teacher_result = ? where id = ?", result.dbValue(), answer);
+        }
+        for (UnsureReason reason : UnsureReason.values()) {
+            answer(submission, item("B", ++no), "wrong", reason.dbValue());
+        }
+    }
+
+    @Test
+    void 제출_영역과_번호_시도는_범위를_지킨다() {
+        violates(() -> submission("E", 1, "pending"), "ck_word_test_submission_section");
+        violates(() -> submission("B", 0, "pending"), "ck_word_test_submission_attempt");
+        violates(() -> item("B", 0), "ck_word_test_item_no");
     }
 
     @Test

@@ -11,4 +11,14 @@ public enum AnswerResult {
     public String dbValue() {
         return name().toLowerCase(Locale.ROOT);
     }
+
+    /** 소문자 DB 값만 받는다. 모르는 값은 IllegalArgumentException */
+    public static AnswerResult fromDb(String value) {
+        for (AnswerResult v : values()) {
+            if (v.dbValue().equals(value)) {
+                return v;
+            }
+        }
+        throw new IllegalArgumentException("모르는 판정 결과: " + value);
+    }
 }

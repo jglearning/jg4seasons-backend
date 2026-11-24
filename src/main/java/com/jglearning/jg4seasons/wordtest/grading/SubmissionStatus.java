@@ -7,6 +7,9 @@ import java.util.Set;
 /**
  * 제출 상태(기획 §5-4). DB 값은 소문자 이름(V12 CHECK). 여섯 값을 모두 두지만 1단계 전이는 pending → grading → graded | failed뿐이다. confirming(학생 확인)·
  * rejected(다시 찍기)로 가는 전이는 2단계에서 {@link #NEXT}에 더한다.
+ *
+ * <p>재시도는 전이가 아니다: 읽기에 실패하면 작업(grading_job)만 다시 잡고 제출은 grading에 그대로 둔다. 워커는 제출이 PENDING일 때만 GRADING으로 옮기고, 이미
+ * GRADING이면 옮기지 않고 이어서 처리한다(같은 상태로의 전이는 금지).
  */
 public enum SubmissionStatus {
     PENDING,
