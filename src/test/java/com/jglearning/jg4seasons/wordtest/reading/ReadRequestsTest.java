@@ -37,6 +37,15 @@ class ReadRequestsTest {
     }
 
     @Test
+    void 실제_프롬프트_파일의_문항_수_자리가_모두_바뀐다() {
+        String body = ReadRequests.request("m", IMAGE, "image/jpeg", 48, ReadRequests.loadPrompt())
+                ._body()
+                .toString();
+
+        assertThat(body).doesNotContain("{{itemCount}}").contains("1번부터 48번까지 정확히 48개");
+    }
+
+    @Test
     void 프롬프트_파일에는_정답_자리가_없고_원칙이_들어_있다() {
         String template = ReadRequests.loadPrompt();
 

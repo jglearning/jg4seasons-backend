@@ -154,13 +154,53 @@ class GradingWorkerTest {
         json.extractingPath("$.items[*].result").isEqualTo(List.of("wrong", "correct", "blank", "unclear"));
         json.extractingPath("$.items[*].written").isEqualTo(List.of("beautful", "library", "", ""));
         assertThat(reader.calls()).isEqualTo(1);
+        assertThat(reader.lastMediaType()).isEqualTo("image/jpeg");
+        assertThat(reader.lastItemCount()).isEqualTo(4);
+        assertThat(reader.lastImage()).containsExactly(1, 2, 3);
     }
 
     @Test
-    void 대기_작업이_없으면_0() {
+    void PNG_제출은_image_png로_문항_수와_사진_바이트를_넘긴다() {
+        jdbc.update("delete from grading_job where id = ?", jobId);
+        String png = "homework/" + academyId + "/" + studentId + "/" + UUID.randomUUID() + ".png";
+        photos.put(png, new byte[] {9, 8, 7, 6}, "image/png");
+        submission(png);
+
         worker.runOnce();
 
-        assertThat(worker.runOnce()).isZero();
+        assertThat(reader.lastMediaType()).isEqualTo("image/png");
+        assertThat(reader.lastItemCount()).isEqualTo(4);
+        assertThat(reader.lastImage()).containsExactly(9, 8, 7, 6);
+    }
+
+    @Test
+    void 저장_직전에_문항_수가_바뀌면_저장하지_않고_다시_한다() {
+        reader.willRead(count -> fullyCorrect());
+        reader.duringRead(count -> new TransactionTemplate(transactions)
+                .executeWithoutResult(status -> jdbc.update(
+                        "insert into word_test_item (lesson_id, section, no, prompt, answer) values (?, 'B', 5, '대기', 'air')",
+                        lessonId)));
+
+        worker.runOnce();
+
+        assertThat(jobRow()).containsEntry("status", "queued");
+        assertThat((String) jobRow().get("last_error")).startsWith("COUNT_MISMATCH");
+        assertThat(submissionRow()).containsEntry("status", "grading").containsEntry("score", null);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from word_test_answer where submission_id = ?", Integer.class, submissionId))
+                .isZero();
+    }
+
+    @Test
+    void 처리한_작업은_다시_잡지_않는다() {
+        worker.runOnce();
+        assertThat(jobStatus()).isEqualTo("done");
+
+        worker.runOnce();
+
+        // 다른 테스트가 남긴 작업이 있어도 흔들리지 않게 내 작업 기준으로
+        assertThat(jobStatus()).isEqualTo("done");
+        assertThat(reader.calls()).isEqualTo(1);
     }
 
     @Test
@@ -170,7 +210,11 @@ class GradingWorkerTest {
         assertThat(worker.runOnce()).isEqualTo(1);
         assertThat(jobRow()).containsEntry("status", "queued").containsEntry("last_error", "TIMEOUT: 가짜 실패");
         assertThat(submissionStatus()).as("재시도 동안 제출은 grading 그대로").isEqualTo("grading");
-        assertThat(worker.runOnce()).as("30초가 지나기 전에는 다시 잡지 않음").isZero();
+        assertThat(jdbc.queryForObject("select run_after from grading_job where id = ?", LocalDateTime.class, jobId))
+                .isEqualTo(LocalDateTime.of(2026, 11, 26, 3, 0, 30));
+        clock.set(NOON.plusSeconds(29));
+        worker.runOnce();
+        assertThat(reader.calls()).as("30초가 지나기 전에는 다시 잡지 않음").isEqualTo(1);
 
         clock.set(NOON.plusSeconds(30));
         worker.runOnce();
@@ -218,6 +262,9 @@ class GradingWorkerTest {
         worker.runOnce();
 
         assertThat(jobRow()).containsEntry("status", "dead");
+        assertThat(((Number) jobRow().get("attempts")).intValue())
+                .as("다시 하지 않음")
+                .isEqualTo(1);
         assertThat((String) jobRow().get("last_error")).startsWith("PHOTO_MISSING");
         assertThat(submissionStatus()).isEqualTo("failed");
         assertThat(reader.calls()).isZero();
@@ -226,6 +273,11 @@ class GradingWorkerTest {
         worker.runOnce();
         assertThat(jdbc.queryForObject("select status from word_test_submission where id = ?", String.class, noPhoto))
                 .isEqualTo("failed");
+        assertThat(jdbc.queryForMap(
+                        "select status, attempts, last_error from grading_job where submission_id = ?", noPhoto))
+                .containsEntry("status", "dead")
+                .containsEntry("attempts", 1)
+                .containsEntry("last_error", "PHOTO_MISSING: 사진 키가 비었다");
     }
 
     @Test
@@ -235,12 +287,15 @@ class GradingWorkerTest {
         worker.runOnce();
 
         assertThat((String) jobRow().get("last_error")).startsWith("PHOTO_TOO_LARGE");
+        assertThat(((Number) jobRow().get("attempts")).intValue())
+                .as("다시 하지 않음")
+                .isEqualTo(1);
         assertThat(submissionStatus()).isEqualTo("failed");
         assertThat(reader.calls()).isZero();
     }
 
     @Test
-    void 이미_graded인_제출은_다시_처리해도_그대로() {
+    void 선점_때_이미_graded면_읽지_않고_작업만_done() {
         reader.willRead(count -> fullyCorrect());
         worker.runOnce();
         jdbc.update("update grading_job set status = 'queued' where id = ?", jobId);
@@ -259,6 +314,7 @@ class GradingWorkerTest {
                         submissionId))
                 .doesNotContain("x");
         assertThat(jobStatus()).isEqualTo("done");
+        assertThat(reader.calls()).as("두 번째는 읽지 않음").isEqualTo(1);
     }
 
     @Test

@@ -8,7 +8,6 @@ import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.infra.storage.MemoryPhotoStorage;
 import com.jglearning.jg4seasons.wordtest.reading.FakeAnswerSheetReader;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -84,22 +83,33 @@ class GradingWorkerCommitTest {
     }
 
     @Test
-    void 워커_둘이_동시에_돌아도_한_번만_읽고_답안은_한_벌() throws Exception {
+    void A가_읽는_동안_돈_워커_B는_그_작업을_잡지_않고_바로_끝난다() throws Exception {
+        // 선점 순간의 경합(SKIP LOCKED)은 GradingJobStoreCommitTest가 본다. 여기서는 A의 외부 호출 도중 B가 실제로 겹쳐 도는 경우
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        CountDownLatch start = new CountDownLatch(1);
-        Future<Integer> a = pool.submit(() -> {
-            start.await();
-            return worker.runOnce();
+        CountDownLatch aReading = new CountDownLatch(1);
+        CountDownLatch bDone = new CountDownLatch(1);
+        reader.duringRead(count -> {
+            aReading.countDown();
+            try {
+                bDone.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         });
+        Future<Integer> a = pool.submit(() -> worker.runOnce());
+        assertThat(aReading.await(10, TimeUnit.SECONDS)).as("A가 읽기에 들어감").isTrue();
         Future<Integer> b = pool.submit(() -> {
-            start.await();
-            return worker.runOnce();
+            try {
+                return worker.runOnce();
+            } finally {
+                bDone.countDown();
+            }
         });
-        start.countDown();
+
+        assertThat(b.get(5, TimeUnit.SECONDS)).as("B는 A를 기다리지 않고 0").isZero();
+        assertThat(a.get(10, TimeUnit.SECONDS)).isEqualTo(1);
         pool.shutdown();
         assertThat(pool.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
-
-        assertThat(List.of(a.get(), b.get())).containsExactlyInAnyOrder(1, 0);
         assertThat(reader.calls()).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                         "select count(*) from word_test_answer where submission_id = ?", Integer.class, submissionId))
