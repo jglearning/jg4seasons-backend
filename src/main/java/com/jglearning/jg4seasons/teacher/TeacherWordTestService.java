@@ -66,10 +66,11 @@ public class TeacherWordTestService {
         results.requireEnabled(academyId);
         Detail d = results.detailOf(roster.students(), submissionId)
                 .orElseThrow(() -> new ApiException(CommonErrorCode.NOT_FOUND, "제출을 찾을 수 없어요"));
-        StudentAccount student = roster.accounts().stream()
-                .filter(account -> account.id() == d.studentId())
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("범위 학생의 계정이 없다: " + d.studentId()));
+        // 제출은 이 명단 묶음 안에서만 찾았다 — 없으면 명단·묶음이 어긋난 버그
+        StudentAccount student = roster.only(d.studentId())
+                .orElseThrow(() -> new IllegalStateException("범위 학생의 계정이 없다: " + d.studentId()))
+                .accounts()
+                .get(0);
         return new TeacherWordTestDetail(
                 d.id(),
                 d.lessonCode(),
