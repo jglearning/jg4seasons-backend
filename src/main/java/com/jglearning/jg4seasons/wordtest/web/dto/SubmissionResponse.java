@@ -70,6 +70,10 @@ public record SubmissionResponse(
                     requiredMode = Schema.RequiredMode.REQUIRED)
             String result,
 
-            @Schema(description = "정답", example = "beautiful", requiredMode = Schema.RequiredMode.REQUIRED)
+            @Schema(
+                    description = "정답. result가 unclear면 null(판정 전이라 주지 않음)",
+                    example = "beautiful",
+                    nullable = true,
+                    requiredMode = Schema.RequiredMode.REQUIRED)
             String answer) {}
 }

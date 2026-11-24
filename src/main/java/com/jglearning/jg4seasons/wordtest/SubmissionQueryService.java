@@ -5,6 +5,7 @@ import com.jglearning.jg4seasons.content.api.WordTestItem;
 import com.jglearning.jg4seasons.content.api.WordTestItems;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
+import com.jglearning.jg4seasons.wordtest.grading.AnswerResult;
 import com.jglearning.jg4seasons.wordtest.grading.Section;
 import com.jglearning.jg4seasons.wordtest.grading.SubmissionStatus;
 import com.jglearning.jg4seasons.wordtest.persistence.AnswerStore;
@@ -96,7 +97,8 @@ public class SubmissionQueryService {
                     item.prompt(),
                     ResultView.written(answer.recognizedText()),
                     answer.result().dbValue(),
-                    item.answer()));
+                    // unclear는 판정 전 — 2단계 글자 확인에서 학생이 정답을 보고 고쳐 넣지 않게 주지 않는다
+                    answer.result() == AnswerResult.UNCLEAR ? null : item.answer()));
         }
         return result;
     }
