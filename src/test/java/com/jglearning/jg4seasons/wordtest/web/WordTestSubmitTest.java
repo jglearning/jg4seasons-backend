@@ -328,8 +328,38 @@ class WordTestSubmitTest {
                 .isEqualTo(3);
     }
 
+    /** 이 학생의 행만 센다(커밋하는 다른 테스트가 남긴 행과 섞이지 않게) */
     private int count(String table) {
-        return jdbc.queryForObject("select count(*) from " + table, Integer.class);
+        String sql = table.equals("grading_job")
+                ? "select count(*) from grading_job j join word_test_submission s on s.id = j.submission_id"
+                        + " where s.student_id = ?"
+                : "select count(*) from word_test_submission where student_id = ?";
+        return jdbc.queryForObject(sql, Integer.class, studentId);
+    }
+
+    @Test
+    void 하루_횟수는_회차마다_따로_센다() {
+        data.session(classId, 3, "L2-B1-03", LocalDate.of(2026, 11, 26), "scheduled");
+        jdbc.update(
+                "insert into word_test_item (lesson_id, section, no, prompt, answer) values (?, 'B', 1, '뜻', 'word')",
+                data.lessonId("L2-B1-03"));
+        for (int i = 0; i < 3; i++) {
+            submit(student(), UUID.randomUUID().toString(), TODAY, "B", photo());
+        }
+
+        assertThat(submit(student(), UUID.randomUUID().toString(), "L2-B1-03", "B", photo()))
+                .hasStatus(HttpStatus.ACCEPTED);
+    }
+
+    @Test
+    void 저장된_형식을_모르면_400_INVALID_IMAGE() {
+        String key = key();
+        photos.put(key, new byte[] {1}, null);
+
+        assertProblem(
+                submit(student(), UUID.randomUUID().toString(), TODAY, "B", key),
+                HttpStatus.BAD_REQUEST,
+                "INVALID_IMAGE");
     }
 
     private Cookie student() {

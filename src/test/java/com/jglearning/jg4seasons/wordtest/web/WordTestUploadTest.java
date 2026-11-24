@@ -129,6 +129,13 @@ class WordTestUploadTest {
     }
 
     @Test
+    void 정지된_학원_학생은_401이고_기능_꺼짐보다_먼저() {
+        jdbc.update("update academy set status = 'suspended', settings = null where id = ?", academyId);
+
+        assertThat(upload(student(), TODAY, "image/jpeg")).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void 교사는_403() {
         long teacher = data.staff(academyId, "교사", "teacher");
 

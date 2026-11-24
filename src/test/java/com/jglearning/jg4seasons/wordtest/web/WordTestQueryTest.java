@@ -198,6 +198,45 @@ class WordTestQueryTest {
         assertProblem(get(student(), latest("L2-B1-02", "B")), HttpStatus.LOCKED, "LESSON_LOCKED");
     }
 
+    @Test
+    void 채점됐는데_답안이_없는_문항은_items에서_빠지고_total은_그대로() {
+        long id = submission(studentId, 1, "graded", 2, "2026-11-26T03:00:00");
+        answer(id, items[1], "beautiful", null, "correct");
+        answer(id, items[2], "library", null, "correct");
+        answer(id, items[4], "atmosfere", null, "wrong");
+
+        var json = assertThat(get(student(), "/api/v1/word-tests/submissions/" + id))
+                .bodyJson();
+
+        json.extractingPath("$.items[*].no").isEqualTo(List.of(1, 2, 4));
+        json.extractingPath("$.total").isEqualTo(4);
+    }
+
+    @Test
+    void 최근_제출은_시각이_아니라_시도_번호가_가장_큰_것() {
+        // 시도 2를 먼저 넣고(id가 작음) 제출 시각도 더 이르게 — 시각·id 순으로 고르면 틀린다
+        long second = submission(studentId, 2, "pending", null, "2026-11-26T02:00:00");
+        submission(studentId, 1, "failed", null, "2026-11-26T02:30:00");
+
+        assertThat(get(student(), latest(TODAY, "B")))
+                .bodyJson()
+                .extractingPath("$.id")
+                .isEqualTo((int) second);
+    }
+
+    @Test
+    void 실패한_제출도_items_칸이_없고_score는_null() {
+        long id = submission(studentId, 1, "failed", 3, "2026-11-26T03:00:00");
+        answer(id, items[1], "beautiful", null, "correct");
+
+        var json = assertThat(get(student(), "/api/v1/word-tests/submissions/" + id))
+                .bodyJson();
+
+        json.extractingPath("$.status").isEqualTo("failed");
+        json.hasPathSatisfying("$.score", value -> assertThat(value).isNull());
+        json.doesNotHavePath("$.items");
+    }
+
     private static String latest(String code, String section) {
         return "/api/v1/word-tests/lessons/" + code + "/latest?section=" + section;
     }
