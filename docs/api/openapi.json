@@ -1815,6 +1815,67 @@
         "tags" : [ "teacher-detail-controller" ]
       }
     },
+    "/api/v1/word-tests/lessons/{lessonCode}/latest" : {
+      "get" : {
+        "description" : "그 회차·영역의 마지막 시도. 없으면 204. 모양은 제출 조회와 같다. 그 회차·영역 시험지가 없으면 404 NOT_FOUND, 기능 꺼짐 404 FEATURE_DISABLED(진입 버튼을 숨길 신호), 회차 검사는 업로드 주소와 같다",
+        "operationId" : "getLatestWordTest",
+        "parameters" : [ {
+          "description" : "회차 코드",
+          "example" : "L2-B1-05",
+          "in" : "path",
+          "name" : "lessonCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[A-Za-z0-9-]{1,10}$"
+          }
+        }, {
+          "description" : "영역(1단계는 B)",
+          "example" : "B",
+          "in" : "query",
+          "name" : "section",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "A", "B", "C", "D" ]
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WordTestSubmission"
+                }
+              }
+            },
+            "description" : "최근 제출"
+          },
+          "204" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WordTestSubmission"
+                }
+              }
+            },
+            "description" : "제출한 적 없음"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "회차·영역의 내 최근 제출",
+        "tags" : [ "word-test-controller" ]
+      }
+    },
     "/api/v1/word-tests/submissions" : {
       "post" : {
         "description" : "업로드한 사진을 회차·영역의 답안지로 제출한다. 제출과 채점 작업을 함께 만들고 바로 돌아간다(채점 결과는 제출 조회를 2초 간격으로). 같은 clientSubmissionId를 다시 보내면 새로 만들지 않고 기존 제출을 200으로(다른 학생이 쓴 값이면 400 VALIDATION). 남의 imageKey·올라가지 않은 사진·5MB 초과·JPEG·PNG 아님 400 INVALID_IMAGE, 그 회차·영역 시험지가 없으면 404 NOT_FOUND, 학생·회차·영역별 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT. 기능 꺼짐 404 FEATURE_DISABLED, 회차 검사는 업로드 주소와 같다",
@@ -1862,6 +1923,47 @@
           }
         },
         "summary" : "단어시험 사진 제출",
+        "tags" : [ "word-test-controller" ]
+      }
+    },
+    "/api/v1/word-tests/submissions/{id}" : {
+      "get" : {
+        "description" : "본인 제출만(다른 학생·다른 학원·없는 제출은 404 NOT_FOUND). graded가 아니면 score·gradedAt은 null이고 items 칸이 없다. items[].result의 unclear는 글자가 흐려 판단 못 한 문항(score에 들어가지 않고 total에는 들어감). 기능 꺼짐 404 FEATURE_DISABLED",
+        "operationId" : "getWordTestSubmission",
+        "parameters" : [ {
+          "description" : "제출 id",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WordTestSubmission"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "단어시험 제출 조회",
         "tags" : [ "word-test-controller" ]
       }
     },
@@ -4971,6 +5073,92 @@
           }
         },
         "required" : [ "allViewed", "cardsViewed", "memKnown", "recallBest", "spellBest" ]
+      },
+      "WordTestItemResult" : {
+        "type" : "object",
+        "properties" : {
+          "answer" : {
+            "type" : "string",
+            "description" : "정답",
+            "example" : "beautiful"
+          },
+          "no" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "책의 문항 번호"
+          },
+          "prompt" : {
+            "type" : "string",
+            "description" : "문제로 준 쪽(B는 우리말 뜻)",
+            "example" : "아름다운"
+          },
+          "result" : {
+            "type" : "string",
+            "description" : "correct·wrong·blank·unclear. unclear = 글자가 흐려 판단 못 함(score에 들어가지 않음)",
+            "enum" : [ "correct", "wrong", "blank", "unclear" ]
+          },
+          "written" : {
+            "type" : "string",
+            "description" : "학생이 쓴 글자(읽은 그대로). 빈칸·못 읽음이면 \"\"",
+            "example" : "beautful"
+          }
+        },
+        "required" : [ "answer", "no", "prompt", "result", "written" ]
+      },
+      "WordTestSubmission" : {
+        "type" : "object",
+        "properties" : {
+          "attemptNo" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "그 학생·회차·영역의 몇 번째 제출(1부터)"
+          },
+          "gradedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "채점 끝난 시각(UTC). graded가 아니면 null"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "items" : {
+            "type" : "array",
+            "description" : "문항별 결과, 번호 순. graded일 때만 있다(그 밖에는 칸 자체가 없음)",
+            "items" : {
+              "$ref" : "#/components/schemas/WordTestItemResult"
+            }
+          },
+          "lessonCode" : {
+            "type" : "string",
+            "example" : "L2-B1-05"
+          },
+          "score" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "맞은(correct) 문항 수. graded가 아니면 null"
+          },
+          "section" : {
+            "type" : "string",
+            "enum" : [ "A", "B", "C", "D" ]
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "pending·grading이면 2초 뒤 다시 조회, graded·failed에서 멈춤. confirming·rejected는 2단계(지금은 오지 않음)",
+            "enum" : [ "pending", "grading", "confirming", "graded", "rejected", "failed" ]
+          },
+          "submittedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "제출 시각(UTC)"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "그 회차·영역의 문항 수(unclear 포함)"
+          }
+        },
+        "required" : [ "attemptNo", "gradedAt", "id", "lessonCode", "score", "section", "status", "submittedAt", "total" ]
       },
       "WordTestSubmitRequest" : {
         "type" : "object",

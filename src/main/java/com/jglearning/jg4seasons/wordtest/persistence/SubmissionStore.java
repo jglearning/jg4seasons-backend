@@ -68,6 +68,29 @@ public class SubmissionStore {
                 clientId);
     }
 
+    /** 그 학생의 제출이면(학원 칸이 없어 학생 id 비교가 학원 경계를 겸한다). 남의 것·없는 것 모두 empty */
+    public Optional<SubmissionRow> findOwned(long id, long studentId) {
+        return jdbc
+                .query(
+                        "select " + COLUMNS + " from word_test_submission where id = :id and student_id = :student",
+                        Map.of("id", id, "student", studentId),
+                        SubmissionStore::row)
+                .stream()
+                .findFirst();
+    }
+
+    /** 그 학생·회차·영역의 마지막 시도 */
+    public Optional<SubmissionRow> latest(long studentId, long lessonId, Section section) {
+        return jdbc
+                .query(
+                        "select " + COLUMNS + " from word_test_submission where student_id = :student"
+                                + " and lesson_id = :lesson and section = :section order by attempt_no desc limit 1",
+                        Map.of("student", studentId, "lesson", lessonId, "section", section.dbValue()),
+                        SubmissionStore::row)
+                .stream()
+                .findFirst();
+    }
+
     /** 그 학생·회차·영역의 제출 중 created_at ≥ fromUtc인 것의 수(하루 횟수) */
     public int countSince(long studentId, long lessonId, Section section, Instant from) {
         Integer count = jdbc.queryForObject(
