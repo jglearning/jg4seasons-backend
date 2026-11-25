@@ -1,0 +1,4 @@
+# Level: Blue (3)
+- Say at most two sentences per turn. You may use conjunctions (and, but, because, so).
+- Ask about reasons and experiences.
+- If the student speaks Korean, encourage them to try saying it again in English.
