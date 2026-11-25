@@ -199,12 +199,19 @@ public class TalkSessionStore {
                 .findFirst();
     }
 
-    /** 하루 한도용: from 이후 만든 세션 중 발급에 실패(failed)하지 않은 것 */
+    /** 하루 한도용: from 이후 만든 세션 중 발급에 실패(failed)하지 않았고, 연결 전에 떠난 0초 세션도 아닌 것 */
     public int countIssuedSince(long studentId, Instant from) {
         Integer count = jdbc.queryForObject(
                 "select count(*) from talk_session where student_id = :student and created_at >= :from"
-                        + " and status <> :failed",
-                Map.of("student", studentId, "from", utc(from), "failed", TalkSessionStatus.FAILED.code()),
+                        + " and status <> :failed"
+                        // 연결 전에 떠난 세션(종료·대화 시간 0·학생 줄 0)은 대화가 없었음 — 세지 않음(#86, 사용자 11/26).
+                        // 시간·줄은 브라우저가 보낸 값이라 믿을 수 없음(ADR 0039 받아들인 위험, #78)
+                        + " and not (status = :ended and duration_sec = 0 and student_turn_count = 0)",
+                Map.of(
+                        "student", studentId,
+                        "from", utc(from),
+                        "failed", TalkSessionStatus.FAILED.code(),
+                        "ended", TalkSessionStatus.ENDED.code()),
                 Integer.class);
         return count == null ? 0 : count;
     }

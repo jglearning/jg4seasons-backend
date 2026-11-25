@@ -369,6 +369,24 @@ class TalkSessionEndTest {
     }
 
     @Test
+    void 연결_전에_떠난_0초_세션은_하루_한도에_세지_않는다() {
+        // #86(사용자 11/26): 종료·대화 시간 0·학생 줄 0 = 대화가 없었음. 시간이 있거나 학생이 말했으면 셈
+        long leftBeforeConnect = newSession();
+        end(student(), leftBeforeConnect, body(0, "left", "[]", null));
+        assertThat(TalkTestSupport.config(mvc, student()))
+                .bodyJson()
+                .extractingPath("$.remainingToday")
+                .isEqualTo(3);
+
+        long shortTalk = newSession();
+        end(student(), shortTalk, body(5, "left", "[]", null));
+        assertThat(TalkTestSupport.config(mvc, student()))
+                .bodyJson()
+                .extractingPath("$.remainingToday")
+                .isEqualTo(2);
+    }
+
+    @Test
     void 잘못된_입력은_400() {
         long id = newSession();
 

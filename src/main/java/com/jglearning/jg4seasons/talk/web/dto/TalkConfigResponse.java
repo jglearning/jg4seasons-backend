@@ -24,7 +24,7 @@ public record TalkConfigResponse(
         int maxSeconds,
 
         @Schema(
-                description = "오늘(학원 날짜) 남은 횟수 0~3. 발급에 실패한 세션은 세지 않는다",
+                description = "오늘(학원 날짜) 남은 횟수 0~3. 발급에 실패한 세션·연결 전에 떠난 0초 세션은 세지 않는다",
                 example = "2",
                 requiredMode = Schema.RequiredMode.REQUIRED)
         int remainingToday,

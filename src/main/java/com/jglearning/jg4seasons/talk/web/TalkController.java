@@ -85,7 +85,7 @@ public class TalkController {
                     + " 임시 키만 새로 200, 그 밖(끝난 세션·60초 지남)은 200에 realtime null(새 clientSessionId로 다시 시작),"
                     + " 다른 학생이 쓴 값이면 400 VALIDATION."
                     + " 기능 꺼짐 404 FEATURE_DISABLED, 구독 없음 403 SUBSCRIPTION_REQUIRED, 반이 없으면 404 NOT_FOUND,"
-                    + " 사용 기간 아님 403 LICENSE_INACTIVE, 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT(발급에 실패한 세션은 세지 않음),"
+                    + " 사용 기간 아님 403 LICENSE_INACTIVE, 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT(발급에 실패한 세션·연결 전에 떠난 0초 세션은 세지 않음),"
                     + " 모델 서비스에서 임시 키를 받지 못하면 503 REALTIME_UNAVAILABLE")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "새 세션(status created)"),
