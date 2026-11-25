@@ -22,7 +22,8 @@ import org.springframework.test.context.ActiveProfiles;
     TestcontainersConfiguration.class,
     TestClockConfiguration.class,
     TestPhotoStorageConfiguration.class,
-    TestAnswerSheetReaderConfiguration.class
+    TestAnswerSheetReaderConfiguration.class,
+    TestRealtimeIssuerConfiguration.class
 })
 @ActiveProfiles("test")
 public @interface IntegrationTest {}

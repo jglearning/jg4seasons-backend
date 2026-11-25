@@ -25,6 +25,10 @@ jg4seasons:
   initial-operator:
     login-id: operator
     password: local-operator-pass
+  # 프리토킹 임시 키: 로컬 기본은 가짜(ek_fake_…). 실제 키로 보려면 .env에 JG4SEASONS_TALK_REALTIME=openai와 JG4SEASONS_OPENAI_API_KEY
+  talk:
+    realtime:
+      type: ${JG4SEASONS_TALK_REALTIME:fake}
   # 단어시험 숙제 사진: 로컬 폴더. 업로드 주소는 자리표시 — 사진은 <폴더>/<imageKey>에 직접 복사(프론트 로컬은 목 업로드)
   word-test:
     storage:
