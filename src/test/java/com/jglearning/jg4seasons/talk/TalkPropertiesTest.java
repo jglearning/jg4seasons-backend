@@ -46,6 +46,13 @@ class TalkPropertiesTest {
     }
 
     @Test
+    void 키_앞뒤_공백과_줄바꿈은_지운다() {
+        // 리뷰 9: Parameter Store 값 끝의 줄바꿈이 Authorization 헤더에 들어가지 않게
+        assertThat(new Realtime(Type.OPENAI, "  sk-abc\n", null, null, null, null, null).apiKey())
+                .isEqualTo("sk-abc");
+    }
+
+    @Test
     void toString에_키가_없다() {
         Realtime realtime = new Realtime(Type.OPENAI, "sk-secret", null, null, null, null, null);
 

@@ -46,5 +46,12 @@ public record TalkSessionCreatedResponse(
             @Schema(
                     description = "시간이 다 됐을 때 연결된 세션에 시스템 메시지로 넣을 문장(문구를 바꾸지 않고 그대로). 넣은 뒤 응답을 시작시키면 캐릭터가 인사하고 끝낸다",
                     requiredMode = Schema.RequiredMode.REQUIRED)
-            String closingInstruction) {}
+            String closingInstruction) {
+
+        /** 임시 키가 로그·예외 메시지에 들어가지 않게(리뷰 8) */
+        @Override
+        public String toString() {
+            return "Realtime[expiresAt=" + expiresAt + ", model=" + model + "]";
+        }
+    }
 }

@@ -50,6 +50,8 @@ public record TalkProperties(Realtime realtime, Integer maxSeconds) {
 
         public Realtime {
             type = type == null ? Type.NONE : type;
+            // Parameter Store 값 끝의 줄바꿈·공백이 Authorization 헤더에 들어가지 않게(리뷰 9)
+            apiKey = apiKey == null ? null : apiKey.strip();
             model = orDefault(model, DEFAULT_MODEL);
             voiceFemale = orDefault(voiceFemale, DEFAULT_VOICE_FEMALE);
             voiceMale = orDefault(voiceMale, DEFAULT_VOICE_MALE);
