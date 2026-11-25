@@ -47,10 +47,12 @@ class SummaryGuardTest {
         String longNote = "가".repeat(250);
         Correction second = new Correction("My friend is play with me.", "My friend played with me.", longNote);
 
-        TalkSummary guarded =
-                SummaryGuard.apply(new TalkSummary(List.of("a", "b", "c"), List.of(REAL, second, REAL, second)), TURNS);
+        TalkSummary guarded = SummaryGuard.apply(
+                new TalkSummary(
+                        List.of("go to school", "play soccer", "my friend"), List.of(REAL, second, REAL, second)),
+                TURNS);
 
-        assertThat(guarded.goodExpressions()).containsExactly("a", "b");
+        assertThat(guarded.goodExpressions()).containsExactly("go to school", "play soccer");
         assertThat(guarded.corrections()).hasSize(3);
         assertThat(guarded.corrections().get(1).note()).hasSize(200);
     }
@@ -60,9 +62,32 @@ class SummaryGuardTest {
         Correction emptyBetter = new Correction("My friend is play with me.", " ", "고쳐 보세요");
 
         TalkSummary guarded =
-                SummaryGuard.apply(new TalkSummary(List.of(" ", "great job"), List.of(emptyBetter)), TURNS);
+                SummaryGuard.apply(new TalkSummary(List.of(" ", "play soccer"), List.of(emptyBetter)), TURNS);
 
-        assertThat(guarded.goodExpressions()).containsExactly("great job");
+        assertThat(guarded.goodExpressions()).containsExactly("play soccer");
         assertThat(guarded.corrections()).isEmpty();
+    }
+
+    @Test
+    void 학생이_쓰지_않은_잘_쓴_표현은_버리고_대소문자는_가리지_않는다() {
+        // 리뷰 6(사용자 A): 캐릭터 말·지어낸 표현이 "잘 쓴 표현"으로 나가지 않게. 모델이 첫 글자를 소문자로 옮기는 경우는 통과
+        TalkSummary guarded = SummaryGuard.apply(
+                new TalkSummary(List.of("Who did you play with", "I GO TO SCHOOL", "brilliant idea"), List.of()),
+                TURNS);
+
+        assertThat(guarded.goodExpressions()).containsExactly("I GO TO SCHOOL");
+    }
+
+    @Test
+    void 한_줄의_여러_문장_중_한_문장만_골라도_통과하고_said는_대소문자까지_같아야_한다() {
+        List<Turn> turns = List.of(
+                new Turn(1, TalkRole.STUDENT, "I go to school. I play soccer."),
+                new Turn(2, TalkRole.STUDENT, "It is fun."));
+        Correction oneSentence = new Correction("I play soccer.", "I played soccer.", "과거형으로 말해요");
+        Correction otherCase = new Correction("i play soccer.", "I played soccer.", "과거형으로 말해요");
+
+        TalkSummary guarded = SummaryGuard.apply(new TalkSummary(List.of(), List.of(oneSentence, otherCase)), turns);
+
+        assertThat(guarded.corrections()).containsExactly(oneSentence);
     }
 }

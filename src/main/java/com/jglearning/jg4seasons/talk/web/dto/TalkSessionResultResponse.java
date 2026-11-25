@@ -26,14 +26,14 @@ public record TalkSessionResultResponse(
         Integer studentTurnCount,
 
         @Schema(
-                description = "대화 요약. 종료 전·요약 실패·요약 중(종료 직후 조회)이면 null",
+                description = "대화 요약. 종료 전·요약 실패·요약 중(종료 직후 조회)·학생이 말한 줄이 없으면 null",
                 requiredMode = Schema.RequiredMode.REQUIRED,
                 nullable = true)
         Summary summary) {
 
     @Schema(name = "TalkSummary")
     public record Summary(
-            @Schema(description = "잘 쓴 표현 0~2개", requiredMode = Schema.RequiredMode.REQUIRED)
+            @Schema(description = "잘 쓴 표현 0~2개(학생이 실제로 쓴 표현만)", requiredMode = Schema.RequiredMode.REQUIRED)
             List<String> goodExpressions,
 
             @Schema(

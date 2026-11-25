@@ -213,6 +213,28 @@ class TalkSessionEndTest {
     }
 
     @Test
+    void 학생이_한마디도_안_했으면_요약하지_않는다() {
+        // 리뷰 6(사용자 A): 학생 줄 0개면 요약기를 부르지 않음(비용) — summary null, 학생 줄 수 0
+        long id = newSession();
+
+        MvcTestResult result = end(
+                student(),
+                id,
+                body(
+                        30,
+                        "left",
+                        "[{\"role\":\"character\",\"text\":\"Hi!\"},{\"role\":\"student\",\"text\":\"  \"}]",
+                        null));
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("ended");
+        assertThat(result).bodyJson().extractingPath("$.studentTurnCount").isEqualTo(0);
+        assertThat(result).bodyJson().extractingPath("$.summary").isNull();
+        assertThat(summarizer.calls()).isZero();
+        assertThat(turns(id)).containsExactly("1:character:Hi!");
+    }
+
+    @Test
     void expired_세션_종료도_저장하지_않고_그대로() {
         // 리뷰 3(사용자 A): 종료할 수 있는 건 created뿐 — 정리 작업(#79)이 expired로 바꾼 세션을 늦은 종료가 덮지 않게
         long id = newSession();

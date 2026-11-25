@@ -118,10 +118,25 @@ public class TalkEndService {
 
     /** 트랜잭션 밖. 실패(요약 없음)는 그대로 null — 종료는 이미 커밋됨 */
     private void summarize(long sessionId, Ended done) {
-        Optional<TalkSummary> summary = summarizer
-                .summarize(done.level(), done.trimmed().turns())
-                .map(raw -> SummaryGuard.apply(raw, done.trimmed().turns()));
-        summary.ifPresent(value -> store.saveSummary(sessionId, SUMMARY_JSON.writeValueAsString(value)));
+        // 학생이 한마디도 안 했으면 요약할 것이 없다 — 모델을 부르지 않음(비용, 리뷰 6)
+        if (done.trimmed().studentTurnCount() == 0) {
+            return;
+        }
+        Optional<TalkSummary> raw =
+                summarizer.summarize(done.level(), done.trimmed().turns());
+        if (raw.isEmpty()) {
+            return;
+        }
+        TalkSummary guarded = SummaryGuard.apply(raw.get(), done.trimmed().turns());
+        // 검사가 버린 수(숫자만) — 프롬프트 규칙 위반이 얼마나 잦은지 보려고(리뷰 11)
+        log.info(
+                "프리토킹 요약 검사: 세션 {} 표현 {}→{} 고침 {}→{}",
+                sessionId,
+                raw.get().goodExpressions().size(),
+                guarded.goodExpressions().size(),
+                raw.get().corrections().size(),
+                guarded.corrections().size());
+        store.saveSummary(sessionId, SUMMARY_JSON.writeValueAsString(guarded));
     }
 
     /** 저장한 요약 JSON(우리가 쓴 모양). 읽지 못하면 데이터 오류지만 화면은 요약 없음으로 — ERROR 로그 */

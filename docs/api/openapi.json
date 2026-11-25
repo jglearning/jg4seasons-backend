@@ -4971,7 +4971,7 @@
             }, {
               "type" : "null"
             } ],
-            "description" : "대화 요약. 종료 전·요약 실패·요약 중(종료 직후 조회)이면 null"
+            "description" : "대화 요약. 종료 전·요약 실패·요약 중(종료 직후 조회)·학생이 말한 줄이 없으면 null"
           }
         },
         "required" : [ "durationSec", "id", "status", "studentTurnCount", "summary" ]
@@ -4988,7 +4988,7 @@
           },
           "goodExpressions" : {
             "type" : "array",
-            "description" : "잘 쓴 표현 0~2개",
+            "description" : "잘 쓴 표현 0~2개(학생이 실제로 쓴 표현만)",
             "items" : {
               "type" : "string"
             }
