@@ -1,5 +1,8 @@
 package com.jglearning.jg4seasons.talk.persistence;
 
+import com.jglearning.jg4seasons.talk.TalkSessionStatus;
+import com.jglearning.jg4seasons.talk.TalkTopic;
+import com.jglearning.jg4seasons.talk.TalkVoice;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -28,9 +31,9 @@ public class TalkSessionStore {
             long studentId,
             Long lessonId,
             String levelCode,
-            String topic,
-            String voice,
-            String status,
+            TalkTopic topic,
+            TalkVoice voice,
+            TalkSessionStatus status,
             int maxSeconds,
             String model,
             Instant createdAt) {}
@@ -41,12 +44,28 @@ public class TalkSessionStore {
             long studentId,
             Long lessonId,
             String levelCode,
-            String topic,
-            String voice,
-            String status,
+            TalkTopic topic,
+            TalkVoice voice,
+            TalkSessionStatus status,
             int maxSeconds,
             String model,
-            String promptVersion) {}
+            String promptVersion) {
+
+        /** 같은 세션을 다른 상태로(발급 실패 기록) — 칸을 손으로 복사하지 않게(#76 리뷰 2) */
+        public NewTalkSession withStatus(TalkSessionStatus newStatus) {
+            return new NewTalkSession(
+                    clientId,
+                    studentId,
+                    lessonId,
+                    levelCode,
+                    topic,
+                    voice,
+                    newStatus,
+                    maxSeconds,
+                    model,
+                    promptVersion);
+        }
+    }
 
     private static final String COLUMNS =
             "id, client_session_id, student_id, lesson_id, level_code, topic, voice, status, max_seconds, model,"
@@ -71,9 +90,9 @@ public class TalkSessionStore {
                         .addValue("student", s.studentId())
                         .addValue("lesson", s.lessonId())
                         .addValue("level", s.levelCode())
-                        .addValue("topic", s.topic())
-                        .addValue("voice", s.voice())
-                        .addValue("status", s.status())
+                        .addValue("topic", s.topic().code())
+                        .addValue("voice", s.voice().code())
+                        .addValue("status", s.status().code())
                         .addValue("max", s.maxSeconds())
                         .addValue("model", s.model())
                         .addValue("version", s.promptVersion())
@@ -97,8 +116,8 @@ public class TalkSessionStore {
     public int countIssuedSince(long studentId, Instant from) {
         Integer count = jdbc.queryForObject(
                 "select count(*) from talk_session where student_id = :student and created_at >= :from"
-                        + " and status <> 'failed'",
-                Map.of("student", studentId, "from", utc(from)),
+                        + " and status <> :failed",
+                Map.of("student", studentId, "from", utc(from), "failed", TalkSessionStatus.FAILED.code()),
                 Integer.class);
         return count == null ? 0 : count;
     }
@@ -115,12 +134,18 @@ public class TalkSessionStore {
                 rs.getLong("student_id"),
                 rs.getObject("lesson_id", Long.class), // NULL = 개강 전(getLong + wasNull은 읽는 순서에 따라 0이 된다 — 리뷰 3)
                 rs.getString("level_code"),
-                rs.getString("topic"),
-                rs.getString("voice"),
-                rs.getString("status"),
+                enumOf(TalkTopic.ofCode(rs.getString("topic")), "topic", rs),
+                enumOf(TalkVoice.ofCode(rs.getString("voice")), "voice", rs),
+                enumOf(TalkSessionStatus.ofCode(rs.getString("status")), "status", rs),
                 rs.getInt("max_seconds"),
                 rs.getString("model"),
                 rs.getObject("created_at", LocalDateTime.class).toInstant(ZoneOffset.UTC));
+    }
+
+    /** DB CHECK와 enum이 어긋난 것 — 데이터 오류 */
+    private static <T> T enumOf(Optional<T> value, String column, ResultSet rs) throws SQLException {
+        long id = rs.getLong("id");
+        return value.orElseThrow(() -> new IllegalStateException("talk_session." + column + " 값이 잘못됐다: " + id));
     }
 
     private static LocalDateTime utc(Instant instant) {

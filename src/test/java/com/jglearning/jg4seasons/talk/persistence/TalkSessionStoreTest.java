@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
+import com.jglearning.jg4seasons.talk.TalkSessionStatus;
+import com.jglearning.jg4seasons.talk.TalkTopic;
+import com.jglearning.jg4seasons.talk.TalkVoice;
 import com.jglearning.jg4seasons.talk.persistence.TalkSessionStore.NewTalkSession;
 import com.jglearning.jg4seasons.talk.persistence.TalkSessionStore.TalkSessionRow;
 import java.time.Instant;
@@ -46,6 +49,10 @@ class TalkSessionStoreTest {
         assertThat(row.lessonId()).isNull();
         assertThat(row.studentId()).isEqualTo(studentId);
         assertThat(row.createdAt()).isEqualTo(NOW);
+        // 문자열 변환은 저장소 경계에서만 — 읽으면 enum(#76 리뷰 2)
+        assertThat(row.topic()).isEqualTo(TalkTopic.DAY);
+        assertThat(row.voice()).isEqualTo(TalkVoice.FEMALE);
+        assertThat(row.status()).isEqualTo(TalkSessionStatus.CREATED);
     }
 
     @Test
@@ -58,6 +65,16 @@ class TalkSessionStoreTest {
     }
 
     private NewTalkSession session(String clientId, Long lessonId) {
-        return new NewTalkSession(clientId, studentId, lessonId, "L2", "day", "female", "created", 180, "m", "talk/v1");
+        return new NewTalkSession(
+                clientId,
+                studentId,
+                lessonId,
+                "L2",
+                TalkTopic.DAY,
+                TalkVoice.FEMALE,
+                TalkSessionStatus.CREATED,
+                180,
+                "m",
+                "talk/v1");
     }
 }

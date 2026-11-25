@@ -90,6 +90,7 @@ public class TalkController {
                         connection.secret().model(),
                         connection.closingInstruction());
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
-                .body(new TalkSessionCreatedResponse(result.id(), result.status(), result.maxSeconds(), realtime));
+                .body(new TalkSessionCreatedResponse(
+                        result.id(), result.status().code(), result.maxSeconds(), realtime));
     }
 }

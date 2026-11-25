@@ -19,7 +19,7 @@ class TalkSessionResultTest {
     void 새_세션은_created이고_연결_정보가_있다() {
         Result result = Result.created(1, 180, CONNECTION);
 
-        assertThat(result.status()).isEqualTo("created");
+        assertThat(result.status()).isEqualTo(TalkSessionStatus.CREATED);
         assertThat(result.created()).isTrue();
         assertThat(result.connection()).isEqualTo(CONNECTION);
     }
@@ -28,16 +28,16 @@ class TalkSessionResultTest {
     void 재발급은_created이고_새_세션이_아니다() {
         Result result = Result.reissued(1, 180, CONNECTION);
 
-        assertThat(result.status()).isEqualTo("created");
+        assertThat(result.status()).isEqualTo(TalkSessionStatus.CREATED);
         assertThat(result.created()).isFalse();
         assertThat(result.connection()).isNotNull();
     }
 
     @Test
     void 끝난_세션은_연결_정보가_없다() {
-        Result result = Result.closed(1, "failed", 180);
+        Result result = Result.closed(1, TalkSessionStatus.FAILED, 180);
 
-        assertThat(result.status()).isEqualTo("failed");
+        assertThat(result.status()).isEqualTo(TalkSessionStatus.FAILED);
         assertThat(result.created()).isFalse();
         assertThat(result.connection()).isNull();
     }
@@ -47,9 +47,9 @@ class TalkSessionResultTest {
         IssuedSecret secret = CONNECTION.secret();
         assertThatThrownBy(() -> new Connection(secret, null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new Connection(null, "wrap up")).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new Result(1, "failed", 180, CONNECTION, false))
+        assertThatThrownBy(() -> new Result(1, TalkSessionStatus.FAILED, 180, CONNECTION, false))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Result(1, "created", 180, null, true))
+        assertThatThrownBy(() -> new Result(1, TalkSessionStatus.CREATED, 180, null, true))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }
