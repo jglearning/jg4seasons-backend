@@ -109,12 +109,11 @@ public class TalkSessionStore {
     }
 
     private static TalkSessionRow row(ResultSet rs, int rowNum) throws SQLException {
-        long lesson = rs.getLong("lesson_id");
         return new TalkSessionRow(
                 rs.getLong("id"),
                 rs.getString("client_session_id"),
                 rs.getLong("student_id"),
-                rs.wasNull() ? null : lesson,
+                rs.getObject("lesson_id", Long.class), // NULL = 개강 전(getLong + wasNull은 읽는 순서에 따라 0이 된다 — 리뷰 3)
                 rs.getString("level_code"),
                 rs.getString("topic"),
                 rs.getString("voice"),
