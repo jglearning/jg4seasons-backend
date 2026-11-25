@@ -86,6 +86,15 @@ class BookWordsTest(unittest.TestCase):
         self.read()
         self.assertTrue(any("단어 02" in e for e in self.errors), self.errors)
 
+    def test_음원_이름의_단어가_목록과_다르면_오류(self):
+        # 리뷰 3: 목록만 고쳐 번호가 밀리면 같은 번호의 다른 단어 음원이 붙는다 — 번호와 영어가 모두 같은 파일만
+        self.book([("01", "aloud", "부", "소리 내어", "Read it aloud."),
+                   ("02", "remain", "동", "남다", "Few leaves remain.")])
+        (self.book_dir / "02 remain · 영어 · 미국 여자.mp3").rename(self.book_dir / "02 term · 영어 · 미국 여자.mp3")
+        words = self.read()
+        self.assertTrue(any("단어 02" in e and "02 remain" in e for e in self.errors), self.errors)
+        self.assertEqual(["aloud"], [w["english"] for w in words])
+
     def test_책_번호가_이어지지_않으면_오류(self):
         self.book([("01", "aloud", "부", "소리 내어", "Read it aloud."),
                    ("03", "term", "명", "학기", "The term starts.")])

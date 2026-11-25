@@ -297,12 +297,14 @@ def read_book_words(word_dir, code, errors):
                 if not value:
                     errors.append(f"{where}: {what}이(가) 비었다")
                 check_len(errors, what, value, where)
-            found = [n for n in names if n.startswith(f"{label} ") and n.endswith(BOOK_WORD_AUDIO)]
-            if len(found) != 1:
-                errors.append(f"{where}: 음원 '{label} *{BOOK_WORD_AUDIO}' 파일이 {len(found)}개")
+            # 번호와 영어가 모두 같은 파일만(번호로만 찾으면 목록이 밀렸을 때 다른 단어 발음이 붙는다)
+            audio = f"{label} {english}{BOOK_WORD_AUDIO}"
+            if audio not in names:
+                same_no = [n for n in names if n.startswith(f"{label} ") and n.endswith(BOOK_WORD_AUDIO)]
+                errors.append(f"{where}: 음원 '{audio}'이 없다(같은 번호 파일: {same_no})")
                 continue
             words.append({"english": english, "source": "book", "pos": pos, "korean": korean, "exampleEn": example,
-                          "exampleKo": None, "wordFile": word_dir / found[0], "exampleFile": None})
+                          "exampleKo": None, "wordFile": word_dir / audio, "exampleFile": None})
     return words
 
 
