@@ -91,9 +91,9 @@ class TalkConfigTest {
                 .bodyJson()
                 .extractingPath("$.topics")
                 .isEqualTo(List.of(
-                        Map.of("code", "lesson", "title", "오늘 배운 단어로 이야기하기"),
+                        Map.of("code", "lesson", "title", "오늘 배운 단어로"),
                         Map.of("code", "day", "title", "오늘 하루"),
-                        Map.of("code", "likes", "title", "내가 좋아하는 것")));
+                        Map.of("code", "likes", "title", "좋아하는 것")));
         // 숙어(띄어쓰기)도 그대로, 교재 순서. 다음 회차 단어는 없다
         assertThat(result)
                 .bodyJson()
@@ -139,7 +139,7 @@ class TalkConfigTest {
 
     @Test
     void 세션을_만들면_남은_횟수가_준다() {
-        create(mvc, student(), UUID.randomUUID().toString(), "day", "female");
+        create(mvc, student(), UUID.randomUUID().toString(), "day");
 
         assertThat(config(mvc, student()))
                 .bodyJson()
@@ -152,10 +152,10 @@ class TalkConfigTest {
         // 리뷰 7: 표에 학원 칸이 없어 학생 조건이 유일한 격리 — 같은 반 친구가 쓴 횟수가 내 한도를 깎지 않게
         long friend = data.student(academyId, "친구");
         data.enroll(classId, friend);
-        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day", "female");
-        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day", "female");
+        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day");
+        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day");
         issuer.failNext();
-        create(mvc, student(), UUID.randomUUID().toString(), "day", "female");
+        create(mvc, student(), UUID.randomUUID().toString(), "day");
 
         assertThat(config(mvc, student()))
                 .bodyJson()

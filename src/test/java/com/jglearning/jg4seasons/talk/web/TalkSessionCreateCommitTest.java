@@ -76,7 +76,7 @@ class TalkSessionCreateCommitTest {
             for (int i = 0; i < 2; i++) {
                 Callable<MvcTestResult> call = () -> {
                     start.await();
-                    return create(mvc, cookies.studentAccess(studentId, academyId), clientId, "day", "female");
+                    return create(mvc, cookies.studentAccess(studentId, academyId), clientId, "day");
                 };
                 results.add(pool.submit(call));
             }

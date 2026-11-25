@@ -11,13 +11,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 프리토킹 지시문 템플릿(기획 §4-2). 클래스패스 {@code prompts/talk/v1/}의 base·level-*·topic-* 파일을 기동 때 한 번 읽고, 조립은 순수 함수다. 파일이 없거나
+ * 프리토킹 지시문 템플릿(기획 §4-2). 클래스패스 {@code prompts/talk/v2/}(v2 = v1 + 말투 문단, #86)의 base·level-*·topic-* 파일을 기동 때 한 번 읽고, 조립은 순수 함수다. 파일이 없거나
  * 비면 기동 실패(빈 지시문으로 조용히 대화하지 않게). 브라우저는 주제·음성만 보내고 지시문은 서버만 만든다
  */
 public final class TalkPrompts {
 
     /** talk_session.prompt_version에 남기는 값. 파일 내용을 바꾸면 새 버전 디렉터리를 만든다 */
-    public static final String VERSION = "talk/v1";
+    public static final String VERSION = "talk/v2";
 
     private static final String DEFAULT_DIR = "prompts/" + VERSION;
 

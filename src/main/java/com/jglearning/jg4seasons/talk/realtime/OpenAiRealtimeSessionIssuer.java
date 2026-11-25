@@ -27,6 +27,12 @@ public class OpenAiRealtimeSessionIssuer implements RealtimeSessionIssuer {
     static final String PATH = "/v1/realtime/client_secrets";
     static final int IDLE_TIMEOUT_MS = 5000;
 
+    /** 학생 말 받아쓰기 언어(영어 말하기 연습 — 한국어 섞인 발화를 다른 언어로 잘못 옮기지 않게, 프론트 요청 #86) */
+    static final String TRANSCRIPTION_LANGUAGE = "en";
+
+    /** 폰 스피커로 대화하는 경우(far_field). 헤드셋이면 near_field가 맞지만 시연 기기는 폰 스피커(프론트 요청 #86) */
+    static final String NOISE_REDUCTION = "far_field";
+
     private final RestClient client;
     private final JsonMapper json;
 
@@ -75,7 +81,13 @@ public class OpenAiRealtimeSessionIssuer implements RealtimeSessionIssuer {
                                                 "input",
                                                         Map.of(
                                                                 "transcription",
-                                                                Map.of("model", request.transcriptionModel()),
+                                                                Map.of(
+                                                                        "model",
+                                                                        request.transcriptionModel(),
+                                                                        "language",
+                                                                        TRANSCRIPTION_LANGUAGE),
+                                                                "noise_reduction",
+                                                                Map.of("type", NOISE_REDUCTION),
                                                                 "turn_detection",
                                                                 Map.of(
                                                                         "type",

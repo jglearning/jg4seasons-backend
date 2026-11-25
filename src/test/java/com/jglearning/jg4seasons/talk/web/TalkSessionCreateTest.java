@@ -90,7 +90,7 @@ class TalkSessionCreateTest {
     void 새_세션은_201과_임시_키_마무리_신호() {
         String clientId = UUID.randomUUID().toString();
 
-        MvcTestResult result = create(mvc, student(), clientId, "lesson", "female");
+        MvcTestResult result = create(mvc, student(), clientId, "lesson");
 
         assertThat(result).hasStatus(HttpStatus.CREATED);
         assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("created");
@@ -117,28 +117,41 @@ class TalkSessionCreateTest {
         assertThat(row.get("voice")).isEqualTo("female");
         assertThat(row.get("status")).isEqualTo("created");
         assertThat(row.get("model")).isEqualTo("gpt-realtime-2.1-mini");
-        assertThat(row.get("prompt_version")).isEqualTo("talk/v1");
+        assertThat(row.get("prompt_version")).isEqualTo("talk/v2");
         assertThat(row.get("started_at")).isNull();
     }
 
     @Test
-    void 지시문에_오늘_회차_단어가_들어가고_음성은_설정_이름으로() {
-        create(mvc, student(), UUID.randomUUID().toString(), "lesson", "female");
+    void 지시문에_오늘_회차_단어가_들어가고_목소리는_레벨의_캐릭터_성별로() {
+        create(mvc, student(), UUID.randomUUID().toString(), "lesson");
         assertThat(issuer.lastRequest().instructions()).contains("Lesson words: cheerful, make friends");
         assertThat(issuer.lastRequest().instructions()).contains("8 to 10 words"); // 그린 레벨 기준
+        // 그린 캐릭터는 여성 → 설정값 voice-female(#86 — 학생이 고르지 않음)
         assertThat(issuer.lastRequest().voice()).isEqualTo("marin");
+    }
 
-        create(mvc, student(), UUID.randomUUID().toString(), "day", "male");
+    @Test
+    void 네이비_반은_남성_캐릭터_목소리() {
+        long navyClass = data.clazz(academyId, "L4-B1", "네이비 반", TestData.uniqueAccessCode(), "active");
+        long navyStudent = data.student(academyId, "네이비 학생");
+        data.enroll(navyClass, navyStudent);
+        data.session(navyClass, 1, "L4-B1-01", LocalDate.of(2026, 11, 26), "scheduled");
+        String clientId = UUID.randomUUID().toString();
+
+        assertThat(create(mvc, cookies.studentAccess(navyStudent, academyId), clientId, "day"))
+                .hasStatus(HttpStatus.CREATED);
+
         assertThat(issuer.lastRequest().voice()).isEqualTo("cedar");
+        assertThat(row(clientId).get("voice")).isEqualTo("male");
+        assertThat(row(clientId).get("level_code")).isEqualTo("L4");
     }
 
     @Test
     void 같은_clientSessionId를_다시_보내면_200_같은_세션_새_키() {
         String clientId = UUID.randomUUID().toString();
-        String first =
-                JsonPath.read(body(create(mvc, student(), clientId, "day", "female")), "$.realtime.clientSecret");
+        String first = JsonPath.read(body(create(mvc, student(), clientId, "day")), "$.realtime.clientSecret");
 
-        MvcTestResult again = create(mvc, student(), clientId, "day", "female");
+        MvcTestResult again = create(mvc, student(), clientId, "day");
 
         assertThat(again).hasStatusOk();
         assertThat(again).bodyJson().extractingPath("$.status").isEqualTo("created");
@@ -152,9 +165,9 @@ class TalkSessionCreateTest {
     void 만든_지_키_수명이_지난_created_세션은_재전송해도_새_키를_주지_않는다() {
         // 리뷰 1: 종료 전(created)이라도 키 수명(60초)이 지나면 재발급하지 않는다 — 한도 밖 재발급 방지
         String clientId = UUID.randomUUID().toString();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         clock.set(NOW.plusSeconds(60));
-        assertThat(create(mvc, student(), clientId, "day", "female"))
+        assertThat(create(mvc, student(), clientId, "day"))
                 .bodyJson()
                 .extractingPath("$.realtime.clientSecret")
                 .asString()
@@ -162,7 +175,7 @@ class TalkSessionCreateTest {
 
         clock.set(NOW.plusSeconds(61));
         issuer.reset();
-        MvcTestResult late = create(mvc, student(), clientId, "day", "female");
+        MvcTestResult late = create(mvc, student(), clientId, "day");
 
         assertThat(late).hasStatusOk();
         assertThat(late).bodyJson().extractingPath("$.status").isEqualTo("created");
@@ -173,11 +186,11 @@ class TalkSessionCreateTest {
     @Test
     void 어제_만든_세션의_id로는_오늘_키를_받지_못한다() {
         String clientId = UUID.randomUUID().toString();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         clock.set(NOW.plusSeconds(24 * 3600));
         issuer.reset();
 
-        MvcTestResult again = create(mvc, student(), clientId, "day", "female");
+        MvcTestResult again = create(mvc, student(), clientId, "day");
 
         assertThat(again).hasStatusOk();
         assertThat(again).bodyJson().extractingPath("$.realtime").isNull();
@@ -187,10 +200,10 @@ class TalkSessionCreateTest {
     @Test
     void 끝난_세션의_clientSessionId를_다시_보내면_200에_realtime_null() {
         String clientId = UUID.randomUUID().toString();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         jdbc.update("update talk_session set status = 'ended' where client_session_id = ?", clientId);
 
-        MvcTestResult again = create(mvc, student(), clientId, "day", "female");
+        MvcTestResult again = create(mvc, student(), clientId, "day");
 
         assertThat(again).hasStatusOk();
         assertThat(again).bodyJson().extractingPath("$.status").isEqualTo("ended");
@@ -208,7 +221,7 @@ class TalkSessionCreateTest {
                 clientId,
                 studentId));
 
-        MvcTestResult result = create(mvc, student(), clientId, "day", "female");
+        MvcTestResult result = create(mvc, student(), clientId, "day");
 
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("failed");
@@ -219,12 +232,12 @@ class TalkSessionCreateTest {
     @Test
     void 다른_학생이_쓴_clientSessionId는_400() {
         String clientId = UUID.randomUUID().toString();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         long other = data.student(academyId, "다른 학생");
         data.enroll(classId, other);
 
         assertProblem(
-                create(mvc, cookies.studentAccess(other, academyId), clientId, "day", "female"),
+                create(mvc, cookies.studentAccess(other, academyId), clientId, "day"),
                 HttpStatus.BAD_REQUEST,
                 "VALIDATION");
     }
@@ -234,27 +247,26 @@ class TalkSessionCreateTest {
         String last = null;
         for (int i = 0; i < 3; i++) {
             last = UUID.randomUUID().toString();
-            assertThat(create(mvc, student(), last, "day", "female")).hasStatus(HttpStatus.CREATED);
+            assertThat(create(mvc, student(), last, "day")).hasStatus(HttpStatus.CREATED);
         }
 
         assertProblem(
-                create(mvc, student(), UUID.randomUUID().toString(), "day", "female"),
+                create(mvc, student(), UUID.randomUUID().toString(), "day"),
                 HttpStatus.TOO_MANY_REQUESTS,
                 "DAILY_LIMIT");
-        assertThat(create(mvc, student(), last, "day", "female")).hasStatusOk();
+        assertThat(create(mvc, student(), last, "day")).hasStatusOk();
     }
 
     @Test
     void 하루는_학원_타임존_자정에_바뀐다() {
         clock.set(Instant.parse("2026-11-26T14:59:00Z")); // 서울 11/26 23:59
         for (int i = 0; i < 3; i++) {
-            create(mvc, student(), UUID.randomUUID().toString(), "day", "female");
+            create(mvc, student(), UUID.randomUUID().toString(), "day");
         }
 
         clock.set(Instant.parse("2026-11-26T15:00:00Z")); // 서울 11/27 00:00
 
-        assertThat(create(mvc, student(), UUID.randomUUID().toString(), "day", "female"))
-                .hasStatus(HttpStatus.CREATED);
+        assertThat(create(mvc, student(), UUID.randomUUID().toString(), "day")).hasStatus(HttpStatus.CREATED);
     }
 
     @Test
@@ -262,14 +274,11 @@ class TalkSessionCreateTest {
         String clientId = UUID.randomUUID().toString();
         issuer.failNext();
 
-        assertProblem(
-                create(mvc, student(), clientId, "day", "female"),
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "REALTIME_UNAVAILABLE");
+        assertProblem(create(mvc, student(), clientId, "day"), HttpStatus.SERVICE_UNAVAILABLE, "REALTIME_UNAVAILABLE");
         assertThat(row(clientId).get("status")).isEqualTo("failed");
 
         for (int i = 0; i < 3; i++) {
-            assertThat(create(mvc, student(), UUID.randomUUID().toString(), "day", "female"))
+            assertThat(create(mvc, student(), UUID.randomUUID().toString(), "day"))
                     .hasStatus(HttpStatus.CREATED);
         }
     }
@@ -284,7 +293,7 @@ class TalkSessionCreateTest {
         });
 
         assertProblem(
-                create(mvc, student(), UUID.randomUUID().toString(), "day", "female"),
+                create(mvc, student(), UUID.randomUUID().toString(), "day"),
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "REALTIME_UNAVAILABLE");
         assertThat(output.getAll()).contains("가짜 발급기 실패").contains("fk_talk_session_student");
@@ -295,43 +304,43 @@ class TalkSessionCreateTest {
     @Test
     void 구독이_끊긴_뒤_재전송하면_403_SUBSCRIPTION_REQUIRED() {
         String clientId = UUID.randomUUID().toString();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         features(jdbc, academyId, true, false);
         entities.clear();
 
-        assertProblem(create(mvc, student(), clientId, "day", "female"), HttpStatus.FORBIDDEN, "SUBSCRIPTION_REQUIRED");
+        assertProblem(create(mvc, student(), clientId, "day"), HttpStatus.FORBIDDEN, "SUBSCRIPTION_REQUIRED");
         assertThat(count()).isEqualTo(1);
     }
 
     @Test
     void 사용_기간이_끝난_뒤_재전송하면_403_LICENSE_INACTIVE() {
         String clientId = UUID.randomUUID().toString();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         data.enforceLicenses(academyId);
         data.license(academyId, "L2-B1", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 11, 1), 30);
         entities.clear();
 
-        assertProblem(create(mvc, student(), clientId, "day", "female"), HttpStatus.FORBIDDEN, "LICENSE_INACTIVE");
+        assertProblem(create(mvc, student(), clientId, "day"), HttpStatus.FORBIDDEN, "LICENSE_INACTIVE");
     }
 
     @Test
     void 기능이_꺼진_뒤_재전송하면_404_FEATURE_DISABLED() {
         String clientId = UUID.randomUUID().toString();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         features(jdbc, academyId, false, false);
         entities.clear();
 
-        assertProblem(create(mvc, student(), clientId, "day", "female"), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
+        assertProblem(create(mvc, student(), clientId, "day"), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
     }
 
     @Test
     void 발급_실패한_id를_다시_보내면_200에_failed이고_새로_발급하지_않는다() {
         String clientId = UUID.randomUUID().toString();
         issuer.failNext();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         issuer.reset();
 
-        MvcTestResult again = create(mvc, student(), clientId, "day", "female");
+        MvcTestResult again = create(mvc, student(), clientId, "day");
 
         assertThat(again).hasStatusOk();
         assertThat(again).bodyJson().extractingPath("$.status").isEqualTo("failed");
@@ -343,13 +352,10 @@ class TalkSessionCreateTest {
     @Test
     void created_세션_재전송에서_발급이_실패하면_503이고_행은_created_그대로() {
         String clientId = UUID.randomUUID().toString();
-        create(mvc, student(), clientId, "day", "female");
+        create(mvc, student(), clientId, "day");
         issuer.failNext();
 
-        assertProblem(
-                create(mvc, student(), clientId, "day", "female"),
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "REALTIME_UNAVAILABLE");
+        assertProblem(create(mvc, student(), clientId, "day"), HttpStatus.SERVICE_UNAVAILABLE, "REALTIME_UNAVAILABLE");
         assertThat(row(clientId).get("status")).isEqualTo("created");
         assertThat(count()).isEqualTo(1);
     }
@@ -358,8 +364,7 @@ class TalkSessionCreateTest {
     void 정지된_학원은_401() {
         jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
 
-        assertThat(create(mvc, student(), UUID.randomUUID().toString(), "day", "female"))
-                .hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(create(mvc, student(), UUID.randomUUID().toString(), "day")).hasStatus(HttpStatus.UNAUTHORIZED);
         assertThat(count()).isZero();
     }
 
@@ -372,8 +377,7 @@ class TalkSessionCreateTest {
                         mvc,
                         cookies.studentAccess(loner, academyId),
                         UUID.randomUUID().toString(),
-                        "day",
-                        "female"),
+                        "day"),
                 HttpStatus.NOT_FOUND,
                 "NOT_FOUND");
         assertThat(jdbc.queryForObject("select count(*) from talk_session where student_id = ?", Integer.class, loner))
@@ -385,9 +389,7 @@ class TalkSessionCreateTest {
         features(jdbc, academyId, false, false);
 
         assertProblem(
-                create(mvc, student(), UUID.randomUUID().toString(), "day", "female"),
-                HttpStatus.NOT_FOUND,
-                "FEATURE_DISABLED");
+                create(mvc, student(), UUID.randomUUID().toString(), "day"), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
         assertThat(count()).isZero();
     }
 
@@ -396,7 +398,7 @@ class TalkSessionCreateTest {
         features(jdbc, academyId, true, false);
 
         assertProblem(
-                create(mvc, student(), UUID.randomUUID().toString(), "day", "female"),
+                create(mvc, student(), UUID.randomUUID().toString(), "day"),
                 HttpStatus.FORBIDDEN,
                 "SUBSCRIPTION_REQUIRED");
         assertThat(count()).isZero();
@@ -408,9 +410,7 @@ class TalkSessionCreateTest {
         data.license(academyId, "L2-B1", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 11, 1), 30);
 
         assertProblem(
-                create(mvc, student(), UUID.randomUUID().toString(), "day", "female"),
-                HttpStatus.FORBIDDEN,
-                "LICENSE_INACTIVE");
+                create(mvc, student(), UUID.randomUUID().toString(), "day"), HttpStatus.FORBIDDEN, "LICENSE_INACTIVE");
         assertThat(count()).isZero();
     }
 
@@ -419,7 +419,7 @@ class TalkSessionCreateTest {
         clock.set(Instant.parse("2026-11-20T03:00:00Z"));
         String clientId = UUID.randomUUID().toString();
 
-        assertThat(create(mvc, student(), clientId, "lesson", "female")).hasStatus(HttpStatus.CREATED);
+        assertThat(create(mvc, student(), clientId, "lesson")).hasStatus(HttpStatus.CREATED);
         assertThat(row(clientId).get("lesson_id")).isNull();
         assertThat(issuer.lastRequest().instructions()).doesNotContain("Lesson words");
     }
@@ -427,16 +427,18 @@ class TalkSessionCreateTest {
     @Test
     void 정해진_값이_아니면_400_VALIDATION() {
         assertProblem(
-                create(mvc, student(), UUID.randomUUID().toString(), "weather", "female"),
+                create(mvc, student(), UUID.randomUUID().toString(), "weather"), HttpStatus.BAD_REQUEST, "VALIDATION");
+        // 목소리는 계약에서 빠짐 — 보내면 모르는 칸(엄격 JSON)
+        assertProblem(
+                createRaw(
+                        mvc,
+                        student(),
+                        "{\"clientSessionId\":\"" + UUID.randomUUID() + "\",\"topic\":\"day\",\"voice\":\"female\"}"),
                 HttpStatus.BAD_REQUEST,
                 "VALIDATION");
+        assertProblem(create(mvc, student(), "not-a-uuid", "day"), HttpStatus.BAD_REQUEST, "VALIDATION");
         assertProblem(
-                create(mvc, student(), UUID.randomUUID().toString(), "day", "FEMALE"),
-                HttpStatus.BAD_REQUEST,
-                "VALIDATION");
-        assertProblem(create(mvc, student(), "not-a-uuid", "day", "female"), HttpStatus.BAD_REQUEST, "VALIDATION");
-        assertProblem(
-                createRaw(mvc, student(), "{\"clientSessionId\":\"" + UUID.randomUUID() + "\",\"topic\":\"day\"}"),
+                createRaw(mvc, student(), "{\"clientSessionId\":\"" + UUID.randomUUID() + "\"}"),
                 HttpStatus.BAD_REQUEST,
                 "VALIDATION");
         assertThat(count()).isZero();

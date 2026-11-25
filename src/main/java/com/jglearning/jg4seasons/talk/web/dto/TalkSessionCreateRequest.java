@@ -5,7 +5,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
-/** 프리토킹 세션 생성(계약 D-2). 지시문은 서버가 만들고 브라우저는 주제·음성 code만 보낸다 */
+/**
+ * 프리토킹 세션 생성(계약 D-2). 지시문과 목소리는 서버가 정하고(목소리는 반의 레벨 캐릭터 성별 — #86) 브라우저는 주제 code만 보낸다. voice 칸은 계약에서 빠져 보내면
+ * 모르는 칸으로 400
+ */
 @Schema(name = "TalkSessionCreateRequest")
 public record TalkSessionCreateRequest(
         @Schema(
@@ -20,11 +23,4 @@ public record TalkSessionCreateRequest(
                 allowableValues = {"lesson", "day", "likes"})
         @NotNull
         @Pattern(regexp = "^(lesson|day|likes)$", message = "없는 주제예요")
-        String topic,
-
-        @Schema(
-                description = "음성",
-                allowableValues = {"female", "male"})
-        @NotNull
-        @Pattern(regexp = "^(female|male)$", message = "없는 음성이에요")
-        String voice) {}
+        String topic) {}

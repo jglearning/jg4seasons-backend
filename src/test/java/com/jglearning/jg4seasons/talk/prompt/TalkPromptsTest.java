@@ -99,8 +99,17 @@ class TalkPromptsTest {
     }
 
     @Test
-    void 버전은_talk_v1() {
-        assertThat(TalkPrompts.VERSION).isEqualTo("talk/v1");
+    void 말투는_교사가_아닌_쾌활한_반_친구이고_아이_목소리_흉내는_없다() {
+        // v2(#86, 프론트·사용자 11/25): 기본 목소리는 성인뿐 — 말투로 맞춘다
+        String instructions = PROMPTS.instructions(TalkLevel.GREEN, TalkTopic.DAY, List.of(), List.of());
+
+        assertThat(instructions).contains("cheerful, playful classmate").contains("not a teacher");
+        assertThat(instructions.toLowerCase()).doesNotContain("child's voice").doesNotContain("childlike voice");
+    }
+
+    @Test
+    void 버전은_talk_v2() {
+        assertThat(TalkPrompts.VERSION).isEqualTo("talk/v2");
     }
 
     @Test

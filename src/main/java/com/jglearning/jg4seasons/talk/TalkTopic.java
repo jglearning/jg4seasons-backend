@@ -3,11 +3,11 @@ package com.jglearning.jg4seasons.talk;
 import java.util.Arrays;
 import java.util.Optional;
 
-/** 주제 카드(기획 §2, 계약 D-1). code는 요청·DB 값, title은 화면 문구 */
+/** 주제 카드(기획 §2, 계약 D-1). code는 요청·DB 값, title은 화면 문구(화면 시안 11/26 — 프론트가 그대로 보임) */
 public enum TalkTopic {
-    LESSON("lesson", "오늘 배운 단어로 이야기하기"),
+    LESSON("lesson", "오늘 배운 단어로"),
     DAY("day", "오늘 하루"),
-    LIKES("likes", "내가 좋아하는 것");
+    LIKES("likes", "좋아하는 것");
 
     private final String code;
     private final String title;

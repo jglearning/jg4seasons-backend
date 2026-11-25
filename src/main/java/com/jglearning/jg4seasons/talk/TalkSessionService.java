@@ -107,14 +107,20 @@ public class TalkSessionService {
         this.clock = clock;
     }
 
-    public Result create(long academyId, long studentId, String clientId, TalkTopic topic, TalkVoice voice) {
+    public Result create(long academyId, long studentId, String clientId, TalkTopic topic) {
         access.requireEnabled(academyId);
         Optional<TalkSessionRow> existing = store.findByClientId(clientId);
         if (existing.isPresent()) {
             return replay(academyId, studentId, existing.get());
         }
         TalkContext context = requireStartable(academyId, studentId);
-        if (store.countIssuedSince(studentId, access.startOfToday(academyId)) >= DAILY_LIMIT) {
+        // 목소리는 반의 레벨 캐릭터 성별로(#86 — 학생이 고르지 않음)
+        TalkVoice voice = context.level().voice();
+        if (store.countIssuedSince(
+                        studentId,
+                        access.startOfToday(academyId),
+                        properties.realtime().keyTtlSeconds())
+                >= DAILY_LIMIT) {
             throw new ApiException(CommonErrorCode.DAILY_LIMIT, "프리토킹은 하루에 " + DAILY_LIMIT + "번까지 할 수 있어요");
         }
 

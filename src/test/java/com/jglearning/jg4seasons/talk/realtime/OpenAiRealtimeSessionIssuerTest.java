@@ -47,6 +47,11 @@ class OpenAiRealtimeSessionIssuerTest {
                 .andExpect(jsonPath("$.session.instructions").value("Be kind."))
                 .andExpect(jsonPath("$.session.audio.output.voice").value("marin"))
                 .andExpect(jsonPath("$.session.audio.input.transcription.model").value("gpt-4o-mini-transcribe"))
+                // 프론트 요청(#86): 받아쓰기 영어 고정, 폰 스피커용 소음 줄이기
+                .andExpect(
+                        jsonPath("$.session.audio.input.transcription.language").value("en"))
+                .andExpect(
+                        jsonPath("$.session.audio.input.noise_reduction.type").value("far_field"))
                 .andExpect(jsonPath("$.session.audio.input.turn_detection.type").value("server_vad"))
                 .andExpect(jsonPath("$.session.audio.input.turn_detection.idle_timeout_ms")
                         .value(5000))

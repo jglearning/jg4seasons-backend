@@ -7,18 +7,20 @@ import java.util.Arrays;
  * 레벨 코드를 그대로 저장한다
  */
 public enum TalkLevel {
-    MINT("L1", "mint"),
-    GREEN("L2", "green"),
-    BLUE("L3", "blue"),
-    NAVY("L4", "navy"),
-    BLACK("K", "black");
+    MINT("L1", "mint", TalkVoice.FEMALE),
+    GREEN("L2", "green", TalkVoice.FEMALE),
+    BLUE("L3", "blue", TalkVoice.FEMALE),
+    NAVY("L4", "navy", TalkVoice.MALE),
+    BLACK("K", "black", TalkVoice.FEMALE);
 
     private final String levelCode;
     private final String slug;
+    private final TalkVoice voice;
 
-    TalkLevel(String levelCode, String slug) {
+    TalkLevel(String levelCode, String slug, TalkVoice voice) {
         this.levelCode = levelCode;
         this.slug = slug;
+        this.voice = voice;
     }
 
     /** 모르는 코드는 레벨 표와 이 enum이 어긋난 것 — 데이터 오류 */
@@ -35,5 +37,10 @@ public enum TalkLevel {
 
     public String slug() {
         return slug;
+    }
+
+    /** 그 레벨 캐릭터의 목소리 성별(사용자 11/25: 네이비만 남성). 학생은 고르지 않는다(#86). 실제 목소리 이름은 설정값 */
+    public TalkVoice voice() {
+        return voice;
     }
 }
