@@ -43,11 +43,20 @@ class StudentLessonGateService implements StudentLessonGate {
             throw new ApiException(CommonErrorCode.NOT_FOUND, "회차를 찾을 수 없어요");
         }
         // 소속 반이 있는 권만 여기까지 온다 — 다른 권·다른 학원 회차가 403으로 있다는 것을 드러내지 않게 404 다음(ADR 0031)
-        if (!licenses.statusOf(academyId, bookId, today).allowsLearning()) {
-            throw new ApiException(ClassErrorCode.LICENSE_INACTIVE, "사용 기간이 아니에요");
-        }
+        requireLicenseActive(academyId, bookId, today);
         if (access == LessonAccess.LOCKED) {
             throw new ApiException(ClassErrorCode.LESSON_LOCKED, "수업일이 되면 열려요");
+        }
+    }
+
+    @Override
+    public void requireLicenseActive(long academyId, long bookId) {
+        requireLicenseActive(academyId, bookId, LocalDate.now(clock.withZone(academies.zoneOf(academyId))));
+    }
+
+    private void requireLicenseActive(long academyId, long bookId, LocalDate today) {
+        if (!licenses.statusOf(academyId, bookId, today).allowsLearning()) {
+            throw new ApiException(ClassErrorCode.LICENSE_INACTIVE, "사용 기간이 아니에요");
         }
     }
 }
