@@ -67,6 +67,7 @@ final class ArchitectureRules {
             "listening",
             "words",
             "wordtest",
+            "talk",
             "teacher",
             "admin",
             "system",

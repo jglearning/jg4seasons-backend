@@ -9,6 +9,7 @@ import com.jglearning.jg4seasons.auth.api.AcademyStudents;
 import com.jglearning.jg4seasons.auth.api.StudentAccounts;
 import com.jglearning.jg4seasons.infra.storage.MemoryPhotoStorage;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
+import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
 import com.jglearning.jg4seasons.wordtest.api.WordTestResults;
 import com.jglearning.jg4seasons.wordtest.api.WordTestResults.Detail;
 import com.jglearning.jg4seasons.wordtest.api.WordTestResults.Item;
@@ -214,8 +215,7 @@ class WordTestResultsTest {
 
         assertThatThrownBy(() -> results.requireEnabled(off))
                 .isInstanceOfSatisfying(
-                        ApiException.class,
-                        e -> assertThat(e.errorCode()).isEqualTo(WordTestErrorCode.FEATURE_DISABLED));
+                        ApiException.class, e -> assertThat(e.errorCode()).isEqualTo(CommonErrorCode.FEATURE_DISABLED));
         results.requireEnabled(academyId);
         assertThat(results.hasItems(lessonId, "B")).isTrue();
         assertThat(results.hasItems(lessonId, "C")).isFalse();

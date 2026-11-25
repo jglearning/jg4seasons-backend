@@ -58,6 +58,17 @@ jg4seasons:
     jwt-secret: ${JG4SEASONS_JWT_SECRET:}
     # 운영 프록시가 클라이언트 IP를 넣는 헤더. 비우면 연결 주소만 믿는다
     client-ip-header: ${JG4SEASONS_CLIENT_IP_HEADER:}
+  # 캐릭터 프리토킹. 임시 키 발급 기본 꺼짐(none) — 서버는 뜨고 세션 생성만 503. 운영은 openai + 키(Parameter Store). openai인데 키가 비면 서버가 뜨지 않는다
+  talk:
+    max-seconds: ${JG4SEASONS_TALK_MAX_SECONDS:180}
+    realtime:
+      type: ${JG4SEASONS_TALK_REALTIME:none}
+      api-key: ${JG4SEASONS_OPENAI_API_KEY:}
+      model: ${JG4SEASONS_TALK_MODEL:gpt-realtime-2.1-mini}
+      voice-female: ${JG4SEASONS_TALK_VOICE_FEMALE:marin}
+      voice-male: ${JG4SEASONS_TALK_VOICE_MALE:cedar}
+      transcription-model: ${JG4SEASONS_TALK_TRANSCRIPTION_MODEL:gpt-4o-mini-transcribe}
+      key-ttl-seconds: ${JG4SEASONS_TALK_KEY_TTL_SECONDS:60}
   # 단어시험 사진 채점의 숙제 사진 저장소. 기본 꺼짐(none) — 운영은 s3 + 버킷(Parameter Store). s3인데 버킷이 비면 서버가 뜨지 않는다
   word-test:
     storage:

@@ -94,7 +94,7 @@ public class SubmissionService {
         // DATETIME은 소수 초를 반올림한다 — 내림해 실제보다 늦은 시각(다음 날)이 되지 않게(기존 저장 관례와 같음)
         Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         if (store.countSince(studentId, lessonId, section, startOfToday(academyId, now)) >= DAILY_LIMIT) {
-            throw new ApiException(WordTestErrorCode.DAILY_LIMIT, "이 영역은 하루에 " + DAILY_LIMIT + "번까지 낼 수 있어요");
+            throw new ApiException(CommonErrorCode.DAILY_LIMIT, "이 영역은 하루에 " + DAILY_LIMIT + "번까지 낼 수 있어요");
         }
         return insert(clientId, studentId, lessonId, section, imageKey, total, now);
     }

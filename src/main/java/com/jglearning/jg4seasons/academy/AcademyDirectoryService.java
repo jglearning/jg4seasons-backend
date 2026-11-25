@@ -67,6 +67,21 @@ class AcademyDirectoryService implements AcademyDirectory {
 
     @Override
     public boolean wordTestEnabled(long academyId) {
+        return feature(academyId, "wordTest");
+    }
+
+    @Override
+    public boolean talkEnabled(long academyId) {
+        return feature(academyId, "talk");
+    }
+
+    @Override
+    public boolean talkEntitled(long academyId) {
+        return feature(academyId, "talkEntitled");
+    }
+
+    /** settings.features.{key}가 JSON true인가. 없음·null·false는 꺼짐, 불리언이 아니면 IllegalStateException */
+    private boolean feature(long academyId, String key) {
         JsonNode settings = settingsOf(academyId);
         if (settings == null) {
             return false;
@@ -79,14 +94,14 @@ class AcademyDirectoryService implements AcademyDirectory {
         if (!features.isObject()) {
             throw new IllegalStateException("학원 settings.features가 객체가 아니다: " + academyId);
         }
-        JsonNode wordTest = features.get("wordTest");
-        if (wordTest == null || wordTest.isNull()) {
+        JsonNode value = features.get(key);
+        if (value == null || value.isNull()) {
             return false;
         }
-        if (!wordTest.isBoolean()) {
-            throw new IllegalStateException("학원 settings.features.wordTest가 true·false가 아니다: " + academyId);
+        if (!value.isBoolean()) {
+            throw new IllegalStateException("학원 settings.features." + key + "가 true·false가 아니다: " + academyId);
         }
-        return wordTest.booleanValue();
+        return value.booleanValue();
     }
 
     /** settings JSON 객체, 비어 있으면 null. 없는 학원·객체가 아닌 settings는 IllegalStateException */

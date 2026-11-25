@@ -12,4 +12,10 @@ public interface StudentLessonGate {
      * 오늘은 학원 타임존 날짜
      */
     void requireOpen(long academyId, long studentId, long bookId, long lessonId);
+
+    /**
+     * 회차와 상관없이 그 권의 사용 기간인가(프리토킹처럼 회차가 없을 수도 있는 기능). 아니면 403 {@code LICENSE_INACTIVE}(ADR 0031). bookId는 학생의 현재 반에서
+     * 얻은 값만 넘긴다(소속 확인은 호출자). 오늘은 학원 타임존 날짜
+     */
+    void requireLicenseActive(long academyId, long bookId);
 }

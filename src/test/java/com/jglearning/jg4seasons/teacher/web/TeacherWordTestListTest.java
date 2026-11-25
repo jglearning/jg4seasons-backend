@@ -170,8 +170,9 @@ class TeacherWordTestListTest {
     void 기능이_꺼진_학원은_404_FEATURE_DISABLED() {
         enable(academyId, false);
 
-        assertNotFound(
-                list(teacherId, UserRole.TEACHER, academyId, "lessonCode=" + CODE + "&section=B"), "FEATURE_DISABLED");
+        MvcTestResult result = list(teacherId, UserRole.TEACHER, academyId, "lessonCode=" + CODE + "&section=B");
+        assertNotFound(result, "FEATURE_DISABLED");
+        assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("단어시험을 쓸 수 없는 학원이에요");
     }
 
     @Test
