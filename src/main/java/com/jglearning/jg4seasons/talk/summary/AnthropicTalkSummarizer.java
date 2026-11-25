@@ -32,6 +32,7 @@ public class AnthropicTalkSummarizer implements TalkSummarizer {
 
     @Override
     public Optional<TalkSummary> summarize(TalkLevel level, List<Turn> turns) {
+        long started = System.nanoTime();
         BetaMessage message;
         String stopReason;
         String text;
@@ -43,28 +44,51 @@ public class AnthropicTalkSummarizer implements TalkSummarizer {
                     .flatMap(block -> block.text().stream())
                     .map(textBlock -> textBlock.text())
                     .collect(Collectors.joining());
-            log.info(
-                    "프리토킹 요약 응답: 모델 {} 중단 {} 토큰 입력 {} 출력 {}",
-                    message.model().asString(),
-                    stopReason,
-                    message.usage().inputTokens(),
-                    message.usage().outputTokens());
         } catch (AnthropicServiceException e) {
             log.warn(
-                    "프리토킹 요약 실패: HTTP {} {} req={}",
+                    "프리토킹 요약 실패: HTTP {} {} req={} {}ms",
                     e.statusCode(),
                     e.getClass().getSimpleName(),
-                    e.requestId().orElse("-"));
+                    e.requestId().orElse("-"),
+                    elapsedMs(started));
             return Optional.empty();
         } catch (AnthropicException e) {
-            // 시간 초과(20초)·연결 오류·응답 칸 형식 — 종류 이름만
-            log.warn("프리토킹 요약 실패: {}", e.getClass().getSimpleName());
+            // 시간 초과(20초)·연결 오류·응답 칸 형식 — 종류와 원인 종류, 걸린 시간(20초 상한 판단 근거, 리뷰 10)
+            log.warn(
+                    "프리토킹 요약 실패: {} 원인 {} {}ms",
+                    e.getClass().getSimpleName(),
+                    e.getCause() == null ? "-" : e.getCause().getClass().getSimpleName(),
+                    elapsedMs(started));
+            return Optional.empty();
+        } catch (RuntimeException e) {
+            // SDK가 감싸지 않는 예외(요청 빌더 검증·HTTP 클라이언트 내부) — 계약은 "예외를 던지지 않음"(리뷰 2). 예상 밖이라 ERROR, 종류만
+            log.error("프리토킹 요약 실패(예상 밖): {}", e.getClass().getName());
             return Optional.empty();
         }
+        logUsage(message, stopReason, started);
         Optional<TalkSummary> summary = SummaryRequests.parse(stopReason, text);
         if (summary.isEmpty()) {
             log.warn("프리토킹 요약 실패: 응답 해석 불가(중단 {})", stopReason);
         }
         return summary;
+    }
+
+    /** 사용량 로그는 덤 — 칸을 꺼내다 실패해도 이미 받은 요약은 살린다(리뷰 10) */
+    private static void logUsage(BetaMessage message, String stopReason, long started) {
+        try {
+            log.info(
+                    "프리토킹 요약 응답: 모델 {} 중단 {} 토큰 입력 {} 출력 {} {}ms",
+                    message.model().asString(),
+                    stopReason,
+                    message.usage().inputTokens(),
+                    message.usage().outputTokens(),
+                    elapsedMs(started));
+        } catch (RuntimeException e) {
+            log.warn("프리토킹 요약 사용량을 읽지 못했다: {}", e.getClass().getSimpleName());
+        }
+    }
+
+    private static long elapsedMs(long started) {
+        return (System.nanoTime() - started) / 1_000_000;
     }
 }

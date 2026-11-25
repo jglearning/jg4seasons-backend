@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class FakeTalkSummarizer implements TalkSummarizer {
 
     private final AtomicBoolean failNext = new AtomicBoolean();
+    private final AtomicBoolean throwNext = new AtomicBoolean();
     private final AtomicInteger calls = new AtomicInteger();
     private final AtomicReference<List<Turn>> lastTurns = new AtomicReference<>();
 
@@ -24,6 +25,10 @@ public class FakeTalkSummarizer implements TalkSummarizer {
     public Optional<TalkSummary> summarize(TalkLevel level, List<Turn> turns) {
         calls.incrementAndGet();
         lastTurns.set(turns);
+        if (throwNext.getAndSet(false)) {
+            // 계약(예외 없음)을 어기는 구현·요약 뒤 저장 실패를 흉내 — 종료 응답이 500이 되지 않는지(#77 리뷰 2)
+            throw new IllegalStateException("가짜 요약기 예외");
+        }
         if (failNext.getAndSet(false)) {
             return Optional.empty();
         }
@@ -33,6 +38,11 @@ public class FakeTalkSummarizer implements TalkSummarizer {
                 .map(turn -> List.of(new Correction(turn.text(), turn.text() + " (better)", "이렇게 말해 봐요")))
                 .orElse(List.of());
         return Optional.of(new TalkSummary(List.of("play soccer"), corrections));
+    }
+
+    /** 다음 한 번 예외를 던진다(계약 위반 흉내) */
+    public void throwNext() {
+        throwNext.set(true);
     }
 
     public void failNext() {
@@ -49,6 +59,7 @@ public class FakeTalkSummarizer implements TalkSummarizer {
 
     public void reset() {
         failNext.set(false);
+        throwNext.set(false);
         calls.set(0);
         lastTurns.set(null);
     }

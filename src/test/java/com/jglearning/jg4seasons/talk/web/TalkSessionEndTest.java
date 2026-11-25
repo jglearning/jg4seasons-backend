@@ -129,6 +129,20 @@ class TalkSessionEndTest {
     }
 
     @Test
+    void 요약_단계에서_예외가_나도_200에_ended이고_summary는_null() {
+        // 리뷰 2: 종료는 이미 커밋됨 — 요약·요약 저장 실패가 500으로 새지 않게
+        long id = newSession();
+        summarizer.throwNext();
+
+        MvcTestResult result = end(student(), id, body(60, "user", TURNS, null));
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("ended");
+        assertThat(result).bodyJson().extractingPath("$.summary").isNull();
+        assertThat(turns(id)).hasSize(4);
+    }
+
+    @Test
     void 두_번_종료해도_같은_결과이고_다시_저장하거나_요약하지_않는다() {
         long id = newSession();
         String first = text(end(student(), id, body(168, "user", TURNS, null)));

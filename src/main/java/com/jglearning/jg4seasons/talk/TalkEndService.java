@@ -88,7 +88,17 @@ public class TalkEndService {
             store.insertTurns(sessionId, trimmed.turns());
             return Optional.of(new Ended(TalkLevel.ofLevelCode(row.levelCode()), trimmed));
         });
-        ended.ifPresent(done -> summarize(sessionId, done));
+        ended.ifPresent(done -> {
+            // 종료는 이미 커밋됨 — 요약·요약 저장의 어떤 실패도 종료 응답을 막지 않는다(summary null, 리뷰 2). 내용·키 없이 종류만
+            try {
+                summarize(sessionId, done);
+            } catch (RuntimeException e) {
+                log.error(
+                        "프리토킹 요약 저장 실패(종료는 완료): 세션 {} {}",
+                        sessionId,
+                        e.getClass().getName());
+            }
+        });
         return find(academyId, studentId, sessionId);
     }
 
