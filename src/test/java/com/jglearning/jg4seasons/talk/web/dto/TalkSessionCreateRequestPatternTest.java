@@ -3,7 +3,6 @@ package com.jglearning.jg4seasons.talk.web.dto;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.talk.TalkTopic;
-import com.jglearning.jg4seasons.talk.TalkVoice;
 import jakarta.validation.constraints.Pattern;
 import java.util.Arrays;
 import java.util.List;
@@ -20,13 +19,6 @@ class TalkSessionCreateRequestPatternTest {
         assertThat(alternatives("topic"))
                 .containsExactlyInAnyOrderElementsOf(
                         Arrays.stream(TalkTopic.values()).map(TalkTopic::code).toList());
-    }
-
-    @Test
-    void voice_패턴은_TalkVoice_code와_같다() throws Exception {
-        assertThat(alternatives("voice"))
-                .containsExactlyInAnyOrderElementsOf(
-                        Arrays.stream(TalkVoice.values()).map(TalkVoice::code).toList());
     }
 
     /** "^(a|b|c)$" → [a, b, c] */

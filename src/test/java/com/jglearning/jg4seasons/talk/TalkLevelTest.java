@@ -18,6 +18,13 @@ class TalkLevelTest {
         assertThat(level.levelCode()).isEqualTo(code);
     }
 
+    @ParameterizedTest
+    @CsvSource({"MINT, FEMALE", "GREEN, FEMALE", "BLUE, FEMALE", "NAVY, MALE", "BLACK, FEMALE"})
+    void 레벨마다_캐릭터_목소리_성별이_정해져_있다(TalkLevel level, TalkVoice voice) {
+        // 캐릭터 성별(사용자 11/25): 네이비만 남성
+        assertThat(level.voice()).isEqualTo(voice);
+    }
+
     @Test
     void 모르는_레벨_코드는_데이터_오류() {
         assertThatThrownBy(() -> TalkLevel.ofLevelCode("L5")).isInstanceOf(IllegalStateException.class);

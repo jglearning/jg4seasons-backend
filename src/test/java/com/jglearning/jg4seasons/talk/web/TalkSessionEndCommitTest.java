@@ -95,8 +95,7 @@ class TalkSessionEndCommitTest {
                         mvc,
                         cookies.studentAccess(studentId, academyId),
                         UUID.randomUUID().toString(),
-                        "day",
-                        "male")
+                        "day")
                 .getResponse()
                 .getContentAsString(StandardCharsets.UTF_8);
         long id = ((Number) JsonPath.read(created, "$.id")).longValue();
@@ -219,8 +218,7 @@ class TalkSessionEndCommitTest {
                         mvc,
                         cookies.studentAccess(studentId, academyId),
                         UUID.randomUUID().toString(),
-                        "day",
-                        "male")
+                        "day")
                 .getResponse()
                 .getContentAsString(StandardCharsets.UTF_8);
         return ((Number) JsonPath.read(created, "$.id")).longValue();

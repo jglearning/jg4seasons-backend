@@ -391,7 +391,7 @@ class TalkSessionEndTest {
     }
 
     private long newSession() {
-        MvcTestResult created = create(mvc, student(), UUID.randomUUID().toString(), "day", "female");
+        MvcTestResult created = create(mvc, student(), UUID.randomUUID().toString(), "day");
         return ((Number) JsonPath.read(text(created), "$.id")).longValue();
     }
 

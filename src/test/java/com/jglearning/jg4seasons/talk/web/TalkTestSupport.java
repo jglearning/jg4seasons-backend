@@ -31,11 +31,9 @@ final class TalkTestSupport {
         return mvc.get().uri(CONFIG).cookie(access).exchange();
     }
 
-    static MvcTestResult create(MockMvcTester mvc, Cookie access, String clientId, String topic, String voice) {
-        return createRaw(
-                mvc,
-                access,
-                "{\"clientSessionId\":\"" + clientId + "\",\"topic\":\"" + topic + "\",\"voice\":\"" + voice + "\"}");
+    /** 프론트와 같은 요청 모양(목소리는 보내지 않음 — 레벨로 서버가 정함, #86) */
+    static MvcTestResult create(MockMvcTester mvc, Cookie access, String clientId, String topic) {
+        return createRaw(mvc, access, "{\"clientSessionId\":\"" + clientId + "\",\"topic\":\"" + topic + "\"}");
     }
 
     static MvcTestResult createRaw(MockMvcTester mvc, Cookie access, String body) {

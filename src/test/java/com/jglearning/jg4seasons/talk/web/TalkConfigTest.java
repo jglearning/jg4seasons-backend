@@ -139,7 +139,7 @@ class TalkConfigTest {
 
     @Test
     void 세션을_만들면_남은_횟수가_준다() {
-        create(mvc, student(), UUID.randomUUID().toString(), "day", "female");
+        create(mvc, student(), UUID.randomUUID().toString(), "day");
 
         assertThat(config(mvc, student()))
                 .bodyJson()
@@ -152,10 +152,10 @@ class TalkConfigTest {
         // 리뷰 7: 표에 학원 칸이 없어 학생 조건이 유일한 격리 — 같은 반 친구가 쓴 횟수가 내 한도를 깎지 않게
         long friend = data.student(academyId, "친구");
         data.enroll(classId, friend);
-        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day", "female");
-        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day", "female");
+        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day");
+        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day");
         issuer.failNext();
-        create(mvc, student(), UUID.randomUUID().toString(), "day", "female");
+        create(mvc, student(), UUID.randomUUID().toString(), "day");
 
         assertThat(config(mvc, student()))
                 .bodyJson()
