@@ -152,6 +152,25 @@ class TalkSessionCreateTest {
     }
 
     @Test
+    void 발급하는_사이_같은_id가_failed로_먼저_저장되면_200에_failed_realtime_null() {
+        // 같은 clientSessionId 동시 2건: 다른 요청이 발급에 실패해 failed 행을 먼저 넣은 경우(리뷰 4)
+        String clientId = UUID.randomUUID().toString();
+        issuer.beforeNextIssue(() -> jdbc.update(
+                "insert into talk_session (client_session_id, student_id, level_code, topic, voice, status,"
+                        + " max_seconds, model, prompt_version) values (?, ?, 'L2', 'day', 'female', 'failed', 180,"
+                        + " 'm', 'talk/v1')",
+                clientId,
+                studentId));
+
+        MvcTestResult result = create(mvc, student(), clientId, "day", "female");
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("failed");
+        assertThat(result).bodyJson().extractingPath("$.realtime").isNull();
+        assertThat(count()).isEqualTo(1);
+    }
+
+    @Test
     void 다른_학생이_쓴_clientSessionId는_400() {
         String clientId = UUID.randomUUID().toString();
         create(mvc, student(), clientId, "day", "female");

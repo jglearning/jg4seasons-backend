@@ -16,6 +16,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -37,17 +38,47 @@ public class TalkSessionService {
     static final String FAILED = "failed";
 
     /**
-     * 만든 세션. realtime은 created일 때만 있고(이미 끝난 세션을 다시 보내면 null — 사용자 11/25 A), created = true면 새 세션(201), false면 재전송(200)
-     *
-     * @param closingInstruction 시간이 다 됐을 때 브라우저가 세션에 넣는 마무리 신호(추가 지시 가-2). realtime이 null이면 null
+     * 만든 세션. 연결 정보는 status가 created일 때만 있다(끝난 세션을 다시 보내면 null — 사용자 11/25 A). created = true면 새 세션(201), false면
+     * 재전송(200). 짝(created ↔ 연결 정보)은 생성자가 확인하고, 만드는 곳은 팩터리 셋(created·reissued·closed)만 쓴다
      */
-    public record Result(
-            long id,
-            String status,
-            int maxSeconds,
-            IssuedSecret realtime,
-            String closingInstruction,
-            boolean created) {}
+    public record Result(long id, String status, int maxSeconds, Connection connection, boolean created) {
+
+        /**
+         * 브라우저가 모델에 연결할 재료. 임시 키와 마무리 신호는 늘 함께
+         *
+         * @param closingInstruction 시간이 다 됐을 때 브라우저가 세션에 넣는 마무리 신호(추가 지시 가-2)
+         */
+        public record Connection(IssuedSecret secret, String closingInstruction) {
+
+            public Connection {
+                Objects.requireNonNull(secret, "secret");
+                Objects.requireNonNull(closingInstruction, "closingInstruction");
+            }
+        }
+
+        public Result {
+            if (connection != null && !CREATED.equals(status)) {
+                throw new IllegalArgumentException("연결 정보는 created 세션에만: " + status);
+            }
+            if (created && connection == null) {
+                throw new IllegalArgumentException("새 세션에는 연결 정보가 있어야 한다");
+            }
+        }
+
+        static Result created(long id, int maxSeconds, Connection connection) {
+            return new Result(id, CREATED, maxSeconds, connection, true);
+        }
+
+        /** 같은 clientSessionId 재전송으로 키만 새로 */
+        static Result reissued(long id, int maxSeconds, Connection connection) {
+            return new Result(id, CREATED, maxSeconds, connection, false);
+        }
+
+        /** 더 연결할 수 없는 세션(끝남·실패·재발급 기간 지남) */
+        static Result closed(long id, String status, int maxSeconds) {
+            return new Result(id, status, maxSeconds, null, false);
+        }
+    }
 
     private final TalkAccess access;
     private final TalkSessionStore store;
@@ -106,15 +137,19 @@ public class TalkSessionService {
         }
         try {
             long id = store.insert(row, now());
-            return new Result(id, CREATED, row.maxSeconds(), secret, prompts.closing(), true);
+            return Result.created(id, row.maxSeconds(), connection(secret));
         } catch (DuplicateKeyException e) {
             if (!TalkSessionStore.isClientIdConflict(e)) {
                 throw e;
             }
-            // 같은 clientSessionId가 먼저 저장됐다 — 그 세션에 방금 받은 키를 붙여 재전송처럼(새로 발급하지 않음)
+            // 같은 clientSessionId가 먼저 저장됐다 — created면 방금 받은 키를 붙여 재전송처럼(새로 발급하지 않음), 아니면(발급 실패 등) 키를 버리고
+            // 끝난 세션처럼. failed 행은 한도에 안 잡히므로 키를 주면 셈에 없는 대화가 생긴다(리뷰 4)
             TalkSessionRow winner = store.findByClientId(clientId).orElseThrow(() -> e);
             requireOwner(winner, studentId);
-            return new Result(winner.id(), winner.status(), winner.maxSeconds(), secret, prompts.closing(), false);
+            if (!CREATED.equals(winner.status())) {
+                return Result.closed(winner.id(), winner.status(), winner.maxSeconds());
+            }
+            return Result.reissued(winner.id(), winner.maxSeconds(), connection(secret));
         }
     }
 
@@ -122,7 +157,7 @@ public class TalkSessionService {
     private Result replay(long academyId, long studentId, TalkSessionRow row) {
         requireOwner(row, studentId);
         if (!CREATED.equals(row.status())) {
-            return new Result(row.id(), row.status(), row.maxSeconds(), null, null, false);
+            return Result.closed(row.id(), row.status(), row.maxSeconds());
         }
         TalkContext context = requireStartable(academyId, studentId);
         TalkTopic topic =
@@ -135,7 +170,11 @@ public class TalkSessionService {
         } catch (RealtimeUnavailableException e) {
             throw new ApiException(TalkErrorCode.REALTIME_UNAVAILABLE);
         }
-        return new Result(row.id(), row.status(), row.maxSeconds(), secret, prompts.closing(), false);
+        return Result.reissued(row.id(), row.maxSeconds(), connection(secret));
+    }
+
+    private Result.Connection connection(IssuedSecret secret) {
+        return new Result.Connection(secret, prompts.closing());
     }
 
     /** 구독(403) → 반(404)·사용 기간(403) */

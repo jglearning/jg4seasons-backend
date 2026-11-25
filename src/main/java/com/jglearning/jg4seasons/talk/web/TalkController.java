@@ -80,13 +80,14 @@ public class TalkController {
                 request.clientSessionId(),
                 TalkTopic.ofCode(request.topic()).orElseThrow(),
                 TalkVoice.ofCode(request.voice()).orElseThrow());
-        TalkSessionCreatedResponse.Realtime realtime = result.realtime() == null
+        TalkSessionService.Result.Connection connection = result.connection();
+        TalkSessionCreatedResponse.Realtime realtime = connection == null
                 ? null
                 : new TalkSessionCreatedResponse.Realtime(
-                        result.realtime().clientSecret(),
-                        result.realtime().expiresAt(),
-                        result.realtime().model(),
-                        result.closingInstruction());
+                        connection.secret().clientSecret(),
+                        connection.secret().expiresAt(),
+                        connection.secret().model(),
+                        connection.closingInstruction());
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(new TalkSessionCreatedResponse(result.id(), result.status(), result.maxSeconds(), realtime));
     }

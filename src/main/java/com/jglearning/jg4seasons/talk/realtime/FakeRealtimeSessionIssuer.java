@@ -17,6 +17,7 @@ public class FakeRealtimeSessionIssuer implements RealtimeSessionIssuer {
     private final AtomicInteger counter = new AtomicInteger();
     private final AtomicBoolean failNext = new AtomicBoolean();
     private final AtomicReference<RealtimeSessionRequest> lastRequest = new AtomicReference<>();
+    private final AtomicReference<Runnable> beforeNextIssue = new AtomicReference<>();
 
     public FakeRealtimeSessionIssuer(Clock clock) {
         this.clock = clock;
@@ -24,12 +25,21 @@ public class FakeRealtimeSessionIssuer implements RealtimeSessionIssuer {
 
     @Override
     public IssuedSecret issue(RealtimeSessionRequest request) {
+        Runnable action = beforeNextIssue.getAndSet(null);
+        if (action != null) {
+            action.run();
+        }
         lastRequest.set(request);
         if (failNext.getAndSet(false)) {
             throw new RealtimeUnavailableException("가짜 발급기 실패");
         }
         Instant expiresAt = clock.instant().truncatedTo(ChronoUnit.SECONDS).plusSeconds(request.keyTtlSeconds());
         return new IssuedSecret("ek_fake_" + counter.incrementAndGet(), expiresAt, request.model());
+    }
+
+    /** 다음 발급 직전에 한 번 실행(같은 clientSessionId 경합을 순서대로 재현할 때) */
+    public void beforeNextIssue(Runnable action) {
+        beforeNextIssue.set(action);
     }
 
     /** 다음 한 번만 실패 */
@@ -45,5 +55,6 @@ public class FakeRealtimeSessionIssuer implements RealtimeSessionIssuer {
     public void reset() {
         failNext.set(false);
         lastRequest.set(null);
+        beforeNextIssue.set(null);
     }
 }
