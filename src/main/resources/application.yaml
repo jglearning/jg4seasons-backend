@@ -69,6 +69,11 @@ jg4seasons:
       voice-male: ${JG4SEASONS_TALK_VOICE_MALE:cedar}
       transcription-model: ${JG4SEASONS_TALK_TRANSCRIPTION_MODEL:gpt-4o-mini-transcribe}
       key-ttl-seconds: ${JG4SEASONS_TALK_KEY_TTL_SECONDS:60}
+    # 대화 요약. 기본 꺼짐(none) — 종료는 되고 summary는 null. 운영은 anthropic + 키(답안지 읽기와 같은 JG4SEASONS_LLM_API_KEY)
+    summary:
+      type: ${JG4SEASONS_TALK_SUMMARY:none}
+      model: ${JG4SEASONS_TALK_SUMMARY_MODEL:claude-opus-5-5}
+      api-key: ${JG4SEASONS_LLM_API_KEY:}
   # 단어시험 사진 채점의 숙제 사진 저장소. 기본 꺼짐(none) — 운영은 s3 + 버킷(Parameter Store). s3인데 버킷이 비면 서버가 뜨지 않는다
   word-test:
     storage:
