@@ -34,7 +34,8 @@ class WordTestAccess {
             throw new ApiException(CommonErrorCode.UNAUTHORIZED);
         }
         if (!academies.wordTestEnabled(academyId)) {
-            throw new ApiException(WordTestErrorCode.FEATURE_DISABLED);
+            // 문구는 옮기기 전 title 그대로(화면은 detail ?? title)
+            throw new ApiException(CommonErrorCode.FEATURE_DISABLED, "단어시험을 쓸 수 없는 학원이에요");
         }
     }
 

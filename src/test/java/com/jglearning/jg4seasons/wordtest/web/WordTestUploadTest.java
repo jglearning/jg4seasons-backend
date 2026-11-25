@@ -101,7 +101,10 @@ class WordTestUploadTest {
     void 기능이_꺼진_학원은_404_FEATURE_DISABLED() {
         jdbc.update("update academy set settings = '{\"timezone\":\"Asia/Seoul\"}' where id = ?", academyId);
 
-        assertProblem(upload(student(), TODAY, "image/jpeg"), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
+        MvcTestResult result = upload(student(), TODAY, "image/jpeg");
+        assertProblem(result, HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
+        // code를 공통으로 옮긴 뒤에도 화면 문구(detail ?? title)는 그대로
+        assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("단어시험을 쓸 수 없는 학원이에요");
     }
 
     @Test
