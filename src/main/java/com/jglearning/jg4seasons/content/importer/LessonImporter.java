@@ -150,6 +150,9 @@ public class LessonImporter {
                             word.track().fileKey(),
                             word.track().durationMs(),
                             word.no()));
+            if (word.exampleTrack() == null) {
+                continue; // 새 어휘책 판 단어: 예문 녹음 없음(이슈 #88)
+            }
             tracks.put(
                     key(WORD_EXAMPLE, variant),
                     new DesiredTrack(

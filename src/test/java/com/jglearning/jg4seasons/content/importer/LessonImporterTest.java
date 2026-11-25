@@ -143,6 +143,87 @@ class LessonImporterTest {
     }
 
     @Test
+    void 예문_음원_없는_단어는_단어_트랙만_만든다() throws IOException {
+        // 새 어휘책 판은 단어만 녹음했다(이슈 #88)
+        ImportResult result = importer.importLesson(manifest(WORD2_EXAMPLE_TRACK, "\"exampleTrack\": null"));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(word2Tracks()).containsEntry("variant", "w02:us_w").containsEntry("example_track_id", null);
+        assertThat(trackCount("word_example", "w02:us_w")).isZero();
+    }
+
+    @Test
+    void 예문_음원이_빠지면_예문_트랙을_지운다() throws IOException {
+        importer.importLesson(manifest());
+        long wordId = word2Id();
+
+        ImportResult result = importer.importLesson(manifest(WORD2_EXAMPLE_TRACK, "\"exampleTrack\": null"));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(trackCount("word_example", "w02:us_w")).isZero();
+        assertThat(word2Tracks()).containsEntry("variant", "w02:us_w").containsEntry("example_track_id", null);
+        assertThat(word2Id()).isEqualTo(wordId);
+    }
+
+    @Test
+    void 단어_음원_번호가_바뀌어도_회차를_거부하지_않는다() throws IOException {
+        // 새 판에서 음원 번호 = 단어 순서로 바뀐다. 지문 청취 기록이 있어도 단어 트랙은 막지 않는다
+        importer.importLesson(manifest());
+        listen("p1:us_w");
+
+        ImportResult result =
+                importer.importLesson(manifest("_w05_", "_w04_", "\"durationMs\": 750", "\"durationMs\": 760"));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(jdbc.queryForMap(
+                        "select t.variant, t.duration_ms from word w join track t on t.id = w.track_id"
+                                + " where w.lesson_id = ? and w.sort_order = 4",
+                        lessonId()))
+                .containsEntry("variant", "w04:us_w")
+                .containsEntry("duration_ms", 760);
+        assertThat(trackCount("word", "w05:us_w")).isZero();
+        assertThat(trackCount("word_example", "w05:us_w")).isZero();
+    }
+
+    @Test
+    void 단어_음원_번호를_서로_바꾸면_각_단어가_새_트랙을_가리킨다() throws IOException {
+        // 운영 상황: 이미 있는 w01·w02 트랙을 다른 단어가 다른 길이로 이어받는다(이슈 #88 리뷰 7)
+        importer.importLesson(manifest());
+        listen("p1:us_w");
+
+        ImportResult result = importer.importLesson(manifest(
+                "_w01_", "_wXX_", "_w02_", "_w01_", "_wXX_", "_w02_", "\"durationMs\": 700", "\"durationMs\": 820"));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(jdbc.queryForList(
+                        "select w.sort_order, t.variant, t.duration_ms, e.variant as example_variant from word w"
+                                + " join track t on t.id = w.track_id join track e on e.id = w.example_track_id"
+                                + " where w.lesson_id = ? and w.sort_order in (1, 2) order by w.sort_order",
+                        lessonId()))
+                .containsExactly(
+                        Map.of(
+                                "sort_order",
+                                1,
+                                "variant",
+                                "w02:us_w",
+                                "duration_ms",
+                                820,
+                                "example_variant",
+                                "w02:us_w"),
+                        Map.of(
+                                "sort_order",
+                                2,
+                                "variant",
+                                "w01:us_w",
+                                "duration_ms",
+                                800,
+                                "example_variant",
+                                "w01:us_w"));
+        assertThat(trackCount("word", "w01:us_w") + trackCount("word", "w02:us_w"))
+                .isEqualTo(2);
+    }
+
+    @Test
     void 같은_manifest를_다시_넣으면_UNCHANGED이고_행_id가_그대로다() throws IOException {
         importer.importLesson(manifest());
         List<Long> before = rowIds();
@@ -376,6 +457,31 @@ class LessonImporterTest {
                 "select id from track where lesson_id = ? and kind = 'passage' and variant = ?",
                 Long.class,
                 lessonId(),
+                variant);
+    }
+
+    private static final String WORD2_EXAMPLE_TRACK =
+            "\"exampleTrack\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3\", \"durationMs\": 1900 }";
+
+    /** 2번 단어(all day)의 단어 트랙 variant와 예문 트랙 id */
+    private Map<String, Object> word2Tracks() {
+        return jdbc.queryForMap(
+                "select t.variant, w.example_track_id from word w join track t on t.id = w.track_id"
+                        + " where w.lesson_id = ? and w.sort_order = 2",
+                lessonId());
+    }
+
+    private long word2Id() {
+        return jdbc.queryForObject(
+                "select id from word where lesson_id = ? and sort_order = 2", Long.class, lessonId());
+    }
+
+    private int trackCount(String kind, String variant) {
+        return jdbc.queryForObject(
+                "select count(*) from track where lesson_id = ? and kind = ? and variant = ?",
+                Integer.class,
+                lessonId(),
+                kind,
                 variant);
     }
 

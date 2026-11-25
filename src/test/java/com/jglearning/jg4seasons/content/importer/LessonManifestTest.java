@@ -62,11 +62,33 @@ class LessonManifestTest {
     }
 
     @Test
-    void 단어_음원과_예문_음원은_함께_있거나_함께_없다() {
+    void 예문_음원만_있으면_거부() {
         assertRejected(
-                "\"exampleTrack\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3\", \"durationMs\": 1900 }",
-                "\"exampleTrack\": null",
+                "\"track\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w02_us_w.mp3\", \"durationMs\": 800 }",
+                "\"track\": null",
                 "단어 2");
+    }
+
+    @Test
+    void 추가_어휘는_예문_음원도_있어야_한다() {
+        // 단어 음원만 허용한 것은 새 어휘책 판(book) 때문이다. 회차 어휘(extra)는 녹음 자료에서 와서 예문 음원이 늘 있다
+        assertRejected(
+                "\"exampleTrack\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w05_ex_us_w.mp3\", \"durationMs\": 2000 }",
+                "\"exampleTrack\": null",
+                "단어 4");
+    }
+
+    @Test
+    void 단어_음원만_있고_예문_음원이_없어도_읽는다() throws IOException {
+        // 새 어휘책 판은 단어만 녹음했다(이슈 #88)
+        LessonManifest manifest = readWith(
+                "\"exampleTrack\": { \"fileKey\": \"audio/L1-B1-01/L1-B1-01_w02_ex_us_w.mp3\", \"durationMs\": 1900 }",
+                "\"exampleTrack\": null");
+
+        LessonManifest.Word word = manifest.words().get(1);
+        assertThat(word.track().fileKey()).isEqualTo("audio/L1-B1-01/L1-B1-01_w02_us_w.mp3");
+        assertThat(word.exampleTrack()).isNull();
+        assertThat(word.audioNo()).isEqualTo(2);
     }
 
     @Test
