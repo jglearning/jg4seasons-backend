@@ -25,7 +25,10 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** POST /talk/sessions/{id}/end(계약 D-3)·GET /talk/sessions/{id}(D-4). 요약기는 가짜 */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class TalkSessionEndTest {
 
     static final String TURNS = "[{\"role\":\"character\",\"text\":\"Hi! What did you do today?\"},"
@@ -235,6 +239,64 @@ class TalkSessionEndTest {
 
         String ended = text(end(student(), id, body(168, "user", TURNS, null)));
         assertThat(text(get(student(), id))).isEqualTo(ended);
+    }
+
+    // 리뷰 4: 저장 형식 고정 — 이 JSON 모양이 바뀌면 지난 세션 요약(학생·교사 화면)이 조용히 사라진다
+
+    @Test
+    void 저장된_요약_형식을_그대로_읽는다() {
+        long id = newSession();
+        jdbc.update(
+                "update talk_session set status = 'ended', summary_json = ? where id = ?",
+                "{\"goodExpressions\":[\"play soccer\"],\"corrections\":[{\"said\":\"I go.\",\"better\":\"I went.\","
+                        + "\"note\":\"과거형으로 말해요\"}]}",
+                id);
+
+        MvcTestResult result = get(student(), id);
+
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.summary.goodExpressions")
+                .isEqualTo(List.of("play soccer"));
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.summary.corrections[0].better")
+                .isEqualTo("I went.");
+    }
+
+    @Test
+    void 나중에_칸이_늘거나_빠진_요약도_읽는다() {
+        long withExtra = newSession();
+        jdbc.update(
+                "update talk_session set summary_json = ? where id = ?",
+                "{\"goodExpressions\":[\"a\"],\"corrections\":[],\"version\":2}",
+                withExtra);
+        long missing = newSession();
+        jdbc.update("update talk_session set summary_json = ? where id = ?", "{\"goodExpressions\":[\"b\"]}", missing);
+
+        assertThat(get(student(), withExtra))
+                .bodyJson()
+                .extractingPath("$.summary.goodExpressions")
+                .isEqualTo(List.of("a"));
+        assertThat(get(student(), missing))
+                .bodyJson()
+                .extractingPath("$.summary.corrections")
+                .isEqualTo(List.of());
+    }
+
+    @Test
+    void 타입이_다른_요약은_null이고_로그에_내용이_없다(CapturedOutput output) {
+        long id = newSession();
+        jdbc.update(
+                "update talk_session set summary_json = ? where id = ?",
+                "{\"goodExpressions\":\"I goed to school secret\",\"corrections\":[]}",
+                id);
+
+        MvcTestResult result = get(student(), id);
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.summary").isNull();
+        assertThat(output.getAll()).doesNotContain("I goed to school secret");
     }
 
     @Test

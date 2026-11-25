@@ -11,8 +11,9 @@ import java.util.List;
 public record TalkSummary(List<String> goodExpressions, List<Correction> corrections) {
 
     public TalkSummary {
-        goodExpressions = List.copyOf(goodExpressions);
-        corrections = List.copyOf(corrections);
+        // 저장된 요약에 칸이 없으면 빈 목록(형식이 바뀌어도 지난 요약을 읽게)
+        goodExpressions = goodExpressions == null ? List.of() : List.copyOf(goodExpressions);
+        corrections = corrections == null ? List.of() : List.copyOf(corrections);
     }
 
     /**

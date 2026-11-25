@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -32,6 +33,14 @@ import tools.jackson.databind.json.JsonMapper;
 public class TalkEndService {
 
     private static final Logger log = LoggerFactory.getLogger(TalkEndService.class);
+
+    /**
+     * 요약 저장 형식 전용 매퍼(HTTP 요청용 엄격 매퍼가 아님). 모르는 칸은 넘기고 빠진 목록은 빈 목록 — 나중에 칸을 더하거나 빼도 지난 세션 요약이 사라지지 않게(리뷰 4).
+     * 형식은 TalkSessionEndTest가 고정한다
+     */
+    private static final JsonMapper SUMMARY_JSON = JsonMapper.builder()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .build();
 
     /** 종료 요청. usageJson은 JSON 객체 문자열 또는 null(검증은 컨트롤러) */
     public record EndCommand(int durationSec, TalkEndReason reason, List<RawTurn> turns, String usageJson) {
@@ -52,7 +61,6 @@ public class TalkEndService {
     private final TalkSessionStore store;
     private final TalkSummarizer summarizer;
     private final TransactionTemplate transactions;
-    private final JsonMapper json;
     private final Clock clock;
 
     TalkEndService(
@@ -60,13 +68,11 @@ public class TalkEndService {
             TalkSessionStore store,
             TalkSummarizer summarizer,
             PlatformTransactionManager transactionManager,
-            JsonMapper json,
             Clock clock) {
         this.access = access;
         this.store = store;
         this.summarizer = summarizer;
         this.transactions = new TransactionTemplate(transactionManager);
-        this.json = json;
         this.clock = clock;
     }
 
@@ -114,7 +120,7 @@ public class TalkEndService {
         Optional<TalkSummary> summary = summarizer
                 .summarize(done.level(), done.trimmed().turns())
                 .map(raw -> SummaryGuard.apply(raw, done.trimmed().turns()));
-        summary.ifPresent(value -> store.saveSummary(sessionId, json.writeValueAsString(value)));
+        summary.ifPresent(value -> store.saveSummary(sessionId, SUMMARY_JSON.writeValueAsString(value)));
     }
 
     /** 저장한 요약 JSON(우리가 쓴 모양). 읽지 못하면 데이터 오류지만 화면은 요약 없음으로 — ERROR 로그 */
@@ -123,9 +129,10 @@ public class TalkEndService {
             return null;
         }
         try {
-            return json.readValue(view.summaryJson(), TalkSummary.class);
+            return SUMMARY_JSON.readValue(view.summaryJson(), TalkSummary.class);
         } catch (JacksonException e) {
-            log.error("저장된 프리토킹 요약을 읽지 못했다: 세션 {}", view.id(), e);
+            // 예외 메시지에 저장된 값(학생 문장)이 실릴 수 있어 종류만(리뷰 4)
+            log.error("저장된 프리토킹 요약을 읽지 못했다: 세션 {} {}", view.id(), e.getClass().getSimpleName());
             return null;
         }
     }
