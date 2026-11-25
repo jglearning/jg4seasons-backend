@@ -80,8 +80,9 @@ public class TalkEndService {
         access.requireEnabled(academyId);
         Optional<Ended> ended = transactions.execute(status -> {
             TalkSessionRow row = store.lockOwned(sessionId, studentId).orElseThrow(TalkEndService::notFound);
-            // 이미 끝남(ended) 또는 대화가 없었음(failed, 사용자 11/25 A) — 저장하지 않고 그대로
-            if (row.status() == TalkSessionStatus.ENDED || row.status() == TalkSessionStatus.FAILED) {
+            // 종료할 수 있는 건 created뿐(허용 목록 — 상태가 늘어도 기본은 "그대로", 리뷰 3). 이미 끝남(ended)·대화 없음(failed, 사용자 11/25 A)·
+            // 정리됨(expired, #79에서 허용 여부를 다시 정함)은 저장하지 않고 그대로
+            if (row.status() != TalkSessionStatus.CREATED) {
                 return Optional.<Ended>empty();
             }
             Trimmed trimmed = TalkTranscript.trim(command.turns(), command.durationSec(), row.maxSeconds());
