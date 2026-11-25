@@ -92,4 +92,15 @@ class TalkTranscriptTest {
         assertThat(TalkEndReason.ofCode("timeout")).contains(TalkEndReason.TIMEOUT);
         assertThat(TalkEndReason.ofCode("quit")).isEmpty();
     }
+
+    @Test
+    void 학생_줄_수는_줄_목록에서_계산하고_음수_시간은_거부() {
+        // 리뷰 7: 따로 받는 칸이면 줄 목록과 어긋난 값이 저장될 수 있다
+        Trimmed trimmed =
+                new Trimmed(List.of(new Turn(1, TalkRole.STUDENT, "a"), new Turn(2, TalkRole.CHARACTER, "b")), 10);
+
+        assertThat(trimmed.studentTurnCount()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new Trimmed(List.of(), -1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

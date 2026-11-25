@@ -125,6 +125,18 @@ class TalkSessionStoreTest {
         assertThat(store.findOwned(id, studentId).orElseThrow().durationSec()).isNull();
     }
 
+    @Test
+    void 새_세션은_created나_failed로만_만든다() {
+        // 리뷰 8: 종료 기록 없는 ended 행이 생기지 않게
+        NewTalkSession created = session(UUID.randomUUID().toString(), null);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> created.withStatus(TalkSessionStatus.ENDED))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> created.withStatus(TalkSessionStatus.EXPIRED))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(created.withStatus(TalkSessionStatus.FAILED).status()).isEqualTo(TalkSessionStatus.FAILED);
+    }
+
     private NewTalkSession session(String clientId, Long lessonId) {
         return new NewTalkSession(
                 clientId,

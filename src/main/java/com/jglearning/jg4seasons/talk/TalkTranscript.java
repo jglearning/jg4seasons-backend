@@ -18,15 +18,21 @@ public final class TalkTranscript {
     /** 저장할 줄. seq는 1부터 */
     public record Turn(int seq, TalkRole role, String text) {}
 
-    /**
-     * 자른 결과
-     *
-     * @param studentTurnCount 자른 뒤 학생 줄 수(화면 "내가 말한 문장 수")
-     */
-    public record Trimmed(List<Turn> turns, int durationSec, int studentTurnCount) {
+    /** 자른 결과. 학생 줄 수는 줄 목록에서 계산한다(따로 받으면 어긋날 수 있음 — 리뷰 7) */
+    public record Trimmed(List<Turn> turns, int durationSec) {
 
         public Trimmed {
             turns = List.copyOf(turns);
+            if (durationSec < 0) {
+                throw new IllegalArgumentException("대화 시간은 0 이상: " + durationSec);
+            }
+        }
+
+        /** 자른 뒤 학생 줄 수(화면 "내가 말한 문장 수") */
+        public int studentTurnCount() {
+            return (int) turns.stream()
+                    .filter(turn -> turn.role() == TalkRole.STUDENT)
+                    .count();
         }
     }
 
@@ -35,7 +41,6 @@ public final class TalkTranscript {
     /** durationSec는 0 이상(음수는 요청 검증에서 400) */
     public static Trimmed trim(List<RawTurn> raw, int durationSec, int maxSeconds) {
         List<Turn> turns = new ArrayList<>();
-        int students = 0;
         for (RawTurn line : raw) {
             if (turns.size() == MAX_TURNS) {
                 break;
@@ -45,11 +50,8 @@ public final class TalkTranscript {
                 continue;
             }
             turns.add(new Turn(turns.size() + 1, line.role(), cut(text)));
-            if (line.role() == TalkRole.STUDENT) {
-                students++;
-            }
         }
-        return new Trimmed(turns, Math.min(durationSec, maxSeconds), students);
+        return new Trimmed(turns, Math.min(durationSec, maxSeconds));
     }
 
     private static String cut(String text) {

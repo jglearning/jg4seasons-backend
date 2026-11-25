@@ -55,6 +55,13 @@ public class TalkSessionStore {
             String model,
             String promptVersion) {
 
+        public NewTalkSession {
+            // 새 행은 발급 성공(created)·실패 기록(failed)뿐 — 종료 기록 없는 ended 행이 생기지 않게(리뷰 8)
+            if (status != TalkSessionStatus.CREATED && status != TalkSessionStatus.FAILED) {
+                throw new IllegalArgumentException("새 세션은 created·failed만: " + status);
+            }
+        }
+
         /** 같은 세션을 다른 상태로(발급 실패 기록) — 칸을 손으로 복사하지 않게(#76 리뷰 2) */
         public NewTalkSession withStatus(TalkSessionStatus newStatus) {
             return new NewTalkSession(
