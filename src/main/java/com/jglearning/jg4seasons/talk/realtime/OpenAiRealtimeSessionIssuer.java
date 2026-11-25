@@ -53,8 +53,11 @@ public class OpenAiRealtimeSessionIssuer implements RealtimeSessionIssuer {
             throw new RealtimeUnavailableException(
                     "임시 키 발급 실패: HTTP " + e.getStatusCode().value());
         } catch (RestClientException e) {
-            log.warn("임시 키 발급 실패: {}", e.getClass().getSimpleName());
-            throw new RealtimeUnavailableException("임시 키 발급 실패: " + e.getClass().getSimpleName());
+            // 시간 초과·연결 거부·DNS가 모두 ResourceAccessException으로 감싸 온다 — 가장 안쪽 원인 이름까지(클래스 이름이라 키·본문 없음, 리뷰 10)
+            String cause = e.getClass().getSimpleName() + "/"
+                    + e.getMostSpecificCause().getClass().getSimpleName();
+            log.warn("임시 키 발급 실패: {}", cause);
+            throw new RealtimeUnavailableException("임시 키 발급 실패: " + cause);
         }
         return parse(body, request.model());
     }

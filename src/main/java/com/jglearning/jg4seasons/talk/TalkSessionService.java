@@ -18,6 +18,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +34,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class TalkSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(TalkSessionService.class);
 
     static final int DAILY_LIMIT = 3;
 
@@ -132,8 +137,13 @@ public class TalkSessionService {
         try {
             secret = issuer.issue(request(context, topic, voice));
         } catch (RealtimeUnavailableException e) {
-            recordFailure(row);
-            throw new ApiException(TalkErrorCode.REALTIME_UNAVAILABLE);
+            // 실패 기록은 덤 — 기록이 깨져도 503은 지키고, 둘 다 로그에 남게(리뷰 5·6). 원인 메시지에는 키·본문이 없다
+            try {
+                recordFailure(row);
+            } catch (DataAccessException recordError) {
+                e.addSuppressed(recordError);
+            }
+            throw new ApiException(TalkErrorCode.REALTIME_UNAVAILABLE, null, e);
         }
         try {
             long id = store.insert(row, now());
@@ -171,7 +181,7 @@ public class TalkSessionService {
         try {
             secret = issuer.issue(request(context, topic, voice));
         } catch (RealtimeUnavailableException e) {
-            throw new ApiException(TalkErrorCode.REALTIME_UNAVAILABLE);
+            throw new ApiException(TalkErrorCode.REALTIME_UNAVAILABLE, null, e);
         }
         return Result.reissued(row.id(), row.maxSeconds(), connection(secret));
     }
@@ -224,6 +234,8 @@ public class TalkSessionService {
             if (!TalkSessionStore.isClientIdConflict(e)) {
                 throw e;
             }
+            // 같은 clientSessionId 경합(리뷰 11) — 동작은 그대로(503), 실제로 생겼는지 운영에서 보이게
+            log.info("발급 실패 기록 생략: 같은 clientSessionId 세션이 이미 있음(학생 {})", row.studentId());
         }
     }
 

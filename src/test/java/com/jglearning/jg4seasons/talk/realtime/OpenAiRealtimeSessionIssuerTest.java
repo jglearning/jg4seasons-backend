@@ -107,6 +107,19 @@ class OpenAiRealtimeSessionIssuerTest {
     }
 
     @Test
+    void 연결이_끊기거나_시간이_넘으면_RealtimeUnavailable이고_가장_안쪽_원인_이름이_남는다() {
+        // 리뷰 7·10: 응답 없는 실패(ResourceAccessException으로 감싸 옴) — 시간 초과·연결 거부를 로그에서 가릴 수 있게
+        server.expect(requestTo("https://api.openai.com/v1/realtime/client_secrets"))
+                .andRespond(request -> {
+                    throw new java.net.SocketTimeoutException("read timed out");
+                });
+
+        assertThatThrownBy(() -> issuer.issue(REQUEST))
+                .isInstanceOf(RealtimeUnavailableException.class)
+                .hasMessageContaining("SocketTimeoutException");
+    }
+
+    @Test
     void JSON이_아니면_RealtimeUnavailable() {
         server.expect(requestTo("https://api.openai.com/v1/realtime/client_secrets"))
                 .andRespond(withSuccess("<html>gateway</html>", MediaType.TEXT_HTML));

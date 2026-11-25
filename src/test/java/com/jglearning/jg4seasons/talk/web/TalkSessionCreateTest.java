@@ -20,7 +20,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -30,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** POST /talk/sessions(계약 D-2 + 추가 지시 가-2 closingInstruction). 발급기는 가짜 */
 @IntegrationTest
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class TalkSessionCreateTest {
 
     static final String TODAY_LESSON = "L2-B1-03";
@@ -262,6 +266,22 @@ class TalkSessionCreateTest {
             assertThat(create(mvc, student(), UUID.randomUUID().toString(), "day", "female"))
                     .hasStatus(HttpStatus.CREATED);
         }
+    }
+
+    @Test
+    void 실패_기록이_DB_오류로_실패해도_503이고_원인이_로그에_남는다(CapturedOutput output) {
+        // 리뷰 5·6: 기록은 덤 — 기록 INSERT가 깨져도(여기서는 학생 행을 지워 외래 키 위반) 500이 아니라 503, 발급 실패 원인은 cause로
+        issuer.failNext();
+        issuer.beforeNextIssue(() -> {
+            jdbc.update("delete from enrollment where student_id = ?", studentId);
+            jdbc.update("delete from `user` where id = ?", studentId);
+        });
+
+        assertProblem(
+                create(mvc, student(), UUID.randomUUID().toString(), "day", "female"),
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "REALTIME_UNAVAILABLE");
+        assertThat(output.getAll()).contains("가짜 발급기 실패").contains("fk_talk_session_student");
     }
 
     @Test
