@@ -95,6 +95,23 @@ class BookWordsTest(unittest.TestCase):
         self.assertTrue(any("단어 02" in e and "02 remain" in e for e in self.errors), self.errors)
         self.assertEqual(["aloud"], [w["english"] for w in words])
 
+    def test_단어와_숙어는_각자_자기_번호_음원(self):
+        # 리뷰 7: 숙어 01이 단어 01 음원을 집으면 숙어 카드에서 다른 발음이 난다
+        self.book([("01", "aloud", "부", "소리 내어", "Read it aloud."),
+                   ("01-1", "out loud", "", "소리 내어", ""),
+                   ("숙어 01", "far from", "", "결코 ~이 아닌", "It is far from done.")])
+        words = self.read()
+        self.assertEqual([], self.errors)
+        self.assertEqual(["01 aloud · 영어 · 미국 여자.mp3", "숙어 01 far from · 영어 · 미국 여자.mp3"],
+                         [w["wordFile"].name for w in words])
+
+    def test_숙어_번호가_이어지지_않으면_오류(self):
+        self.book([("01", "aloud", "부", "소리 내어", "Read it aloud."),
+                   ("숙어 01", "far from", "", "결코 ~이 아닌", "It is far from done."),
+                   ("숙어 03", "over the years", "", "수년에 걸쳐", "It grew over the years.")])
+        self.read()
+        self.assertTrue(any("숙어: 번호가 1부터" in e for e in self.errors), self.errors)
+
     def test_책_번호가_이어지지_않으면_오류(self):
         self.book([("01", "aloud", "부", "소리 내어", "Read it aloud."),
                    ("03", "term", "명", "학기", "The term starts.")])
@@ -193,6 +210,16 @@ class MergeWordsTest(unittest.TestCase):
         self.assertEqual(round(20 * 1152 * 1000 / 44100), words[2]["exampleTrack"]["durationMs"])
         self.assertEqual(4, len(self.files))  # 책 2(단어) + 회차 어휘 1(단어·예문)
         self.assertEqual("audio/X/X_w03_ex_us_w.mp3", self.files[-1][1])
+
+    def test_원본_파일과_키가_단어마다_맞다(self):
+        # 리뷰 7: 키 이름·길이가 맞아도 원본 짝이 틀리면 S3에 다른 단어 음원이 올라간다
+        self.merge(["aloud", "remain"], ["remain", "glacier"])
+        self.assertEqual({"audio/X/X_w01_us_w.mp3": "aloud.mp3",
+                          "audio/X/X_w02_us_w.mp3": "remain.mp3",
+                          "audio/X/X_w03_us_w.mp3": "glacier.mp3",
+                          "audio/X/X_w03_ex_us_w.mp3": "glacier ex.mp3"},
+                         {key: path.name for path, key in self.files})
+        self.assertEqual(["새", "새", "옛", "옛"], [path.parent.name for path, _ in self.files])
 
     def test_한쪽이_더_긴_표현은_다른_단어(self):
         words = self.merge(["keep away"], ["keep away from"])

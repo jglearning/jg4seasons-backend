@@ -186,6 +186,44 @@ class LessonImporterTest {
     }
 
     @Test
+    void 단어_음원_번호를_서로_바꾸면_각_단어가_새_트랙을_가리킨다() throws IOException {
+        // 운영 상황: 이미 있는 w01·w02 트랙을 다른 단어가 다른 길이로 이어받는다(이슈 #88 리뷰 7)
+        importer.importLesson(manifest());
+        listen("p1:us_w");
+
+        ImportResult result = importer.importLesson(manifest(
+                "_w01_", "_wXX_", "_w02_", "_w01_", "_wXX_", "_w02_", "\"durationMs\": 700", "\"durationMs\": 820"));
+
+        assertThat(result.status()).isEqualTo(Status.IMPORTED);
+        assertThat(jdbc.queryForList(
+                        "select w.sort_order, t.variant, t.duration_ms, e.variant as example_variant from word w"
+                                + " join track t on t.id = w.track_id join track e on e.id = w.example_track_id"
+                                + " where w.lesson_id = ? and w.sort_order in (1, 2) order by w.sort_order",
+                        lessonId()))
+                .containsExactly(
+                        Map.of(
+                                "sort_order",
+                                1,
+                                "variant",
+                                "w02:us_w",
+                                "duration_ms",
+                                820,
+                                "example_variant",
+                                "w02:us_w"),
+                        Map.of(
+                                "sort_order",
+                                2,
+                                "variant",
+                                "w01:us_w",
+                                "duration_ms",
+                                800,
+                                "example_variant",
+                                "w01:us_w"));
+        assertThat(trackCount("word", "w01:us_w") + trackCount("word", "w02:us_w"))
+                .isEqualTo(2);
+    }
+
+    @Test
     void 같은_manifest를_다시_넣으면_UNCHANGED이고_행_id가_그대로다() throws IOException {
         importer.importLesson(manifest());
         List<Long> before = rowIds();
