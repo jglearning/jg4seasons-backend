@@ -73,7 +73,7 @@ class TalkRealtimeConfig {
 
     /** 요약기. 제한 시간 20초, SDK 재시도 0(학생이 기다리는 중 — 실패하면 summary null). 테스트(fake)는 테스트 설정의 @Primary 가짜가 가린다 */
     @Bean
-    TalkSummarizer talkSummarizer(TalkSummaryProperties properties) {
+    TalkSummarizer talkSummarizer(TalkSummaryProperties properties, TalkProperties talk) {
         return switch (properties.type()) {
             case ANTHROPIC -> {
                 AnthropicClient client = AnthropicOkHttpClient.builder()
@@ -89,7 +89,12 @@ class TalkRealtimeConfig {
                 yield new FakeTalkSummarizer();
             }
             case NONE -> {
-                log.info("프리토킹 요약 꺼짐 — summary는 null");
+                // 실제 대화는 켰는데 요약 설정을 빠뜨리면 모든 종료가 summary null — 기동 로그에서 바로 보이게(리뷰 12)
+                if (talk.realtime().type() == TalkProperties.Realtime.Type.OPENAI) {
+                    log.warn("프리토킹 실제 대화는 켜졌는데 요약이 꺼져 있다(JG4SEASONS_TALK_SUMMARY) — summary는 늘 null");
+                } else {
+                    log.info("프리토킹 요약 꺼짐 — summary는 null");
+                }
                 yield NoSummarizer.INSTANCE;
             }
         };

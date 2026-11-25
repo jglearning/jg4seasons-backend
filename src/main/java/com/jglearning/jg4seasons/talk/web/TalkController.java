@@ -99,8 +99,8 @@ public class TalkController {
                 Principals.academyId(jwt),
                 Principals.userId(jwt),
                 request.clientSessionId(),
-                TalkTopic.ofCode(request.topic()).orElseThrow(),
-                TalkVoice.ofCode(request.voice()).orElseThrow());
+                TalkTopic.ofCode(request.topic()).orElseThrow(() -> new IllegalStateException("topic 검증과 enum이 어긋났다")),
+                TalkVoice.ofCode(request.voice()).orElseThrow(() -> new IllegalStateException("voice 검증과 enum이 어긋났다")));
         TalkSessionService.Result.Connection connection = result.connection();
         TalkSessionCreatedResponse.Realtime realtime = connection == null
                 ? null
@@ -128,10 +128,13 @@ public class TalkController {
             @Valid @RequestBody TalkSessionEndRequest request) {
         TalkEndService.EndCommand command = new TalkEndService.EndCommand(
                 request.durationSec(),
-                TalkEndReason.ofCode(request.endReason()).orElseThrow(),
+                TalkEndReason.ofCode(request.endReason())
+                        .orElseThrow(() -> new IllegalStateException("endReason 검증과 enum이 어긋났다")),
                 request.turns().stream()
                         .map(turn -> new TalkTranscript.RawTurn(
-                                TalkRole.ofCode(turn.role()).orElseThrow(), turn.text()))
+                                TalkRole.ofCode(turn.role())
+                                        .orElseThrow(() -> new IllegalStateException("role 검증과 enum이 어긋났다")),
+                                turn.text()))
                         .toList(),
                 usageJson(request.usage()));
         return response(ends.end(Principals.academyId(jwt), Principals.userId(jwt), id, command));
