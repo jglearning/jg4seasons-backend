@@ -57,6 +57,7 @@ class TalkConfigTest {
     @BeforeEach
     void setUp() {
         clock.set(Instant.parse("2026-11-26T03:00:00Z")); // 서울 11/26 12:00
+        issuer.reset(); // 가짜 발급기는 컨텍스트 하나에 공유 — 앞 테스트의 실패 예약이 남지 않게(리뷰 12)
         data = new TestData(jdbc);
         academyId = data.academy("대화 학원");
         features(jdbc, academyId, true, true);
@@ -144,6 +145,29 @@ class TalkConfigTest {
                 .bodyJson()
                 .extractingPath("$.remainingToday")
                 .isEqualTo(2);
+    }
+
+    @Test
+    void 다른_학생의_세션과_발급에_실패한_세션은_남은_횟수에서_빠지지_않는다() {
+        // 리뷰 7: 표에 학원 칸이 없어 학생 조건이 유일한 격리 — 같은 반 친구가 쓴 횟수가 내 한도를 깎지 않게
+        long friend = data.student(academyId, "친구");
+        data.enroll(classId, friend);
+        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day", "female");
+        create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day", "female");
+        issuer.failNext();
+        create(mvc, student(), UUID.randomUUID().toString(), "day", "female");
+
+        assertThat(config(mvc, student()))
+                .bodyJson()
+                .extractingPath("$.remainingToday")
+                .isEqualTo(3);
+    }
+
+    @Test
+    void 정지된_학원은_401() {
+        jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
+
+        assertThat(config(mvc, student())).hasStatus(HttpStatus.UNAUTHORIZED);
     }
 
     @Test

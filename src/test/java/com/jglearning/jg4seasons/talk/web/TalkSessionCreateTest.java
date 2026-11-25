@@ -12,6 +12,8 @@ import com.jglearning.jg4seasons.MutableClock;
 import com.jglearning.jg4seasons.TestData;
 import com.jglearning.jg4seasons.auth.AuthCookieSupport;
 import com.jglearning.jg4seasons.talk.realtime.FakeRealtimeSessionIssuer;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.Cookie;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -53,6 +55,10 @@ class TalkSessionCreateTest {
 
     @Autowired
     FakeRealtimeSessionIssuer issuer;
+
+    /** 테스트 중간에 학원 설정·사용권을 바꾼 뒤 비운다 — 같은 트랜잭션의 1차 캐시가 바꾸기 전 학원을 돌려주지 않게 */
+    @PersistenceContext
+    EntityManager entities;
 
     TestData data;
     long academyId;
@@ -282,6 +288,96 @@ class TalkSessionCreateTest {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "REALTIME_UNAVAILABLE");
         assertThat(output.getAll()).contains("가짜 발급기 실패").contains("fk_talk_session_student");
+    }
+
+    // 리뷰 7: 재전송 경로도 새 세션과 같은 검사를 거친다(구독·사용 기간이 끝난 뒤 예전 id로 키를 받지 못하게)
+
+    @Test
+    void 구독이_끊긴_뒤_재전송하면_403_SUBSCRIPTION_REQUIRED() {
+        String clientId = UUID.randomUUID().toString();
+        create(mvc, student(), clientId, "day", "female");
+        features(jdbc, academyId, true, false);
+        entities.clear();
+
+        assertProblem(create(mvc, student(), clientId, "day", "female"), HttpStatus.FORBIDDEN, "SUBSCRIPTION_REQUIRED");
+        assertThat(count()).isEqualTo(1);
+    }
+
+    @Test
+    void 사용_기간이_끝난_뒤_재전송하면_403_LICENSE_INACTIVE() {
+        String clientId = UUID.randomUUID().toString();
+        create(mvc, student(), clientId, "day", "female");
+        data.enforceLicenses(academyId);
+        data.license(academyId, "L2-B1", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 11, 1), 30);
+        entities.clear();
+
+        assertProblem(create(mvc, student(), clientId, "day", "female"), HttpStatus.FORBIDDEN, "LICENSE_INACTIVE");
+    }
+
+    @Test
+    void 기능이_꺼진_뒤_재전송하면_404_FEATURE_DISABLED() {
+        String clientId = UUID.randomUUID().toString();
+        create(mvc, student(), clientId, "day", "female");
+        features(jdbc, academyId, false, false);
+        entities.clear();
+
+        assertProblem(create(mvc, student(), clientId, "day", "female"), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
+    }
+
+    @Test
+    void 발급_실패한_id를_다시_보내면_200에_failed이고_새로_발급하지_않는다() {
+        String clientId = UUID.randomUUID().toString();
+        issuer.failNext();
+        create(mvc, student(), clientId, "day", "female");
+        issuer.reset();
+
+        MvcTestResult again = create(mvc, student(), clientId, "day", "female");
+
+        assertThat(again).hasStatusOk();
+        assertThat(again).bodyJson().extractingPath("$.status").isEqualTo("failed");
+        assertThat(again).bodyJson().extractingPath("$.realtime").isNull();
+        assertThat(issuer.lastRequest()).isNull();
+        assertThat(count()).isEqualTo(1);
+    }
+
+    @Test
+    void created_세션_재전송에서_발급이_실패하면_503이고_행은_created_그대로() {
+        String clientId = UUID.randomUUID().toString();
+        create(mvc, student(), clientId, "day", "female");
+        issuer.failNext();
+
+        assertProblem(
+                create(mvc, student(), clientId, "day", "female"),
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "REALTIME_UNAVAILABLE");
+        assertThat(row(clientId).get("status")).isEqualTo("created");
+        assertThat(count()).isEqualTo(1);
+    }
+
+    @Test
+    void 정지된_학원은_401() {
+        jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
+
+        assertThat(create(mvc, student(), UUID.randomUUID().toString(), "day", "female"))
+                .hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(count()).isZero();
+    }
+
+    @Test
+    void 반이_없는_학생은_404_NOT_FOUND() {
+        long loner = data.student(academyId, "반 없는 학생");
+
+        assertProblem(
+                create(
+                        mvc,
+                        cookies.studentAccess(loner, academyId),
+                        UUID.randomUUID().toString(),
+                        "day",
+                        "female"),
+                HttpStatus.NOT_FOUND,
+                "NOT_FOUND");
+        assertThat(jdbc.queryForObject("select count(*) from talk_session where student_id = ?", Integer.class, loner))
+                .isZero();
     }
 
     @Test

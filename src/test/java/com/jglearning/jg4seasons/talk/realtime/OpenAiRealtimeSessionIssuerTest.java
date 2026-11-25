@@ -119,6 +119,24 @@ class OpenAiRealtimeSessionIssuerTest {
                 .hasMessageContaining("SocketTimeoutException");
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(
+            strings = {
+                "{\"value\":\"\",\"expires_at\":1764122460}",
+                "{\"value\":123,\"expires_at\":1764122460}",
+                "{\"value\":\"ek_abc\",\"expires_at\":\"1764122460\"}",
+                "{\"value\":\"ek_abc\",\"expires_at\":1.5}",
+                "[]",
+                ""
+            })
+    void value나_expires_at의_형식이_다르면_RealtimeUnavailable(String body) {
+        // 리뷰 7: 빈 키·1970년 만료 시각이 학생에게 201로 내려가지 않게
+        server.expect(requestTo("https://api.openai.com/v1/realtime/client_secrets"))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> issuer.issue(REQUEST)).isInstanceOf(RealtimeUnavailableException.class);
+    }
+
     @Test
     void JSON이_아니면_RealtimeUnavailable() {
         server.expect(requestTo("https://api.openai.com/v1/realtime/client_secrets"))
