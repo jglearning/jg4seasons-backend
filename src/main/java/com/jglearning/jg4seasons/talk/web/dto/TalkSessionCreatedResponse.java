@@ -19,7 +19,8 @@ public record TalkSessionCreatedResponse(
         int maxSeconds,
 
         @Schema(
-                description = "모델 연결 정보. status가 created일 때만 있고 그 밖에는 null(새 clientSessionId로 다시 시작)",
+                description =
+                        "모델 연결 정보. 새 세션과 만든 지 60초 안의 재전송에만 있고, 그 밖(끝난 세션·60초 지난 created 재전송)은 null(새 clientSessionId로 다시 시작)",
                 requiredMode = Schema.RequiredMode.REQUIRED,
                 nullable = true)
         Realtime realtime) {

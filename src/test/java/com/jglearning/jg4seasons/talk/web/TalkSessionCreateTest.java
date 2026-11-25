@@ -139,6 +139,42 @@ class TalkSessionCreateTest {
     }
 
     @Test
+    void 만든_지_키_수명이_지난_created_세션은_재전송해도_새_키를_주지_않는다() {
+        // 리뷰 1: 종료 전(created)이라도 키 수명(60초)이 지나면 재발급하지 않는다 — 한도 밖 재발급 방지
+        String clientId = UUID.randomUUID().toString();
+        create(mvc, student(), clientId, "day", "female");
+        clock.set(NOW.plusSeconds(60));
+        assertThat(create(mvc, student(), clientId, "day", "female"))
+                .bodyJson()
+                .extractingPath("$.realtime.clientSecret")
+                .asString()
+                .startsWith("ek_fake_");
+
+        clock.set(NOW.plusSeconds(61));
+        issuer.reset();
+        MvcTestResult late = create(mvc, student(), clientId, "day", "female");
+
+        assertThat(late).hasStatusOk();
+        assertThat(late).bodyJson().extractingPath("$.status").isEqualTo("created");
+        assertThat(late).bodyJson().extractingPath("$.realtime").isNull();
+        assertThat(issuer.lastRequest()).isNull();
+    }
+
+    @Test
+    void 어제_만든_세션의_id로는_오늘_키를_받지_못한다() {
+        String clientId = UUID.randomUUID().toString();
+        create(mvc, student(), clientId, "day", "female");
+        clock.set(NOW.plusSeconds(24 * 3600));
+        issuer.reset();
+
+        MvcTestResult again = create(mvc, student(), clientId, "day", "female");
+
+        assertThat(again).hasStatusOk();
+        assertThat(again).bodyJson().extractingPath("$.realtime").isNull();
+        assertThat(issuer.lastRequest()).isNull();
+    }
+
+    @Test
     void 끝난_세션의_clientSessionId를_다시_보내면_200에_realtime_null() {
         String clientId = UUID.randomUUID().toString();
         create(mvc, student(), clientId, "day", "female");

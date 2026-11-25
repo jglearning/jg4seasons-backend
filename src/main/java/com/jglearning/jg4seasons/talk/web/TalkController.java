@@ -62,8 +62,9 @@ public class TalkController {
     @Operation(
             summary = "프리토킹 세션 시작",
             description = "세션을 기록하고 서버가 조립한 지시문(레벨·오늘 회차 단어·주제·안전 규칙)을 묶은 임시 키를 준다."
-                    + " 같은 clientSessionId를 다시 보내면 새로 만들지 않는다: 그 세션이 created면 임시 키만 새로 200,"
-                    + " 끝난 세션이면 200에 realtime null, 다른 학생이 쓴 값이면 400 VALIDATION."
+                    + " 같은 clientSessionId를 다시 보내면 새로 만들지 않는다: 그 세션이 created이고 만든 지 60초(임시 키 수명) 안이면"
+                    + " 임시 키만 새로 200, 그 밖(끝난 세션·60초 지남)은 200에 realtime null(새 clientSessionId로 다시 시작),"
+                    + " 다른 학생이 쓴 값이면 400 VALIDATION."
                     + " 기능 꺼짐 404 FEATURE_DISABLED, 구독 없음 403 SUBSCRIPTION_REQUIRED, 반이 없으면 404 NOT_FOUND,"
                     + " 사용 기간 아님 403 LICENSE_INACTIVE, 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT(발급에 실패한 세션은 세지 않음),"
                     + " 모델 서비스에서 임시 키를 받지 못하면 503 REALTIME_UNAVAILABLE")

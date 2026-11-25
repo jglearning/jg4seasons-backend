@@ -153,10 +153,13 @@ public class TalkSessionService {
         }
     }
 
-    /** 같은 clientSessionId 재전송: 본인 세션이고 created면 키만 새로(구독·사용 기간은 다시 확인), 끝난 세션이면 realtime 없이 */
+    /**
+     * 같은 clientSessionId 재전송: 본인 세션이고 created이며 만든 지 키 수명(기본 60초) 안이면 키만 새로(구독·사용 기간은 다시 확인). 끝난 세션이나 기간이 지난
+     * 세션은 realtime 없이 — 재전송은 두 번 누름·네트워크 재시도용이고, 기간이 없으면 세션 하나로 한도 밖 키를 계속 받을 수 있다(리뷰 1, 사용자 11/25 A)
+     */
     private Result replay(long academyId, long studentId, TalkSessionRow row) {
         requireOwner(row, studentId);
-        if (!CREATED.equals(row.status())) {
+        if (!CREATED.equals(row.status()) || reissueWindowPassed(row)) {
             return Result.closed(row.id(), row.status(), row.maxSeconds());
         }
         TalkContext context = requireStartable(academyId, studentId);
@@ -171,6 +174,11 @@ public class TalkSessionService {
             throw new ApiException(TalkErrorCode.REALTIME_UNAVAILABLE);
         }
         return Result.reissued(row.id(), row.maxSeconds(), connection(secret));
+    }
+
+    /** 만든 시각 + 키 수명이 지났는가(경계 포함 — 60초째는 아직 받는다) */
+    private boolean reissueWindowPassed(TalkSessionRow row) {
+        return now().isAfter(row.createdAt().plusSeconds(properties.realtime().keyTtlSeconds()));
     }
 
     private Result.Connection connection(IssuedSecret secret) {

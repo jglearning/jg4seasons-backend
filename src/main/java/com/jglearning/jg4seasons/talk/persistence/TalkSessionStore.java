@@ -32,7 +32,8 @@ public class TalkSessionStore {
             String voice,
             String status,
             int maxSeconds,
-            String model) {}
+            String model,
+            Instant createdAt) {}
 
     /** 새 세션. status는 created 또는 failed(발급 실패 기록) */
     public record NewTalkSession(
@@ -48,7 +49,8 @@ public class TalkSessionStore {
             String promptVersion) {}
 
     private static final String COLUMNS =
-            "id, client_session_id, student_id, lesson_id, level_code, topic, voice, status, max_seconds, model";
+            "id, client_session_id, student_id, lesson_id, level_code, topic, voice, status, max_seconds, model,"
+                    + " created_at";
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -118,7 +120,8 @@ public class TalkSessionStore {
                 rs.getString("voice"),
                 rs.getString("status"),
                 rs.getInt("max_seconds"),
-                rs.getString("model"));
+                rs.getString("model"),
+                rs.getObject("created_at", LocalDateTime.class).toInstant(ZoneOffset.UTC));
     }
 
     private static LocalDateTime utc(Instant instant) {
