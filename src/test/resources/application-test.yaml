@@ -13,6 +13,9 @@ jg4seasons:
   talk:
     realtime:
       type: fake
+    # 요약도 테스트 설정(TestTalkSummarizerConfiguration)의 가짜
+    summary:
+      type: fake
   word-test:
     storage:
       type: memory

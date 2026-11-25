@@ -1502,6 +1502,96 @@
         "tags" : [ "talk-controller" ]
       }
     },
+    "/api/v1/talk/sessions/{id}" : {
+      "get" : {
+        "description" : "종료 응답과 같은 모양. 종료 전이면 durationSec·studentTurnCount·summary null, 종료 직후 요약 중이면 summary null. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 기능 꺼짐 404 FEATURE_DISABLED",
+        "operationId" : "getTalkSession",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TalkSessionResultResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "프리토킹 세션 조회",
+        "tags" : [ "talk-controller" ]
+      }
+    },
+    "/api/v1/talk/sessions/{id}/end" : {
+      "post" : {
+        "description" : "글자 기록·대화 시간·종료 이유를 저장하고 요약(잘 쓴 표현·고쳐볼 문장)을 만들어 돌려준다(최대 20초). 저장은 공백 줄을 버리고 앞에서부터 200줄·한 줄 500자, durationSec는 maxSeconds까지 자른다. 요약을 만들지 못하면 summary null(세션은 ended). 종료할 수 있는 건 created뿐 — 이미 ended면 저장된 결과를 그대로 200(다시 저장·요약하지 않음), 발급에 실패한(failed)·정리된(expired) 세션도 저장하지 않고 그대로. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 기능 꺼짐 404 FEATURE_DISABLED, 입력 형식 400 VALIDATION(usage는 JSON 객체 16KB까지)",
+        "operationId" : "endTalkSession",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TalkSessionEndRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TalkSessionResultResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "프리토킹 세션 종료",
+        "tags" : [ "talk-controller" ]
+      }
+    },
     "/api/v1/teacher/classes" : {
       "get" : {
         "description" : "진행 중(active) 반, id 순 — 교사는 담당 반, 관리자는 학원 전체. 오늘 회차(학원 날짜, 학생 화면과 같은 규칙)와 그 회차의 완료·진행 중·시작 전 학생 수(현재 소속), 밀린 수업이 있는 학생 수, 다음 수업, 로그인 경고(최근 1시간 반 전체 개인 코드 실패 20회 이상 — since는 그중 가장 오래된 실패 시각)",
@@ -4709,6 +4799,24 @@
         },
         "required" : [ "entitled", "lessonWords", "level", "maxSeconds", "remainingToday", "topics" ]
       },
+      "TalkCorrection" : {
+        "type" : "object",
+        "properties" : {
+          "better" : {
+            "type" : "string",
+            "description" : "더 자연스러운 문장"
+          },
+          "note" : {
+            "type" : "string",
+            "description" : "한국어 해요체 한 줄 설명"
+          },
+          "said" : {
+            "type" : "string",
+            "description" : "학생이 말한 문장 그대로"
+          }
+        },
+        "required" : [ "better", "note", "said" ]
+      },
       "TalkLessonWord" : {
         "type" : "object",
         "properties" : {
@@ -4802,6 +4910,92 @@
         },
         "required" : [ "id", "maxSeconds", "realtime", "status" ]
       },
+      "TalkSessionEndRequest" : {
+        "type" : "object",
+        "properties" : {
+          "durationSec" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "실제 대화 시간(초). 그 세션의 maxSeconds를 넘으면 서버가 잘라 저장",
+            "example" : 168,
+            "maximum" : 86400,
+            "minimum" : 0
+          },
+          "endReason" : {
+            "type" : "string",
+            "description" : "끝난 이유",
+            "enum" : [ "user", "timeout", "left", "disconnected" ],
+            "pattern" : "^(user|timeout|left|disconnected)$"
+          },
+          "turns" : {
+            "type" : "array",
+            "description" : "대화 글자 기록(순서대로). 서버는 공백만 있는 줄을 버리고 앞에서부터 200줄, 한 줄 500자까지 저장",
+            "items" : {
+              "$ref" : "#/components/schemas/TalkTurn"
+            },
+            "maxItems" : 1000,
+            "minItems" : 0
+          },
+          "usage" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : { },
+            "description" : "모델이 이벤트로 알려준 사용량을 합한 값 그대로(모양은 서비스에 따름). JSON 객체만, 16KB까지. 없으면 생략"
+          }
+        },
+        "required" : [ "durationSec", "endReason", "turns" ]
+      },
+      "TalkSessionResultResponse" : {
+        "type" : "object",
+        "properties" : {
+          "durationSec" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "저장된 대화 시간(초, maxSeconds로 자른 값). 종료 전이면 null"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "created", "ended", "expired", "failed" ]
+          },
+          "studentTurnCount" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "학생이 말한 줄 수(자른 뒤). 종료 전이면 null"
+          },
+          "summary" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/TalkSummary"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "대화 요약. 종료 전·요약 실패·요약 중(종료 직후 조회)·학생이 말한 줄이 없으면 null"
+          }
+        },
+        "required" : [ "durationSec", "id", "status", "studentTurnCount", "summary" ]
+      },
+      "TalkSummary" : {
+        "type" : "object",
+        "properties" : {
+          "corrections" : {
+            "type" : "array",
+            "description" : "고쳐볼 문장 0~3개. said는 학생이 실제로 말한 문장(학생 줄이 2개 미만이면 빈 배열)",
+            "items" : {
+              "$ref" : "#/components/schemas/TalkCorrection"
+            }
+          },
+          "goodExpressions" : {
+            "type" : "array",
+            "description" : "잘 쓴 표현 0~2개(학생이 실제로 쓴 표현만)",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        },
+        "required" : [ "corrections", "goodExpressions" ]
+      },
       "TalkTopic" : {
         "type" : "object",
         "properties" : {
@@ -4815,6 +5009,23 @@
           }
         },
         "required" : [ "code", "title" ]
+      },
+      "TalkTurn" : {
+        "type" : "object",
+        "properties" : {
+          "role" : {
+            "type" : "string",
+            "enum" : [ "student", "character" ],
+            "pattern" : "^(student|character)$"
+          },
+          "text" : {
+            "type" : "string",
+            "example" : "I go to school and play soccer.",
+            "maxLength" : 5000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "role", "text" ]
       },
       "TeacherClassBook" : {
         "type" : "object",

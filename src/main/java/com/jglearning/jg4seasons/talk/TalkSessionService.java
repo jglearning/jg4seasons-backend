@@ -39,14 +39,11 @@ public class TalkSessionService {
 
     static final int DAILY_LIMIT = 3;
 
-    static final String CREATED = "created";
-    static final String FAILED = "failed";
-
     /**
      * 만든 세션. 연결 정보는 status가 created일 때만 있다(끝난 세션을 다시 보내면 null — 사용자 11/25 A). created = true면 새 세션(201), false면
      * 재전송(200). 짝(created ↔ 연결 정보)은 생성자가 확인하고, 만드는 곳은 팩터리 셋(created·reissued·closed)만 쓴다
      */
-    public record Result(long id, String status, int maxSeconds, Connection connection, boolean created) {
+    public record Result(long id, TalkSessionStatus status, int maxSeconds, Connection connection, boolean created) {
 
         /**
          * 브라우저가 모델에 연결할 재료. 임시 키와 마무리 신호는 늘 함께
@@ -62,7 +59,7 @@ public class TalkSessionService {
         }
 
         public Result {
-            if (connection != null && !CREATED.equals(status)) {
+            if (connection != null && status != TalkSessionStatus.CREATED) {
                 throw new IllegalArgumentException("연결 정보는 created 세션에만: " + status);
             }
             if (created && connection == null) {
@@ -71,16 +68,16 @@ public class TalkSessionService {
         }
 
         static Result created(long id, int maxSeconds, Connection connection) {
-            return new Result(id, CREATED, maxSeconds, connection, true);
+            return new Result(id, TalkSessionStatus.CREATED, maxSeconds, connection, true);
         }
 
         /** 같은 clientSessionId 재전송으로 키만 새로 */
         static Result reissued(long id, int maxSeconds, Connection connection) {
-            return new Result(id, CREATED, maxSeconds, connection, false);
+            return new Result(id, TalkSessionStatus.CREATED, maxSeconds, connection, false);
         }
 
         /** 더 연결할 수 없는 세션(끝남·실패·재발급 기간 지남) */
-        static Result closed(long id, String status, int maxSeconds) {
+        static Result closed(long id, TalkSessionStatus status, int maxSeconds) {
             return new Result(id, status, maxSeconds, null, false);
         }
     }
@@ -127,9 +124,9 @@ public class TalkSessionService {
                 studentId,
                 context.lessonId().orElse(null),
                 context.level().levelCode(),
-                topic.code(),
-                voice.code(),
-                CREATED,
+                topic,
+                voice,
+                TalkSessionStatus.CREATED,
                 properties.maxSeconds(),
                 model,
                 TalkPrompts.VERSION);
@@ -156,7 +153,7 @@ public class TalkSessionService {
             // 끝난 세션처럼. failed 행은 한도에 안 잡히므로 키를 주면 셈에 없는 대화가 생긴다(리뷰 4)
             TalkSessionRow winner = store.findByClientId(clientId).orElseThrow(() -> e);
             requireOwner(winner, studentId);
-            if (!CREATED.equals(winner.status())) {
+            if (winner.status() != TalkSessionStatus.CREATED) {
                 return Result.closed(winner.id(), winner.status(), winner.maxSeconds());
             }
             return Result.reissued(winner.id(), winner.maxSeconds(), connection(secret));
@@ -169,17 +166,13 @@ public class TalkSessionService {
      */
     private Result replay(long academyId, long studentId, TalkSessionRow row) {
         requireOwner(row, studentId);
-        if (!CREATED.equals(row.status()) || reissueWindowPassed(row)) {
+        if (row.status() != TalkSessionStatus.CREATED || reissueWindowPassed(row)) {
             return Result.closed(row.id(), row.status(), row.maxSeconds());
         }
         TalkContext context = requireStartable(academyId, studentId);
-        TalkTopic topic =
-                TalkTopic.ofCode(row.topic()).orElseThrow(() -> new IllegalStateException("세션의 주제가 잘못됐다: " + row.id()));
-        TalkVoice voice =
-                TalkVoice.ofCode(row.voice()).orElseThrow(() -> new IllegalStateException("세션의 음성이 잘못됐다: " + row.id()));
         IssuedSecret secret;
         try {
-            secret = issuer.issue(request(context, topic, voice));
+            secret = issuer.issue(request(context, row.topic(), row.voice()));
         } catch (RealtimeUnavailableException e) {
             throw new ApiException(TalkErrorCode.REALTIME_UNAVAILABLE, null, e);
         }
@@ -217,19 +210,8 @@ public class TalkSessionService {
 
     /** 발급 실패를 failed 행으로 남긴다(한도에는 안 셈). 같은 clientSessionId가 이미 있으면 남기지 않는다 */
     private void recordFailure(NewTalkSession row) {
-        NewTalkSession failed = new NewTalkSession(
-                row.clientId(),
-                row.studentId(),
-                row.lessonId(),
-                row.levelCode(),
-                row.topic(),
-                row.voice(),
-                FAILED,
-                row.maxSeconds(),
-                row.model(),
-                row.promptVersion());
         try {
-            store.insert(failed, now());
+            store.insert(row.withStatus(TalkSessionStatus.FAILED), now());
         } catch (DuplicateKeyException e) {
             if (!TalkSessionStore.isClientIdConflict(e)) {
                 throw e;
