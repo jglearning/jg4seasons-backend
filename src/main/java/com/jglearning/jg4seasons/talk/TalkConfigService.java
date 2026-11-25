@@ -36,7 +36,8 @@ public class TalkConfigService {
         access.requireEnabled(academyId);
         boolean entitled = access.entitled(academyId);
         TalkContext context = access.context(academyId, studentId);
-        int used = store.countIssuedSince(studentId, access.startOfToday(academyId));
+        int used = store.countIssuedSince(
+                studentId, access.startOfToday(academyId), properties.realtime().keyTtlSeconds());
         return new Config(
                 entitled,
                 context.level(),

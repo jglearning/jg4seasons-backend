@@ -116,7 +116,11 @@ public class TalkSessionService {
         TalkContext context = requireStartable(academyId, studentId);
         // 목소리는 반의 레벨 캐릭터 성별로(#86 — 학생이 고르지 않음)
         TalkVoice voice = context.level().voice();
-        if (store.countIssuedSince(studentId, access.startOfToday(academyId)) >= DAILY_LIMIT) {
+        if (store.countIssuedSince(
+                        studentId,
+                        access.startOfToday(academyId),
+                        properties.realtime().keyTtlSeconds())
+                >= DAILY_LIMIT) {
             throw new ApiException(CommonErrorCode.DAILY_LIMIT, "프리토킹은 하루에 " + DAILY_LIMIT + "번까지 할 수 있어요");
         }
 

@@ -387,6 +387,20 @@ class TalkSessionEndTest {
     }
 
     @Test
+    void 만든_지_60초가_지나_0초로_종료한_세션은_센다() {
+        // 보안 리뷰(#86): 0초·줄 0은 브라우저 값 — 대화하고 0초로 보내 한도를 피하지 못하게 서버 시계(만든 뒤 키 수명 60초 안 종료)를 더함
+        long talkedThenZero = newSession();
+        clock.set(Instant.parse("2026-11-26T03:03:00Z")); // 만든 지 3분 뒤 종료
+
+        end(student(), talkedThenZero, body(0, "user", "[]", null));
+
+        assertThat(TalkTestSupport.config(mvc, student()))
+                .bodyJson()
+                .extractingPath("$.remainingToday")
+                .isEqualTo(2);
+    }
+
+    @Test
     void 잘못된_입력은_400() {
         long id = newSession();
 

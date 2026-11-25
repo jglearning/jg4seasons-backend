@@ -200,18 +200,24 @@ public class TalkSessionStore {
     }
 
     /** 하루 한도용: from 이후 만든 세션 중 발급에 실패(failed)하지 않았고, 연결 전에 떠난 0초 세션도 아닌 것 */
-    public int countIssuedSince(long studentId, Instant from) {
+    /**
+     * @param freeWindowSeconds 연결 전 이탈로 볼 시간(만든 뒤 이 안에 종료). 임시 키 수명 — 이보다 늦은 종료는 연결해 대화했을 수 있어 0초로 보내도 셈(서버 시계,
+     *     보안 리뷰 #86)
+     */
+    public int countIssuedSince(long studentId, Instant from, int freeWindowSeconds) {
         Integer count = jdbc.queryForObject(
                 "select count(*) from talk_session where student_id = :student and created_at >= :from"
                         + " and status <> :failed"
                         // 연결 전에 떠난 세션(종료·대화 시간 0·학생 줄 0)은 대화가 없었음 — 세지 않음(#86, 사용자 11/26).
                         // 시간·줄은 브라우저가 보낸 값이라 믿을 수 없음(ADR 0039 받아들인 위험, #78)
-                        + " and not (status = :ended and duration_sec = 0 and student_turn_count = 0)",
+                        + " and not (status = :ended and duration_sec = 0 and student_turn_count = 0"
+                        + " and timestampdiff(second, created_at, ended_at) <= :window)",
                 Map.of(
                         "student", studentId,
                         "from", utc(from),
                         "failed", TalkSessionStatus.FAILED.code(),
-                        "ended", TalkSessionStatus.ENDED.code()),
+                        "ended", TalkSessionStatus.ENDED.code(),
+                        "window", freeWindowSeconds),
                 Integer.class);
         return count == null ? 0 : count;
     }
