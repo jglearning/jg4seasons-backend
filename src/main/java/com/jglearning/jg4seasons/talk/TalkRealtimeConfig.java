@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.talk;
 
+import com.jglearning.jg4seasons.talk.prompt.TalkPrompts;
 import com.jglearning.jg4seasons.talk.realtime.FakeRealtimeSessionIssuer;
 import com.jglearning.jg4seasons.talk.realtime.IssuedSecret;
 import com.jglearning.jg4seasons.talk.realtime.OpenAiRealtimeSessionIssuer;
@@ -18,7 +19,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
 
-/** 임시 키 발급기를 설정값으로 고른다. 통합 테스트는 테스트 설정의 @Primary 가짜가 이 빈을 가린다 */
+/** 지시문 템플릿과 임시 키 발급기. 발급기는 설정값으로 고르고, 통합 테스트는 테스트 설정의 @Primary 가짜가 이 빈을 가린다 */
 @Configuration
 @EnableConfigurationProperties(TalkProperties.class)
 class TalkRealtimeConfig {
@@ -27,6 +28,12 @@ class TalkRealtimeConfig {
 
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+
+    /** 지시문 템플릿. 기동 때 한 번 읽는다 — 파일이 없거나 비면 서버가 뜨지 않는다 */
+    @Bean
+    TalkPrompts talkPrompts() {
+        return TalkPrompts.load();
+    }
 
     @Bean
     RealtimeSessionIssuer realtimeSessionIssuer(TalkProperties properties, JsonMapper json, Clock clock) {

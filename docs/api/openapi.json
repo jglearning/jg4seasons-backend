@@ -1422,6 +1422,86 @@
         "tags" : [ "system-academy-controller" ]
       }
     },
+    "/api/v1/talk/config" : {
+      "get" : {
+        "description" : "시작 화면 재료: 구독 여부, 레벨, 시간 제한, 오늘 남은 횟수, 주제 카드, 오늘 회차 단어. 구독이 없으면 200에 entitled false(lessonWords는 빈 배열). 기능 꺼짐 404 FEATURE_DISABLED(진입 버튼을 숨길 신호), 반이 없으면 404 NOT_FOUND",
+        "operationId" : "talkConfig",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TalkConfigResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "프리토킹 설정",
+        "tags" : [ "talk-controller" ]
+      }
+    },
+    "/api/v1/talk/sessions" : {
+      "post" : {
+        "description" : "세션을 기록하고 서버가 조립한 지시문(레벨·오늘 회차 단어·주제·안전 규칙)을 묶은 임시 키를 준다. 같은 clientSessionId를 다시 보내면 새로 만들지 않는다: 그 세션이 created면 임시 키만 새로 200, 끝난 세션이면 200에 realtime null, 다른 학생이 쓴 값이면 400 VALIDATION. 기능 꺼짐 404 FEATURE_DISABLED, 구독 없음 403 SUBSCRIPTION_REQUIRED, 반이 없으면 404 NOT_FOUND, 사용 기간 아님 403 LICENSE_INACTIVE, 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT(발급에 실패한 세션은 세지 않음), 모델 서비스에서 임시 키를 받지 못하면 503 REALTIME_UNAVAILABLE",
+        "operationId" : "createTalkSession",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TalkSessionCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TalkSessionCreatedResponse"
+                }
+              }
+            },
+            "description" : "같은 clientSessionId의 기존 세션"
+          },
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TalkSessionCreatedResponse"
+                }
+              }
+            },
+            "description" : "새 세션(status created)"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다"
+          }
+        },
+        "summary" : "프리토킹 세션 시작",
+        "tags" : [ "talk-controller" ]
+      }
+    },
     "/api/v1/teacher/classes" : {
       "get" : {
         "description" : "진행 중(active) 반, id 순 — 교사는 담당 반, 관리자는 학원 전체. 오늘 회차(학원 날짜, 학생 화면과 같은 규칙)와 그 회차의 완료·진행 중·시작 전 학생 수(현재 소속), 밀린 수업이 있는 학생 수, 다음 수업, 로그인 경고(최근 1시간 반 전체 개인 코드 실패 20회 이상 — since는 그중 가장 오래된 실패 시각)",
@@ -4587,6 +4667,154 @@
             "pattern" : "^(active|inactive)$"
           }
         }
+      },
+      "TalkConfigResponse" : {
+        "type" : "object",
+        "properties" : {
+          "entitled" : {
+            "type" : "boolean",
+            "description" : "구독이 있는가. false면 잠금 화면(나머지 칸은 그대로, lessonWords는 빈 배열). 세션 생성은 403 SUBSCRIPTION_REQUIRED"
+          },
+          "lessonWords" : {
+            "type" : "array",
+            "description" : "오늘 회차 단어 전부(교재 순서, 숙어 포함). 캐릭터가 대화에 쓰도록 지시받은 단어와 같은 목록. 오늘 회차가 없거나(개강 전) 단어가 없거나 entitled가 false면 빈 배열",
+            "items" : {
+              "$ref" : "#/components/schemas/TalkLessonWord"
+            }
+          },
+          "level" : {
+            "type" : "string",
+            "description" : "학생 반의 레벨",
+            "enum" : [ "mint", "green", "blue", "navy", "black" ]
+          },
+          "maxSeconds" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "한 세션의 시간 제한(초). 이 시간에 마무리 신호를 보내고 연결을 끊는다",
+            "example" : 180
+          },
+          "remainingToday" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "오늘(학원 날짜) 남은 횟수 0~3. 발급에 실패한 세션은 세지 않는다",
+            "example" : 2
+          },
+          "topics" : {
+            "type" : "array",
+            "description" : "주제 카드(순서대로)",
+            "items" : {
+              "$ref" : "#/components/schemas/TalkTopic"
+            }
+          }
+        },
+        "required" : [ "entitled", "lessonWords", "level", "maxSeconds", "remainingToday", "topics" ]
+      },
+      "TalkLessonWord" : {
+        "type" : "object",
+        "properties" : {
+          "english" : {
+            "type" : "string",
+            "example" : "cheerful"
+          },
+          "korean" : {
+            "type" : "string",
+            "example" : "쾌활한"
+          }
+        },
+        "required" : [ "english", "korean" ]
+      },
+      "TalkRealtime" : {
+        "type" : "object",
+        "properties" : {
+          "clientSecret" : {
+            "type" : "string",
+            "description" : "임시 키(ek_…). 브라우저가 SDP 교환에 Bearer로 쓴다. 저장·로그 금지"
+          },
+          "closingInstruction" : {
+            "type" : "string",
+            "description" : "시간이 다 됐을 때 연결된 세션에 시스템 메시지로 넣을 문장(문구를 바꾸지 않고 그대로). 넣은 뒤 응답을 시작시키면 캐릭터가 인사하고 끝낸다"
+          },
+          "expiresAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "임시 키 만료 시각(UTC). 이 전에 연결을 시작해야 한다. 시작한 대화는 만료 뒤에도 이어진다"
+          },
+          "model" : {
+            "type" : "string",
+            "description" : "연결할 모델 이름",
+            "example" : "gpt-realtime-2.1-mini"
+          }
+        },
+        "required" : [ "clientSecret", "closingInstruction", "expiresAt", "model" ]
+      },
+      "TalkSessionCreateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "clientSessionId" : {
+            "type" : "string",
+            "description" : "클라이언트가 만든 UUID(소문자). 같은 값으로 다시 보내면 새로 만들지 않고 그 세션을 200으로",
+            "example" : "0b9e1c2d-3f4a-4b5c-8d6e-7f8091a2b3c4",
+            "minLength" : 1,
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "topic" : {
+            "type" : "string",
+            "description" : "주제 카드 code",
+            "enum" : [ "lesson", "day", "likes" ],
+            "pattern" : "^(lesson|day|likes)$"
+          },
+          "voice" : {
+            "type" : "string",
+            "description" : "음성",
+            "enum" : [ "female", "male" ],
+            "pattern" : "^(female|male)$"
+          }
+        },
+        "required" : [ "clientSessionId", "topic", "voice" ]
+      },
+      "TalkSessionCreatedResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "세션 id(종료·조회에 쓴다)"
+          },
+          "maxSeconds" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "이 세션의 시간 제한(초)",
+            "example" : 180
+          },
+          "realtime" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/TalkRealtime"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "모델 연결 정보. status가 created일 때만 있고 그 밖에는 null(새 clientSessionId로 다시 시작)"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "세션 상태. 새 세션은 created. 이미 끝난 세션의 clientSessionId를 다시 보내면 그 상태 그대로",
+            "enum" : [ "created", "ended", "expired", "failed" ]
+          }
+        },
+        "required" : [ "id", "maxSeconds", "realtime", "status" ]
+      },
+      "TalkTopic" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "enum" : [ "lesson", "day", "likes" ]
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "오늘 하루"
+          }
+        },
+        "required" : [ "code", "title" ]
       },
       "TeacherClassBook" : {
         "type" : "object",
