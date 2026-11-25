@@ -2,10 +2,11 @@
 """녹음된 교재 자료 폴더에서 회차별 manifest와 업로드용 음원 폴더를 만든다(ADR-27).
 
 사용법:
-    python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴더> --vocab <어휘책 all_vocab.tsv>
+    python -I -X utf8 scripts/content/build_manifest.py <자료 폴더> <출력 폴더> --book-words <새 어휘책 결과물 폴더>
         [--word-test <단어시험 문항 TSV> ...] [--only 코드,코드]
 
-- 자료 폴더: 레벨 폴더(1_…~5_…) 아래 회차 폴더(`NN회 · 제목`, `보충N회 · 제목`)가 있는 결과물 폴더
+- 자료 폴더: 레벨 폴더(1_…~5_…) 아래 회차 폴더(`NN회 · 제목`, `보충N회 · 제목`)가 있는 결과물 폴더. 지문과 회차 어휘를 읽는다
+- --book-words: 새 어휘책 판 단어 음원 결과물 폴더. 자료 폴더와 같은 {레벨}/{회차} 아래 `단어/단어 목록.txt`와 음원(이슈 #88)
 - 출력 폴더: 저장소 밖에 둔다. 교재 원문(manifest)과 음원은 저장소에 넣지 않는다
   - manifest/{회차 코드}.json  앱의 import 실행기가 읽는다
   - audio/{회차 코드}/…        S3 키 이름 그대로(하드 링크, 안 되면 복사)
@@ -29,10 +30,10 @@ from pathlib import Path
 
 VOICES = {"us_w": "미국 여자", "us_m": "미국 남자", "uk_w": "영국 여자", "uk_m": "영국 남자"}
 WORD_VOICE = "us_w"  # 단어·예문 음원은 미국 여자 하나(1차)
+BOOK_WORD_AUDIO = " · 영어 · 미국 여자.mp3"  # 새 어휘책 판 단어 음원 파일 이름 끝
 POS = {"n.": "n", "v.": "v", "adj.": "adj", "adv.": "adv", "prep.": "prep", "conj.": "conj", "구": "phr"}
-# 어휘책(all_vocab.tsv) 품사 한 글자. 숙어는 품사가 비어 있고 phr
+# 새 어휘책 판 품사 한 글자. 숙어는 품사가 비어 있고 phr. `명 · 동`처럼 여럿이면 첫 품사
 BOOK_POS = {"명": "n", "동": "v", "형": "adj", "부": "adv", "전": "prep", "접": "conj", "대": "pron", "감": "interj"}
-BOOK_LEVEL = {"Mint": "L1", "Green": "L2", "Blue": "L3", "Navy": "L4", "Black": "K"}
 NARRATOR = "내레이터"
 LIMITS = {"passage title": 120, "sentence": 800, "english": 50, "korean": 100,
           "example": 300, "example ko": 300, "speaker": 20}
@@ -109,7 +110,7 @@ def read_script(lesson_dir):
     return script, db_code(script["회차ID"])
 
 
-def build_lesson(lesson_dir, script, code, book_rows, out, gaps, link, word_tests=None):
+def build_lesson(lesson_dir, script, code, book_dir, out, gaps, link, word_tests=None):
     m = LESSON_DIR.match(lesson_dir.name)
     if not m:
         raise LessonError(f"회차 폴더 이름 규칙이 아니다: {lesson_dir.name}")
@@ -177,7 +178,8 @@ def build_lesson(lesson_dir, script, code, book_rows, out, gaps, link, word_test
     if [p["no"] for p in passages] != list(range(1, len(passages) + 1)):
         errors.append(f"{code}: 지문 번호가 1부터 이어지지 않는다")
 
-    words = merge_book_words(build_words(lesson_dir, script, code, errors, files), book_rows, code, errors)
+    words = merge_words(read_book_words(book_dir, code, errors), build_words(lesson_dir, script, code, errors),
+                        code, errors, files)
     tests = None if word_tests is None else build_word_tests(word_tests, code, errors)
     if errors:
         raise LessonError("\n  ".join(errors))
@@ -206,7 +208,8 @@ def manifest_path(out, code):
     return out / "manifest" / f"{code}.json"
 
 
-def build_words(lesson_dir, script, code, errors, files):
+def build_words(lesson_dir, script, code, errors):
+    """회차 어휘(옛 자료 폴더) → 단어 목록. 음원은 파일 경로만(키·번호는 merge_words가 매긴다)"""
     translations = {}
     for line in (lesson_dir / "단어" / "단어 목록.txt").read_text(encoding="utf-8-sig").splitlines():
         if re.match(r"^\d+ \| ", line):
@@ -217,7 +220,7 @@ def build_words(lesson_dir, script, code, errors, files):
     words = []
     for index, w in enumerate(script["어휘"], start=1):
         no = int(w["어휘ID"].rsplit("-V", 1)[1])
-        where = f"{code} 단어 {no}"
+        where = f"{code} 회차 어휘 {no}"
         if no != index:
             errors.append(f"{where}: 단어 번호가 1부터 이어지지 않는다")
         pos = POS.get(w["품사"])
@@ -235,27 +238,55 @@ def build_words(lesson_dir, script, code, errors, files):
         except LessonError as e:
             errors.append(str(e))
             continue
-        word_key = f"audio/{code}/{code}_w{no:02d}_{WORD_VOICE}.mp3"
-        example_key = f"audio/{code}/{code}_w{no:02d}_ex_{WORD_VOICE}.mp3"
-        files += [(word_file, word_key), (example_file, example_key)]
-        words.append({
-            "no": no, "english": w["단어·표현"], "pos": pos, "korean": w["뜻"],
-            "exampleEn": w["교재 예문"], "exampleKo": example_ko,
-            "track": {"fileKey": word_key, "durationMs": mp3_ms(word_file)},
-            "exampleTrack": {"fileKey": example_key, "durationMs": mp3_ms(example_file)},
-        })
+        words.append({"english": w["단어·표현"], "pos": pos, "korean": w["뜻"], "exampleEn": w["교재 예문"],
+                      "exampleKo": example_ko, "wordFile": word_file, "exampleFile": example_file})
     return words
 
 
-def read_book(path):
-    """어휘책 all_vocab.tsv → {DB 코드: [행]}. 강 번호가 회차 번호다(블랙 보충 S1~S4)"""
-    book = {}
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        for r in csv.DictReader(f, delimiter="\t"):
-            c = r["class"]
-            code = f"{BOOK_LEVEL[r['level']]}-B1-" + (c if c.startswith("S") else f"{int(c):02d}")
-            book.setdefault(code, []).append(r)
-    return book
+BOOK_ITEM = re.compile(r"^(?:(\d{2})|(\d{2})-\d+|숙어 (\d{2}))$")
+
+
+def read_book_words(word_dir, code, errors):
+    """새 어휘책 판 `단어 목록.txt`(책 번호 | 영어 | 품사 | 뜻 | 책 쪽 | 예문(책) | 관련어) → 책 단어 목록.
+    순서: 단어(NN) → 숙어(숙어 NN). 하위 표현(NN-k)은 예문이 없어 넣지 않는다(이슈 #88).
+    음원은 단어 음원 하나(미국 여자), 예문 음원·예문 해석 없음"""
+    if word_dir is None or not (word_dir / "단어 목록.txt").is_file():
+        raise LessonError(f"{code}: 새 어휘책 단어 목록이 없다")
+    names = [f.name for f in word_dir.iterdir()]
+    items = {"단어": [], "숙어": []}
+    for line in (word_dir / "단어 목록.txt").read_text(encoding="utf-8-sig").splitlines():
+        cols = [c.strip() for c in line.split("|")]
+        m = BOOK_ITEM.match(cols[0])
+        if not m or m.group(2):
+            continue  # 머리 줄·빈 줄·하위 표현
+        if len(cols) != 7:  # 칸 안에 |가 있으면 칸이 밀린다 — 건너뛰지 않고 알린다
+            errors.append(f"{code} 새 어휘책 {cols[0]}: 칸이 {len(cols)}개다(7개여야 한다)")
+            continue
+        kind = "단어" if m.group(1) else "숙어"
+        items[kind].append((cols[0], int(m.group(1) or m.group(3)), cols))
+    words = []
+    for kind in ("단어", "숙어"):
+        if [no for _, no, _ in items[kind]] != list(range(1, len(items[kind]) + 1)):
+            errors.append(f"{code} 새 어휘책 {kind}: 번호가 1부터 이어지지 않는다")
+        for label, _, (_, english, pos_text, korean, _, example, _) in items[kind]:
+            where = f"{code} 새 어휘책 {label}" if kind == "숙어" else f"{code} 새 어휘책 단어 {label}"
+            if kind == "숙어":
+                pos = "phr"
+            else:
+                pos = BOOK_POS.get(pos_text.split("·")[0].strip())
+                if pos is None:
+                    errors.append(f"{where}: 품사 '{pos_text}'를 모른다")
+            for what, value in (("english", english), ("korean", korean), ("example", example)):
+                if not value:
+                    errors.append(f"{where}: {what}이(가) 비었다")
+                check_len(errors, what, value, where)
+            found = [n for n in names if n.startswith(f"{label} ") and n.endswith(BOOK_WORD_AUDIO)]
+            if len(found) != 1:
+                errors.append(f"{where}: 음원 '{label} *{BOOK_WORD_AUDIO}' 파일이 {len(found)}개")
+                continue
+            words.append({"english": english, "source": "book", "pos": pos, "korean": korean, "exampleEn": example,
+                          "exampleKo": None, "wordFile": word_dir / found[0], "exampleFile": None})
+    return words
 
 
 WORD_TEST_COLUMNS = ["lesson_code", "section", "no", "book_page", "prompt", "answer", "hint"]
@@ -321,43 +352,32 @@ def norm_term(s):
     return " ".join(s.lower().replace("~", "").split())
 
 
-def merge_book_words(lesson_words, book_rows, code, errors):
-    """단어 = 어휘책 그 강의 단어 → 숙어(교재 순서) + 어휘책에 없는 회차 어휘(ADR-27 결정 6).
-    두 쪽에 다 있는 단어는 회차 어휘(뜻·새 예문·예문 해석·음원이 서로 맞음). 어휘책에만 있는 단어는 음원·예문 해석 없음.
-    no는 이 순서로 1부터 다시 매긴다. 음원 키의 번호(w{nn})는 회차 어휘 번호 그대로.
-    source(ADR 0029): 어휘책 단어·숙어(회차 어휘와 겹친 것 포함) book, 어휘책에 없는 회차 어휘 extra"""
-    if not book_rows:
-        errors.append(f"{code}: 어휘책에 이 회차가 없다")
-        return lesson_words
-    unused = {}
-    for w in lesson_words:
-        unused.setdefault(norm_term(w["english"]), []).append(w)
-    ordered = sorted((r for r in book_rows if r["type"] == "word"), key=lambda r: int(r["no"])) \
-        + sorted((r for r in book_rows if r["type"] == "idiom"), key=lambda r: int(r["no"]))
-    merged = []
-    for r in ordered:
-        same = unused.get(norm_term(r["term"]))
-        if same:
-            merged.append({**same.pop(0), "source": "book"})
-            continue
-        where = f"{code} 어휘책 {r['type']} {r['no']}"
-        pos = "phr" if r["type"] == "idiom" else BOOK_POS.get(r["pos"])
-        if pos is None:
-            errors.append(f"{where}: 품사 '{r['pos']}'를 모른다")
-        for what, value in (("english", r["term"]), ("korean", r["meaning"]), ("example", r["example"])):
-            if not value.strip():
-                errors.append(f"{where}: {what}이(가) 비었다")
-            check_len(errors, what, value, where)
-        merged.append({"english": r["term"].strip(), "source": "book", "pos": pos, "korean": r["meaning"].strip(),
-                       "exampleEn": r["example"].strip(), "exampleKo": None, "track": None, "exampleTrack": None})
-    merged += [{**w, "source": "extra"}
-               for w in lesson_words if any(w is x for x in unused.get(norm_term(w["english"]), []))]
+def merge_words(book_words, lesson_words, code, errors, files):
+    """단어 = 새 어휘책 단어 → 숙어 + 새 판에 없는 회차 어휘(ADR 0027 결정 6, 이슈 #88).
+    두 쪽에 다 있으면 새 판 내용만 쓴다(화면 = 책). no는 1부터, 음원 키 번호(w{nn})도 no와 같다
+    (책 단어와 회차 어휘가 모두 음원을 가져 회차 어휘 번호로는 겹친다). files에 (원본, 키)를 더한다.
+    source(ADR 0029): 새 어휘책 단어·숙어 book, 새 판에 없는 회차 어휘 extra"""
+    in_book = {norm_term(w["english"]) for w in book_words}
+    merged = list(book_words) + [{**w, "source": "extra"} for w in lesson_words
+                                 if norm_term(w["english"]) not in in_book]
     if len(merged) > 127:
         errors.append(f"{code}: 단어 {len(merged)}개 > 127(word.sort_order TINYINT)")
-    # 칸 순서: no, english, source, 나머지(manifest를 눈으로 볼 때 출처가 단어 옆에)
-    return [{"no": i, "english": w["english"], "source": w["source"],
-             **{k: v for k, v in w.items() if k not in ("no", "english", "source")}}
-            for i, w in enumerate(merged, start=1)]
+    words = []
+    for no, w in enumerate(merged, start=1):
+        track = example_track = None
+        if w["wordFile"] is not None:
+            key = f"audio/{code}/{code}_w{no:02d}_{WORD_VOICE}.mp3"
+            files.append((w["wordFile"], key))
+            track = {"fileKey": key, "durationMs": mp3_ms(w["wordFile"])}
+        if w["exampleFile"] is not None:
+            key = f"audio/{code}/{code}_w{no:02d}_ex_{WORD_VOICE}.mp3"
+            files.append((w["exampleFile"], key))
+            example_track = {"fileKey": key, "durationMs": mp3_ms(w["exampleFile"])}
+        # 칸 순서: no, english, source, 나머지(manifest를 눈으로 볼 때 출처가 단어 옆에)
+        words.append({"no": no, "english": w["english"], "source": w["source"], "pos": w["pos"],
+                      "korean": w["korean"], "exampleEn": w["exampleEn"], "exampleKo": w["exampleKo"],
+                      "track": track, "exampleTrack": example_track})
+    return words
 
 
 def link_or_copy(src, dst):
@@ -371,7 +391,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("source", type=Path)
     parser.add_argument("out", type=Path)
-    parser.add_argument("--vocab", type=Path, required=True, help="어휘책 all_vocab.tsv(단어·숙어, ADR-27 결정 6)")
+    parser.add_argument("--book-words", type=Path, required=True,
+                        help="새 어휘책 판 단어 음원 결과물 폴더({레벨}/{회차}/단어/단어 목록.txt, 이슈 #88)")
     parser.add_argument("--word-test", type=Path, action="append", default=[],
                         help="단어시험 문항 TSV(여러 번 줄 수 있음). 행이 있는 회차만 wordTests를 넣고, 그 회차의 전체 목록이 된다")
     parser.add_argument("--only", default="", help="회차 코드(DB 코드) 쉼표 목록")
@@ -382,7 +403,6 @@ def main():
     # 레벨 폴더 아래 폴더는 모두 회차 폴더여야 한다. 이름 규칙이 다르면 조용히 건너뛰지 않고 실패로 보고한다
     lessons = sorted(d for level in args.source.iterdir() if level.is_dir() and level.name[:1].isdigit()
                      for d in level.iterdir() if d.is_dir())
-    book = read_book(args.vocab)
     try:
         word_tests = read_word_tests(args.word_test)
     except ValueError as e:  # 파일이 깨졌으면 회차별로 모을 이유가 없다
@@ -400,8 +420,9 @@ def main():
             if only and code not in only:
                 continue
             seen.add(code)
-            p, f, s = build_lesson(lesson_dir, script, code, book.get(code), args.out, gaps, link_or_copy,
-                                   word_tests.get(code))
+            book_dir = args.book_words / lesson_dir.parent.name / lesson_dir.name / "단어"
+            p, f, s = build_lesson(lesson_dir, script, code, book_dir if book_dir.is_dir() else None, args.out,
+                                   gaps, link_or_copy, word_tests.get(code))
             done, passages, files, size = done + 1, passages + p, files + f, size + s
         except Exception as e:  # 회차 하나의 오류가 다른 회차를 막지 않는다
             if only and code is None:
