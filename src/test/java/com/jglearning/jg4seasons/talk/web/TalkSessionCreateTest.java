@@ -117,7 +117,7 @@ class TalkSessionCreateTest {
         assertThat(row.get("voice")).isEqualTo("female");
         assertThat(row.get("status")).isEqualTo("created");
         assertThat(row.get("model")).isEqualTo("gpt-realtime-2.1-mini");
-        assertThat(row.get("prompt_version")).isEqualTo("talk/v1");
+        assertThat(row.get("prompt_version")).isEqualTo("talk/v2");
         assertThat(row.get("started_at")).isNull();
     }
 
