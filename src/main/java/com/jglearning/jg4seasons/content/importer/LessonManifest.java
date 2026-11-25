@@ -213,9 +213,9 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
             if (exampleKo != null) {
                 text(where, "exampleKo", exampleKo, EXAMPLE_MAX);
             }
-            // 추가 어휘는 녹음 자료의 회차 어휘에서만 온다 — 음원·예문 해석이 늘 있다(ADR 0029)
-            if ("extra".equals(source) && (track == null || exampleKo == null)) {
-                throw new IllegalArgumentException(where + ": 추가 어휘(extra)인데 음원이나 예문 해석이 없다");
+            // 추가 어휘는 녹음 자료의 회차 어휘에서만 온다 — 단어·예문 음원과 예문 해석이 늘 있다(ADR 0029)
+            if ("extra".equals(source) && (track == null || exampleTrack == null || exampleKo == null)) {
+                throw new IllegalArgumentException(where + ": 추가 어휘(extra)인데 단어·예문 음원이나 예문 해석이 없다");
             }
             // 예문 음원은 단어 음원이 있을 때만. 단어 음원만 있는 것은 허용(새 어휘책 판은 단어만 녹음, 이슈 #88)
             if (exampleTrack != null && track == null) {
