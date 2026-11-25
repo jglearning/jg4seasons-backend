@@ -32,8 +32,8 @@ public record TalkSessionEndRequest(
         List<@NotNull @Valid Turn> turns,
 
         @Schema(
-                type = "object",
-                nullable = true,
+                implementation = java.util.Map.class,
+                types = {"object", "null"},
                 description = "모델이 이벤트로 알려준 사용량을 합한 값 그대로(모양은 서비스에 따름). JSON 객체만, 16KB까지. 없으면 생략")
         JsonNode usage) {
 
