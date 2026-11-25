@@ -103,7 +103,9 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
             }
             String at = where + " 단어 " + word.no();
             expectKey(at, word.track().fileKey(), wordKey(code, audioNo, false));
-            expectKey(at, word.exampleTrack().fileKey(), wordKey(code, audioNo, true));
+            if (word.exampleTrack() != null) {
+                expectKey(at, word.exampleTrack().fileKey(), wordKey(code, audioNo, true));
+            }
             if (!audioNos.add(audioNo)) {
                 throw new IllegalArgumentException(at + ": 음원 번호 " + audioNo + "가 다른 단어와 겹친다");
             }
@@ -215,12 +217,15 @@ public record LessonManifest(String code, List<Passage> passages, List<Word> wor
             if ("extra".equals(source) && (track == null || exampleKo == null)) {
                 throw new IllegalArgumentException(where + ": 추가 어휘(extra)인데 음원이나 예문 해석이 없다");
             }
-            if ((track == null) != (exampleTrack == null)) {
-                throw new IllegalArgumentException(where + ": 단어 음원과 예문 음원은 함께 있거나 함께 없어야 한다");
+            // 예문 음원은 단어 음원이 있을 때만. 단어 음원만 있는 것은 허용(새 어휘책 판은 단어만 녹음, 이슈 #88)
+            if (exampleTrack != null && track == null) {
+                throw new IllegalArgumentException(where + ": 단어 음원 없이 예문 음원만 있다");
             }
             if (track != null) {
                 positive(where, track.durationMs());
-                positive(where, exampleTrack.durationMs());
+                if (exampleTrack != null) {
+                    positive(where, exampleTrack.durationMs());
+                }
                 if (track.fileKey() == null
                         || !WORD_AUDIO_NO.matcher(track.fileKey()).find()) {
                     throw new IllegalArgumentException(where + ": 단어 음원 키 형식이 다르다: " + track.fileKey());
