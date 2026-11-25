@@ -156,6 +156,9 @@ class TalkSessionEndTest {
         assertThat(second).isEqualTo(first);
         assertThat(summarizer.calls()).isEqualTo(1);
         assertThat(turns(id)).hasSize(4);
+        // 응답에 없는 칸도 두 번째 요청(left)으로 덮이지 않는다
+        assertThat(jdbc.queryForObject("select end_reason from talk_session where id = ?", String.class, id))
+                .isEqualTo("user");
     }
 
     @Test
@@ -333,6 +336,36 @@ class TalkSessionEndTest {
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.summary").isNull();
         assertThat(output.getAll()).doesNotContain("I goed to school secret");
+    }
+
+    @Test
+    void usage를_생략하거나_null로_보내면_NULL로_저장() {
+        long omitted = newSession();
+        long explicitNull = newSession();
+
+        end(student(), omitted, body(60, "user", TURNS, null));
+        end(student(), explicitNull, body(60, "user", TURNS, "null"));
+
+        assertThat(jdbc.queryForObject("select usage_json from talk_session where id = ?", String.class, omitted))
+                .isNull();
+        assertThat(jdbc.queryForObject("select usage_json from talk_session where id = ?", String.class, explicitNull))
+                .isNull();
+    }
+
+    @Test
+    void 정지된_학원은_401_교사는_403() {
+        long id = newSession();
+        long teacher = data.staff(academyId, "교사", "teacher");
+        Cookie teacherCookie = cookies.access(teacher, com.jglearning.jg4seasons.auth.UserRole.TEACHER, academyId);
+
+        assertThat(end(teacherCookie, id, body(60, "user", TURNS, null))).hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(get(teacherCookie, id)).hasStatus(HttpStatus.FORBIDDEN);
+
+        jdbc.update("update academy set status = 'suspended' where id = ?", academyId);
+        entities.clear();
+        assertThat(end(student(), id, body(60, "user", TURNS, null))).hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(get(student(), id)).hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(turns(id)).isEmpty();
     }
 
     @Test

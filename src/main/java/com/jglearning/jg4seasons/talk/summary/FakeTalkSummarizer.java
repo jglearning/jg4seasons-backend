@@ -6,6 +6,8 @@ import com.jglearning.jg4seasons.talk.TalkTranscript.Turn;
 import com.jglearning.jg4seasons.talk.summary.TalkSummary.Correction;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -18,6 +20,7 @@ public class FakeTalkSummarizer implements TalkSummarizer {
 
     private final AtomicBoolean failNext = new AtomicBoolean();
     private final AtomicBoolean throwNext = new AtomicBoolean();
+    private final AtomicReference<CountDownLatch[]> blockNext = new AtomicReference<>();
     private final AtomicInteger calls = new AtomicInteger();
     private final AtomicReference<List<Turn>> lastTurns = new AtomicReference<>();
 
@@ -25,6 +28,15 @@ public class FakeTalkSummarizer implements TalkSummarizer {
     public Optional<TalkSummary> summarize(TalkLevel level, List<Turn> turns) {
         calls.incrementAndGet();
         lastTurns.set(turns);
+        CountDownLatch[] block = blockNext.getAndSet(null);
+        if (block != null) {
+            block[0].countDown();
+            try {
+                block[1].await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
         if (throwNext.getAndSet(false)) {
             // 계약(예외 없음)을 어기는 구현·요약 뒤 저장 실패를 흉내 — 종료 응답이 500이 되지 않는지(#77 리뷰 2)
             throw new IllegalStateException("가짜 요약기 예외");
@@ -38,6 +50,11 @@ public class FakeTalkSummarizer implements TalkSummarizer {
                 .map(turn -> List.of(new Correction(turn.text(), turn.text() + " (better)", "이렇게 말해 봐요")))
                 .orElse(List.of());
         return Optional.of(new TalkSummary(List.of("play soccer"), corrections));
+    }
+
+    /** 다음 호출이 들어오면 entered를 내리고 release까지 기다린다(요약하는 동안의 DB 상태를 보는 테스트용) */
+    public void blockNext(CountDownLatch entered, CountDownLatch release) {
+        blockNext.set(new CountDownLatch[] {entered, release});
     }
 
     /** 다음 한 번 예외를 던진다(계약 위반 흉내) */
@@ -60,6 +77,7 @@ public class FakeTalkSummarizer implements TalkSummarizer {
     public void reset() {
         failNext.set(false);
         throwNext.set(false);
+        blockNext.set(null);
         calls.set(0);
         lastTurns.set(null);
     }
