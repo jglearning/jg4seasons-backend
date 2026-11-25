@@ -244,26 +244,43 @@ def build_words(lesson_dir, script, code, errors):
 
 
 BOOK_ITEM = re.compile(r"^(?:(\d{2})|(\d{2})-\d+|숙어 (\d{2}))$")
+BOOK_HEADER = ["책 번호", "영어", "품사", "뜻", "책 쪽", "예문(책)", "관련어"]
 
 
 def read_book_words(word_dir, code, errors):
     """새 어휘책 판 `단어 목록.txt`(책 번호 | 영어 | 품사 | 뜻 | 책 쪽 | 예문(책) | 관련어) → 책 단어 목록.
     순서: 단어(NN) → 숙어(숙어 NN). 하위 표현(NN-k)은 예문이 없어 넣지 않는다(이슈 #88).
-    음원은 단어 음원 하나(미국 여자), 예문 음원·예문 해석 없음"""
-    if word_dir is None or not (word_dir / "단어 목록.txt").is_file():
-        raise LessonError(f"{code}: 새 어휘책 단어 목록이 없다")
+    음원은 단어 음원 하나(미국 여자), 예문 음원·예문 해석 없음.
+    |가 없는 줄(제목·빈 줄)만 건너뛴다. 머리 줄이 다르거나 없고, 번호 형식을 모르는 줄이 있거나, 책 단어가 0개면 오류"""
+    if not (word_dir / "단어 목록.txt").is_file():
+        raise LessonError(f"{code}: 새 어휘책 단어 목록이 없다: {word_dir / '단어 목록.txt'}")
     names = [f.name for f in word_dir.iterdir()]
     items = {"단어": [], "숙어": []}
+    header = False
     for line in (word_dir / "단어 목록.txt").read_text(encoding="utf-8-sig").splitlines():
+        if "|" not in line:
+            continue  # 제목·빈 줄
         cols = [c.strip() for c in line.split("|")]
+        if cols[0] == BOOK_HEADER[0]:
+            if cols != BOOK_HEADER:
+                errors.append(f"{code} 새 어휘책: 머리 줄이 {BOOK_HEADER}가 아니다: {cols}")
+            header = True
+            continue
         m = BOOK_ITEM.match(cols[0])
-        if not m or m.group(2):
-            continue  # 머리 줄·빈 줄·하위 표현
+        if not m:
+            errors.append(f"{code} 새 어휘책: 번호 칸 '{cols[0]}'를 모른다(NN, NN-k, 숙어 NN)")
+            continue
+        if m.group(2):
+            continue  # 하위 표현
         if len(cols) != 7:  # 칸 안에 |가 있으면 칸이 밀린다 — 건너뛰지 않고 알린다
             errors.append(f"{code} 새 어휘책 {cols[0]}: 칸이 {len(cols)}개다(7개여야 한다)")
             continue
         kind = "단어" if m.group(1) else "숙어"
         items[kind].append((cols[0], int(m.group(1) or m.group(3)), cols))
+    if not header:
+        errors.append(f"{code} 새 어휘책: 머리 줄({' | '.join(BOOK_HEADER)})이 없다")
+    if not items["단어"] and not items["숙어"]:
+        errors.append(f"{code} 새 어휘책: 책 단어가 0개다")
     words = []
     for kind in ("단어", "숙어"):
         if [no for _, no, _ in items[kind]] != list(range(1, len(items[kind]) + 1)):
@@ -421,8 +438,8 @@ def main():
                 continue
             seen.add(code)
             book_dir = args.book_words / lesson_dir.parent.name / lesson_dir.name / "단어"
-            p, f, s = build_lesson(lesson_dir, script, code, book_dir if book_dir.is_dir() else None, args.out,
-                                   gaps, link_or_copy, word_tests.get(code))
+            p, f, s = build_lesson(lesson_dir, script, code, book_dir, args.out, gaps, link_or_copy,
+                                   word_tests.get(code))
             done, passages, files, size = done + 1, passages + p, files + f, size + s
         except Exception as e:  # 회차 하나의 오류가 다른 회차를 막지 않는다
             if only and code is None:

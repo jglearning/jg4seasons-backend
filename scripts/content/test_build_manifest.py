@@ -102,9 +102,41 @@ class BookWordsTest(unittest.TestCase):
         self.read()
         self.assertTrue(any("01: 칸이 8개" in e for e in self.errors), self.errors)
 
-    def test_새_폴더에_회차가_없으면_실패(self):
-        with self.assertRaisesRegex(bm.LessonError, "새 어휘책 단어 목록이 없다"):
-            bm.read_book_words(None, "X", self.errors)
+    def write_list(self, text):
+        self.book_dir.mkdir(parents=True, exist_ok=True)
+        (self.book_dir / "단어 목록.txt").write_text(text, encoding="utf-8-sig")
+        mp3(self.book_dir / "01 aloud · 영어 · 미국 여자.mp3")
+
+    def test_번호_형식을_모르는_줄은_건너뛰지_않고_오류(self):
+        # 리뷰 2: 한 자리 번호·공백 없는 숙어 번호가 조용히 빠지면 단어가 사라진다
+        self.write_list(BOOK_HEADER + "01 | aloud | 부 | 소리 내어 | 32 | Read it aloud. | \n"
+                        + "2 | remain | 동 | 남다 | 32 | Few leaves remain. | \n"
+                        + "숙어01 | far from |  | 결코 ~이 아닌 | 32 | It is far from done. | \n")
+        self.read()
+        self.assertTrue(any("번호 칸 '2'" in e for e in self.errors), self.errors)
+        self.assertTrue(any("번호 칸 '숙어01'" in e for e in self.errors), self.errors)
+
+    def test_책_단어가_0개면_오류(self):
+        self.write_list(BOOK_HEADER)
+        self.read()
+        self.assertTrue(any("책 단어가 0개" in e for e in self.errors), self.errors)
+
+    def test_머리_줄_칸_순서가_다르면_오류(self):
+        # 리뷰 4: 칸 순서가 바뀐 판이면 쪽 번호가 예문 칸에 들어간다
+        self.write_list("제목\n\n책 번호 | 영어 | 품사 | 뜻 | 예문(책) | 책 쪽 | 관련어\n"
+                        "01 | aloud | 부 | 소리 내어 | Read it aloud. | 32 | \n")
+        self.read()
+        self.assertTrue(any("머리 줄" in e for e in self.errors), self.errors)
+
+    def test_머리_줄이_없으면_오류(self):
+        self.write_list("01 | aloud | 부 | 소리 내어 | 32 | Read it aloud. | \n")
+        self.read()
+        self.assertTrue(any("머리 줄" in e for e in self.errors), self.errors)
+
+    def test_새_폴더에_회차가_없으면_찾던_경로와_함께_실패(self):
+        missing = self.root / "없는 회차" / "단어"
+        with self.assertRaisesRegex(bm.LessonError, "새 어휘책 단어 목록이 없다.*없는 회차"):
+            bm.read_book_words(missing, "X", self.errors)
 
 
 class MergeWordsTest(unittest.TestCase):
