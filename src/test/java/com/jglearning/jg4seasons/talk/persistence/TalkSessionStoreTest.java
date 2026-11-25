@@ -4,12 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jglearning.jg4seasons.IntegrationTest;
 import com.jglearning.jg4seasons.TestData;
+import com.jglearning.jg4seasons.talk.TalkEndReason;
+import com.jglearning.jg4seasons.talk.TalkRole;
 import com.jglearning.jg4seasons.talk.TalkSessionStatus;
 import com.jglearning.jg4seasons.talk.TalkTopic;
+import com.jglearning.jg4seasons.talk.TalkTranscript;
+import com.jglearning.jg4seasons.talk.TalkTranscript.RawTurn;
+import com.jglearning.jg4seasons.talk.TalkTranscript.Trimmed;
 import com.jglearning.jg4seasons.talk.TalkVoice;
 import com.jglearning.jg4seasons.talk.persistence.TalkSessionStore.NewTalkSession;
 import com.jglearning.jg4seasons.talk.persistence.TalkSessionStore.TalkSessionRow;
+import com.jglearning.jg4seasons.talk.persistence.TalkSessionStore.TalkSessionView;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +70,59 @@ class TalkSessionStoreTest {
         store.insert(session(clientId, lessonId), NOW);
 
         assertThat(store.findByClientId(clientId).orElseThrow().lessonId()).isEqualTo(lessonId);
+    }
+
+    @Test
+    void 본인_세션만_잠금_읽기로_가져온다() {
+        String clientId = UUID.randomUUID().toString();
+        long id = store.insert(session(clientId, null), NOW);
+        long other = data.student(data.academy("다른 학원"), "다른 학생");
+
+        assertThat(store.lockOwned(id, studentId)).isPresent();
+        assertThat(store.lockOwned(id, other)).isEmpty();
+        assertThat(store.lockOwned(-1, studentId)).isEmpty();
+    }
+
+    @Test
+    void 종료를_저장하면_칸과_글자_기록이_남는다() {
+        long id = store.insert(session(UUID.randomUUID().toString(), null), NOW);
+        Trimmed trimmed = TalkTranscript.trim(
+                List.of(new RawTurn(TalkRole.CHARACTER, "Hi!"), new RawTurn(TalkRole.STUDENT, "Hello.")), 168, 180);
+
+        store.markEnded(id, trimmed, TalkEndReason.TIMEOUT, "{\"total_tokens\": 253}", NOW.plusSeconds(170));
+        store.insertTurns(id, trimmed.turns());
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "select status, duration_sec, student_turn_count, end_reason, usage_json, ended_at from talk_session"
+                        + " where id = ?",
+                id);
+        assertThat(row.get("status")).isEqualTo("ended");
+        assertThat(((Number) row.get("duration_sec")).intValue()).isEqualTo(168);
+        assertThat(((Number) row.get("student_turn_count")).intValue()).isEqualTo(1);
+        assertThat(row.get("end_reason")).isEqualTo("timeout");
+        assertThat(String.valueOf(row.get("usage_json"))).contains("253");
+        assertThat(row.get("ended_at")).isNotNull();
+        assertThat(jdbc.queryForList(
+                        "select concat(seq, ':', role, ':', text) from talk_turn where session_id = ? order by seq",
+                        String.class,
+                        id))
+                .containsExactly("1:character:Hi!", "2:student:Hello.");
+
+        TalkSessionView view = store.findOwned(id, studentId).orElseThrow();
+        assertThat(view.status()).isEqualTo(TalkSessionStatus.ENDED);
+        assertThat(view.durationSec()).isEqualTo(168);
+        assertThat(view.studentTurnCount()).isEqualTo(1);
+        assertThat(view.summaryJson()).isNull();
+    }
+
+    @Test
+    void 요약을_저장하고_본인만_조회한다() {
+        long id = store.insert(session(UUID.randomUUID().toString(), null), NOW);
+        store.saveSummary(id, "{\"goodExpressions\": [\"play soccer\"], \"corrections\": []}");
+
+        assertThat(store.findOwned(id, studentId).orElseThrow().summaryJson()).contains("play soccer");
+        assertThat(store.findOwned(id, studentId + 100_000).isEmpty()).isTrue();
+        assertThat(store.findOwned(id, studentId).orElseThrow().durationSec()).isNull();
     }
 
     private NewTalkSession session(String clientId, Long lessonId) {

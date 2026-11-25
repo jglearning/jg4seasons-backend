@@ -87,6 +87,23 @@ class TalkSchemaTest {
         violates(() -> turn(id, 2, "student", "again"), "uk_talk_turn_session_seq");
     }
 
+    @Test
+    void 종료_이유는_네_값만_받는다() {
+        // V16(#77): user · timeout · left · disconnected, 비우면 NULL
+        long id = session(UUID.randomUUID().toString(), "day", "female", "created");
+        for (String reason : new String[] {"user", "timeout", "left", "disconnected"}) {
+            jdbc.update("update talk_session set end_reason = ? where id = ?", reason, id);
+        }
+        jdbc.update("update talk_session set end_reason = null where id = ?", id);
+
+        violates(
+                () -> jdbc.update("update talk_session set end_reason = 'quit' where id = ?", id),
+                "ck_talk_session_end_reason");
+        violates(
+                () -> jdbc.update("update talk_session set end_reason = 'User' where id = ?", id),
+                "ck_talk_session_end_reason");
+    }
+
     private long session(String clientId, String topic, String voice, String status) {
         jdbc.update(
                 "insert into talk_session (client_session_id, student_id, lesson_id, level_code, topic, voice, status,"

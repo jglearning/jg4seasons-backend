@@ -1,13 +1,17 @@
 package com.jglearning.jg4seasons.talk.persistence;
 
+import com.jglearning.jg4seasons.talk.TalkEndReason;
 import com.jglearning.jg4seasons.talk.TalkSessionStatus;
 import com.jglearning.jg4seasons.talk.TalkTopic;
+import com.jglearning.jg4seasons.talk.TalkTranscript.Trimmed;
+import com.jglearning.jg4seasons.talk.TalkTranscript.Turn;
 import com.jglearning.jg4seasons.talk.TalkVoice;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -67,6 +71,12 @@ public class TalkSessionStore {
         }
     }
 
+    /**
+     * 종료·조회 응답(계약 D-3·D-4)의 재료. 종료 전이면 durationSec·studentTurnCount null, 요약이 없으면(전·실패·요약 중) summaryJson null
+     */
+    public record TalkSessionView(
+            long id, TalkSessionStatus status, Integer durationSec, Integer studentTurnCount, String summaryJson) {}
+
     private static final String COLUMNS =
             "id, client_session_id, student_id, lesson_id, level_code, topic, voice, status, max_seconds, model,"
                     + " created_at";
@@ -100,6 +110,76 @@ public class TalkSessionStore {
                 keys,
                 new String[] {"id"});
         return Objects.requireNonNull(keys.getKey()).longValue();
+    }
+
+    /**
+     * 본인 세션 잠금 읽기(종료 — 같은 세션 종료 2건이 한 번만 저장되게). 부르는 쪽 트랜잭션 안에서. 남의 것·없는 것 모두 empty(학원 칸이 없어 학생 id 비교가 학원 경계를
+     * 겸한다)
+     */
+    public Optional<TalkSessionRow> lockOwned(long id, long studentId) {
+        return jdbc
+                .query(
+                        "select " + COLUMNS + " from talk_session where id = :id and student_id = :student for update",
+                        Map.of("id", id, "student", studentId),
+                        TalkSessionStore::row)
+                .stream()
+                .findFirst();
+    }
+
+    /** 종료 기록. usageJson은 JSON 객체 문자열 또는 null */
+    public void markEnded(long id, Trimmed trimmed, TalkEndReason reason, String usageJson, Instant now) {
+        LocalDateTime at = utc(now);
+        jdbc.update(
+                "update talk_session set status = :status, duration_sec = :duration, student_turn_count = :students,"
+                        + " end_reason = :reason, usage_json = :usage, ended_at = :at, updated_at = :at where id = :id",
+                new MapSqlParameterSource()
+                        .addValue("status", TalkSessionStatus.ENDED.code())
+                        .addValue("duration", trimmed.durationSec())
+                        .addValue("students", trimmed.studentTurnCount())
+                        .addValue("reason", reason.code())
+                        .addValue("usage", usageJson)
+                        .addValue("at", at)
+                        .addValue("id", id));
+    }
+
+    /** 글자 기록(이미 자른 줄). 음성은 저장하지 않는다 */
+    public void insertTurns(long sessionId, List<Turn> turns) {
+        if (turns.isEmpty()) {
+            return;
+        }
+        MapSqlParameterSource[] rows = turns.stream()
+                .map(turn -> new MapSqlParameterSource()
+                        .addValue("session", sessionId)
+                        .addValue("seq", turn.seq())
+                        .addValue("role", turn.role().code())
+                        .addValue("text", turn.text()))
+                .toArray(MapSqlParameterSource[]::new);
+        jdbc.batchUpdate(
+                "insert into talk_turn (session_id, seq, role, text) values (:session, :seq, :role, :text)", rows);
+    }
+
+    /** 요약(JSON 문자열) */
+    public void saveSummary(long id, String summaryJson) {
+        jdbc.update(
+                "update talk_session set summary_json = :summary where id = :id",
+                Map.of("summary", summaryJson, "id", id));
+    }
+
+    /** 본인 세션 조회(D-4). 남의 것·없는 것 모두 empty */
+    public Optional<TalkSessionView> findOwned(long id, long studentId) {
+        return jdbc
+                .query(
+                        "select id, status, duration_sec, student_turn_count, summary_json from talk_session"
+                                + " where id = :id and student_id = :student",
+                        Map.of("id", id, "student", studentId),
+                        (rs, rowNum) -> new TalkSessionView(
+                                rs.getLong("id"),
+                                enumOf(TalkSessionStatus.ofCode(rs.getString("status")), "status", rs),
+                                rs.getObject("duration_sec", Integer.class),
+                                rs.getObject("student_turn_count", Integer.class),
+                                rs.getString("summary_json")))
+                .stream()
+                .findFirst();
     }
 
     public Optional<TalkSessionRow> findByClientId(String clientId) {
