@@ -35,9 +35,9 @@ class TalkLevelTest {
         assertThat(TalkTopic.values())
                 .extracting(TalkTopic::code, TalkTopic::title)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("lesson", "오늘 배운 단어로 이야기하기"),
+                        org.assertj.core.groups.Tuple.tuple("lesson", "오늘 배운 단어로"),
                         org.assertj.core.groups.Tuple.tuple("day", "오늘 하루"),
-                        org.assertj.core.groups.Tuple.tuple("likes", "내가 좋아하는 것"));
+                        org.assertj.core.groups.Tuple.tuple("likes", "좋아하는 것"));
         assertThat(TalkTopic.ofCode("day")).contains(TalkTopic.DAY);
         assertThat(TalkTopic.ofCode("Day")).isEmpty();
     }

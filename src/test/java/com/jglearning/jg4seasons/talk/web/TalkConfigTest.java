@@ -91,9 +91,9 @@ class TalkConfigTest {
                 .bodyJson()
                 .extractingPath("$.topics")
                 .isEqualTo(List.of(
-                        Map.of("code", "lesson", "title", "오늘 배운 단어로 이야기하기"),
+                        Map.of("code", "lesson", "title", "오늘 배운 단어로"),
                         Map.of("code", "day", "title", "오늘 하루"),
-                        Map.of("code", "likes", "title", "내가 좋아하는 것")));
+                        Map.of("code", "likes", "title", "좋아하는 것")));
         // 숙어(띄어쓰기)도 그대로, 교재 순서. 다음 회차 단어는 없다
         assertThat(result)
                 .bodyJson()
