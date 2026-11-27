@@ -58,6 +58,8 @@ jg4seasons:
     jwt-secret: ${JG4SEASONS_JWT_SECRET:}
     # 운영 프록시가 클라이언트 IP를 넣는 헤더. 비우면 연결 주소만 믿는다
     client-ip-header: ${JG4SEASONS_CLIENT_IP_HEADER:}
+    # 개인 코드 (반, IP) 실패 한도. 교실 하나가 IP 하나라 한 반이 같이 센다. 한꺼번에 입장하는 행사 때만 늘리고 되돌린다
+    personal-code-max-failures: ${JG4SEASONS_PERSONAL_CODE_MAX_FAILURES:5}
   # 캐릭터 프리토킹. 임시 키 발급 기본 꺼짐(none) — 서버는 뜨고 세션 생성만 503. 운영은 openai + 키(Parameter Store). openai인데 키가 비면 서버가 뜨지 않는다
   talk:
     max-seconds: ${JG4SEASONS_TALK_MAX_SECONDS:180}

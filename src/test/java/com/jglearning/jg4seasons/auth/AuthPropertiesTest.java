@@ -24,7 +24,27 @@ class AuthPropertiesTest {
                     assertThat(properties.cookieSecure()).isTrue();
                     assertThat(properties.clientIpHeader()).isNull();
                     assertThat(properties.refreshReuseGrace()).isEqualTo(Duration.ofSeconds(10));
+                    assertThat(properties.personalCodeMaxFailures()).isEqualTo(5);
                 });
+    }
+
+    @Test
+    void 개인_코드_실패_한도를_설정으로_바꾼다() {
+        runner.withPropertyValues(
+                        "jg4seasons.auth.personal-code-pepper=" + PEPPER,
+                        "jg4seasons.auth.jwt-secret=" + JWT_SECRET,
+                        "jg4seasons.auth.personal-code-max-failures=30")
+                .run(context -> assertThat(context.getBean(AuthProperties.class).personalCodeMaxFailures())
+                        .isEqualTo(30));
+    }
+
+    @Test
+    void 개인_코드_실패_한도가_1_미만이면_기동하지_않는다() {
+        runner.withPropertyValues(
+                        "jg4seasons.auth.personal-code-pepper=" + PEPPER,
+                        "jg4seasons.auth.jwt-secret=" + JWT_SECRET,
+                        "jg4seasons.auth.personal-code-max-failures=0")
+                .run(context -> assertThat(context).hasFailed());
     }
 
     @Test
