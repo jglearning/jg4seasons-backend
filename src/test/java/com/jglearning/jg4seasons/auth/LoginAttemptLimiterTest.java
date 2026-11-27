@@ -38,6 +38,40 @@ class LoginAttemptLimiterTest {
     }
 
     @Test
+    void 실패_한도를_늘리면_그_횟수에서_잠근다() {
+        LoginAttemptLimiter loose = new LoginAttemptLimiter(clock, 30);
+        for (int i = 0; i < 29; i++) {
+            failOn(loose, 1, "ip");
+        }
+        assertThat(loose.lockedUntil(1, "ip")).as("29번은 안 잠김").isEmpty();
+
+        failOn(loose, 1, "ip");
+
+        assertThat(loose.lockedUntil(1, "ip")).contains(START.plus(Duration.ofMinutes(10)));
+    }
+
+    @Test
+    void 설정의_실패_한도를_쓰고_기본값이_아니면_기동_때_WARN을_남긴다(CapturedOutput output) {
+        AuthProperties properties = new AuthProperties(
+                "test-pepper-0123456789abcdef0123456789",
+                "test-jwt-secret-0123456789abcdef0123",
+                true,
+                null,
+                Duration.ofSeconds(10),
+                30);
+        LoginAttemptLimiter configured = new LoginAttemptLimiter(clock, properties);
+        for (int i = 0; i < 29; i++) {
+            failOn(configured, 1, "ip");
+        }
+        assertThat(configured.lockedUntil(1, "ip")).as("29번은 안 잠김").isEmpty();
+
+        failOn(configured, 1, "ip");
+
+        assertThat(configured.lockedUntil(1, "ip")).isPresent();
+        assertThat(output.getOut()).contains("personal code max failures=30 (default 5)");
+    }
+
+    @Test
     void 네_번_실패는_잠그지_않는다() {
         fail(4, 1, "ip");
 

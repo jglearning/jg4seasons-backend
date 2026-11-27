@@ -15,6 +15,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param cookieSecure 쿠키 Secure 속성. 로컬(http)만 끈다
  * @param clientIpHeader 클라이언트 IP를 읽을 헤더(프록시가 채움). 비우면 연결 주소만 믿는다
  * @param refreshReuseGrace 회전된 refresh가 다시 와도 폐기하지 않는 유예(탭 둘의 동시 refresh)
+ * @param personalCodeMaxFailures 개인 코드 (반, IP) 실패 한도(기본 5, ADR-22). 교실 하나가 공인 IP 하나라 한 반 전체가 같이 센다 — 행사처럼
+ *     한꺼번에 입장할 때만 JG4SEASONS_PERSONAL_CODE_MAX_FAILURES로 늘리고 끝나면 되돌린다
  */
 @ConfigurationProperties("jg4seasons.auth")
 public record AuthProperties(
@@ -22,7 +24,8 @@ public record AuthProperties(
         String jwtSecret,
         @DefaultValue("true") boolean cookieSecure,
         String clientIpHeader,
-        @DefaultValue("10s") Duration refreshReuseGrace) {
+        @DefaultValue("10s") Duration refreshReuseGrace,
+        @DefaultValue("5") int personalCodeMaxFailures) {
 
     static final int MIN_SECRET_BYTES = 32;
 
@@ -34,6 +37,9 @@ public record AuthProperties(
         }
         if (refreshReuseGrace == null || refreshReuseGrace.isNegative()) {
             throw new IllegalArgumentException("jg4seasons.auth.refresh-reuse-grace는 0 이상이어야 한다");
+        }
+        if (personalCodeMaxFailures < 1) {
+            throw new IllegalArgumentException("jg4seasons.auth.personal-code-max-failures는 1 이상이어야 한다");
         }
     }
 
@@ -47,6 +53,7 @@ public record AuthProperties(
     @Override
     public String toString() {
         return "AuthProperties[cookieSecure=" + cookieSecure + ", clientIpHeader=" + clientIpHeader
-                + ", refreshReuseGrace=" + refreshReuseGrace + "]";
+                + ", refreshReuseGrace=" + refreshReuseGrace + ", personalCodeMaxFailures=" + personalCodeMaxFailures
+                + "]";
     }
 }

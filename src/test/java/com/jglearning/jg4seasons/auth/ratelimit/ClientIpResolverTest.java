@@ -26,7 +26,8 @@ class ClientIpResolverTest {
                         "test-jwt-secret-0123456789abcdef0123",
                         true,
                         header,
-                        Duration.ofSeconds(10)));
+                        Duration.ofSeconds(10),
+                        5));
     }
 
     static MockHttpServletRequest request() {

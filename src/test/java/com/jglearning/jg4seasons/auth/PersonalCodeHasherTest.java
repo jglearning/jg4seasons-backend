@@ -11,7 +11,7 @@ class PersonalCodeHasherTest {
     static final String PEPPER = "test-pepper-0123456789abcdef0123456789";
 
     final PersonalCodeHasher hasher = new PersonalCodeHasher(
-            new AuthProperties(PEPPER, "test-jwt-secret-0123456789abcdef0123", false, null, Duration.ofSeconds(10)));
+            new AuthProperties(PEPPER, "test-jwt-secret-0123456789abcdef0123", false, null, Duration.ofSeconds(10), 5));
 
     @Test
     void 알려진_값과_같다() {

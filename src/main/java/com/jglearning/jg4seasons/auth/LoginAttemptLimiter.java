@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
  * 개인 코드 찍기 방지(ADR-22, AUTH-07). 인메모리, 단일 인스턴스 전제.
  *
  * <ul>
- *   <li>(반, IP): 첫 실패부터 10분 안에 5회 실패 → 그 시각부터 10분 잠금. 잠긴 동안은 맞는 코드도 거부. 성공해도 그동안의 실패는 남는다
+ *   <li>(반, IP): 첫 실패부터 10분 안에 5회 실패(jg4seasons.auth.personal-code-max-failures로 바꿀 수 있음) → 그 시각부터 10분 잠금. 잠긴 동안은 맞는 코드도 거부. 성공해도 그동안의 실패는 남는다
  *       (시도는 확인 전에 먼저 센다 — beginAttempt)
  *   <li>반 전체: 최근 1시간 실패 20회 이상이면 경고(교사 반 목록 — 실패 수와 가장 오래된 실패 시각). 20회에 닿는 순간 WARN 로그 1회(반 id만)
  * </ul>
@@ -29,7 +29,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class LoginAttemptLimiter implements LoginAlerts {
 
-    static final int MAX_FAILURES = 5;
+    /** 설정이 없을 때의 실패 한도(AuthProperties 기본값과 같다) */
+    static final int DEFAULT_MAX_FAILURES = 5;
+
     static final Duration FAILURE_WINDOW = Duration.ofMinutes(10);
     static final Duration LOCK = Duration.ofMinutes(10);
     static final int CLASS_ALERT_FAILURES = 20;
@@ -56,6 +58,7 @@ public class LoginAttemptLimiter implements LoginAlerts {
     }
 
     private final Clock clock;
+    private final int maxFailures;
     private final int sweepThreshold;
     private final int hardCap;
     private final ConcurrentHashMap<String, Attempts> attempts = new ConcurrentHashMap<>();
@@ -63,12 +66,32 @@ public class LoginAttemptLimiter implements LoginAlerts {
     private volatile Instant lastSweep;
 
     @Autowired
-    public LoginAttemptLimiter(Clock clock) {
-        this(clock, SWEEP_THRESHOLD, HARD_CAP);
+    public LoginAttemptLimiter(Clock clock, AuthProperties properties) {
+        this(clock, properties.personalCodeMaxFailures(), SWEEP_THRESHOLD, HARD_CAP);
+        if (maxFailures != DEFAULT_MAX_FAILURES) {
+            // 한도를 늘린 채 잊지 않게 기동할 때마다 남긴다
+            log.warn(
+                    "personal code max failures={} (default {}) — revert after the event",
+                    maxFailures,
+                    DEFAULT_MAX_FAILURES);
+        }
+    }
+
+    LoginAttemptLimiter(Clock clock) {
+        this(clock, DEFAULT_MAX_FAILURES);
+    }
+
+    LoginAttemptLimiter(Clock clock, int maxFailures) {
+        this(clock, maxFailures, SWEEP_THRESHOLD, HARD_CAP);
     }
 
     LoginAttemptLimiter(Clock clock, int sweepThreshold, int hardCap) {
+        this(clock, DEFAULT_MAX_FAILURES, sweepThreshold, hardCap);
+    }
+
+    private LoginAttemptLimiter(Clock clock, int maxFailures, int sweepThreshold, int hardCap) {
         this.clock = clock;
+        this.maxFailures = maxFailures;
         this.sweepThreshold = sweepThreshold;
         this.hardCap = hardCap;
     }
@@ -104,7 +127,7 @@ public class LoginAttemptLimiter implements LoginAlerts {
                 return current;
             }
             int failures = current.failures() + 1;
-            return new Attempts(current.windowStart(), failures, failures >= MAX_FAILURES ? now.plus(LOCK) : null);
+            return new Attempts(current.windowStart(), failures, failures >= maxFailures ? now.plus(LOCK) : null);
         });
         return rejected[0] ? Optional.of(updated.lockedUntil()) : Optional.empty();
     }
@@ -130,7 +153,7 @@ public class LoginAttemptLimiter implements LoginAlerts {
                 return null;
             }
             return new Attempts(
-                    current.windowStart(), failures, failures >= MAX_FAILURES ? current.lockedUntil() : null);
+                    current.windowStart(), failures, failures >= maxFailures ? current.lockedUntil() : null);
         });
     }
 
