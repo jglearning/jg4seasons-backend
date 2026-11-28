@@ -42,6 +42,8 @@ TEST_LIMITS = {"prompt": 200, "answer": 100, "hint": 50}
 TEST_SECTIONS = ("A", "B", "C", "D")
 LESSON_DIR = re.compile(r"^(?:\d{2}회|보충\d회) · (.+)$")
 CORE_PASSAGE_DIR = "핵심 지문"
+# 블루 원고 지문 제목 앞의 문제 번호·유형과 난이도(`4번 제목 · `, `8번 빈칸(중) · (중) `). 11/26 운영 SQL REGEXP_REPLACE와 같은 규칙(#92)
+BLUE_TITLE_PREFIX = re.compile(r"^[0-9]+번 [^·]+ · (?:[(][상중하][)] )?")
 GAP_MIN_MS, GAP_MAX_MS = 0, 3000  # import 검증과 같은 범위. 분포는 요약으로 따로 본다
 
 # --- mp3 길이 -------------------------------------------------------------------------------
@@ -97,6 +99,16 @@ def check_len(errors, what, value, where):
         errors.append(f"{where}: {what} {len(value)}자 > {LIMITS[what]}")
 
 
+def passage_title(code, raw, where, errors):
+    """학생 화면 지문 제목. 블루(L3)만 앞의 문제 번호·유형·난이도를 뺀다. 빼고 나서 비면 오류"""
+    if not code.startswith("L3-"):
+        return raw
+    title = BLUE_TITLE_PREFIX.sub("", raw, count=1)
+    if not title.strip():
+        errors.append(f"{where}: 번호·유형을 빼면 지문 제목이 빈다({raw!r})")
+    return title
+
+
 def one_file(folder, pattern, where):
     found = sorted(folder.glob(pattern))
     if len(found) != 1:
@@ -131,7 +143,8 @@ def build_lesson(lesson_dir, script, code, book_dir, out, gaps, link, word_tests
         pdir = passage_dirs.get(no)
         if pdir is None:
             raise LessonError(f"{where}: 지문 폴더 없음")
-        check_len(errors, "passage title", p["제목"], where)
+        title = passage_title(code, p["제목"], where, errors)
+        check_len(errors, "passage title", title, where)
         sentences = []
         for s in sorted(p["문장"], key=lambda x: x["번호"]):
             speaker = None if s["화자"] in ("", NARRATOR) else s["화자"]
@@ -170,7 +183,7 @@ def build_lesson(lesson_dir, script, code, book_dir, out, gaps, link, word_tests
             tracks.append({"voice": voice, "fileKey": key, "durationMs": duration, "sentenceMs": sentence_ms})
         passages.append({
             "no": no,
-            "title": p["제목"],
+            "title": title,
             "wordCount": sum(len(s["text"].split()) for s in sentences),
             "sentences": sentences,
             "tracks": tracks,
