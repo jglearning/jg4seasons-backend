@@ -15,5 +15,7 @@ public enum AuditAction {
     /** 운영자 교재 사용권 지정·변경(SYS-07, detail에 전·후 값) */
     LICENSE_SET,
     /** 학원관리자 명단 가져오기(ADR 0036, 대상 = 학원, detail에 반 id·학생 수 — 이름·개인 코드 없음) */
-    ROSTER_IMPORT
+    ROSTER_IMPORT,
+    /** 운영자 학생별 프리토킹 켜기·끄기(ADR 0040, 대상 = 학원, detail에 학생 수·enabled — 학생 id·이름 없음) */
+    TALK_ACCESS_SET
 }
