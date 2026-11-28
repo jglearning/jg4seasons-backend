@@ -54,6 +54,8 @@ class SchemaTest {
             // 캐릭터 프리토킹(V15) — 세션과 글자 기록
             "talk_session",
             "talk_turn",
+            // 프리토킹 학생 허용(V17, ADR 0040)
+            "talk_student_access",
             // 인증·운영
             "refresh_token",
             "audit_log",
@@ -89,7 +91,8 @@ class SchemaTest {
             List.of("word_test_answer", "submission_id,item_id"),
             List.of("grading_job", "submission_id"),
             List.of("talk_session", "client_session_id"),
-            List.of("talk_turn", "session_id,seq"));
+            List.of("talk_turn", "session_id,seq"),
+            List.of("talk_student_access", "student_id"));
 
     @Autowired
     JdbcTemplate jdbc;
@@ -102,8 +105,8 @@ class SchemaTest {
     }
 
     @Test
-    void 테이블은_ERD의_1차_29개와_단어시험_5개_프리토킹_2개다() {
-        assertThat(FIRST_RELEASE_TABLES).hasSize(36);
+    void 테이블은_ERD의_1차_29개와_단어시험_5개_프리토킹_3개다() {
+        assertThat(FIRST_RELEASE_TABLES).hasSize(37);
         assertThat(tables()).containsExactlyInAnyOrderElementsOf(FIRST_RELEASE_TABLES);
     }
 
