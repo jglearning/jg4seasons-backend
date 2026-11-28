@@ -268,5 +268,36 @@ class LessonWordsTest(unittest.TestCase):
         self.assertNotIn("track", words[0])
 
 
+class PassageTitleTest(unittest.TestCase):
+    """블루 지문 제목의 문제 번호·유형·난이도 제거(이슈 #92). 규칙은 11/26 운영 SQL과 같다"""
+
+    def setUp(self):
+        self.errors = []
+
+    def title(self, raw, code="L3-B1-01"):
+        return bm.passage_title(code, raw, "L3-B1-01 지문 4", self.errors)
+
+    def test_번호와_유형을_뺀다(self):
+        self.assertEqual("같은 울음, 나라마다 다른 소리", self.title("4번 제목 · 같은 울음, 나라마다 다른 소리"))
+        self.assertEqual([], self.errors)
+
+    def test_난이도도_함께_뺀다(self):
+        self.assertEqual("할 수 있다고 해서", self.title("8번 빈칸(중) · (중) 할 수 있다고 해서"))
+        self.assertEqual("두 자리", self.title("12번 요지 · (상) 두 자리"))
+
+    def test_규칙에_맞지_않으면_그대로(self):
+        for raw in ["같은 울음", "4번 같은 울음", "(중) 할 수 있다", "제목 · 4번 문제"]:
+            self.assertEqual(raw, self.title(raw))
+        self.assertEqual([], self.errors)
+
+    def test_블루가_아닌_레벨은_그대로(self):
+        self.assertEqual("4번 제목 · 같은 울음", self.title("4번 제목 · 같은 울음", code="L2-B1-01"))
+
+    def test_빼고_나서_비면_오류(self):
+        self.title("4번 제목 · (하) ")
+        self.assertEqual(1, len(self.errors), self.errors)
+        self.assertIn("L3-B1-01 지문 4", self.errors[0])
+
+
 if __name__ == "__main__":
     unittest.main()
