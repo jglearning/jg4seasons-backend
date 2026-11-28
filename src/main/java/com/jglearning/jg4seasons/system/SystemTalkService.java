@@ -2,9 +2,7 @@ package com.jglearning.jg4seasons.system;
 
 import com.jglearning.jg4seasons.academy.api.AcademyDirectory;
 import com.jglearning.jg4seasons.academy.api.AcademyRegistry;
-import com.jglearning.jg4seasons.auth.api.AccountStatus;
 import com.jglearning.jg4seasons.auth.api.Operators;
-import com.jglearning.jg4seasons.auth.api.StudentAccount;
 import com.jglearning.jg4seasons.auth.api.StudentAccounts;
 import com.jglearning.jg4seasons.auth.api.StudentRoster;
 import com.jglearning.jg4seasons.clazz.api.ClassRef;
@@ -15,7 +13,6 @@ import com.jglearning.jg4seasons.system.web.dto.TalkStudentListResponse;
 import com.jglearning.jg4seasons.system.web.dto.TalkStudentListResponse.TalkStudentItem;
 import com.jglearning.jg4seasons.system.web.dto.TalkStudentsSetRequest;
 import com.jglearning.jg4seasons.talk.api.TalkStudentAccess;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -66,7 +63,8 @@ public class SystemTalkService {
     public TalkStudentListResponse list(long actorId, long academyId) {
         operators.requireActiveOperator(actorId);
         registry.find(academyId);
-        List<StudentAccount> active = active(students.roster(academyId, students.studentIds(academyId)));
+        StudentRoster active =
+                students.roster(academyId, students.studentIds(academyId)).activeOnly();
         return new TalkStudentListResponse(items(academyId, active));
     }
 
@@ -79,26 +77,19 @@ public class SystemTalkService {
         operators.requireActiveOperator(actorId);
         registry.find(academyId);
         Set<Long> requested = new LinkedHashSet<>(request.studentIds());
-        StudentRoster roster = students.roster(academyId, requested);
-        List<StudentAccount> active = active(roster);
-        if (active.size() != requested.size()) {
+        StudentRoster active = students.roster(academyId, requested).activeOnly();
+        if (active.accounts().size() != requested.size()) {
             throw new ApiException(CommonErrorCode.NOT_FOUND, "학생을 찾을 수 없어요");
         }
-        access.set(roster.students(), request.enabled(), actorId);
+        access.set(active.students(), request.enabled(), actorId);
         return new TalkStudentListResponse(items(academyId, active));
     }
 
-    private static List<StudentAccount> active(StudentRoster roster) {
+    private List<TalkStudentItem> items(long academyId, StudentRoster roster) {
+        Map<Long, ClassRef> classOf =
+                classes.currentClassOf(academyId, roster.students().ids());
+        Set<Long> enabled = access.enabledAmong(roster.students());
         return roster.accounts().stream()
-                .filter(account -> account.status() == AccountStatus.ACTIVE)
-                .toList();
-    }
-
-    private List<TalkStudentItem> items(long academyId, Collection<StudentAccount> accounts) {
-        List<Long> ids = accounts.stream().map(StudentAccount::id).toList();
-        Map<Long, ClassRef> classOf = classes.currentClassOf(academyId, ids);
-        Set<Long> enabled = access.enabledStudents(academyId);
-        return accounts.stream()
                 .map(account -> {
                     ClassRef clazz = classOf.get(account.id());
                     return new TalkStudentItem(

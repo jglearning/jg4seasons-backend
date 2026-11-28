@@ -15,6 +15,18 @@ public record StudentRoster(List<StudentAccount> accounts, AcademyStudents stude
         }
     }
 
+    /** 재원생(ACTIVE)만 남긴 명단(계정·묶음 모두, 순서 그대로). 재원생만 다루는 쓰기는 이 묶음을 넘긴다 — 크기 비교 같은 호출자 규칙에 기대지 않게 */
+    public StudentRoster activeOnly() {
+        List<StudentAccount> active = accounts.stream()
+                .filter(account -> account.status() == AccountStatus.ACTIVE)
+                .toList();
+        return new StudentRoster(
+                active,
+                AcademyStudents.of(
+                        students.academyId(),
+                        active.stream().map(StudentAccount::id).toList()));
+    }
+
     /** 명단의 학생 한 명만(계정·묶음 모두). 명단에 없으면 빈 값 — 호출자는 404로. 확인과 좁히기가 한 번이라 확인을 빠뜨릴 길이 없다 */
     public Optional<StudentRoster> only(long studentId) {
         return accounts.stream()

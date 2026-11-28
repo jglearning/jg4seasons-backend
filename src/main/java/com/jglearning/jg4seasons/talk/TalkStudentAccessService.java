@@ -26,8 +26,8 @@ class TalkStudentAccessService implements TalkStudentAccess {
     }
 
     @Override
-    public Set<Long> enabledStudents(long academyId) {
-        return store.enabledStudents(academyId);
+    public Set<Long> enabledAmong(AcademyStudents students) {
+        return store.enabledAmong(students);
     }
 
     @Override
@@ -37,7 +37,7 @@ class TalkStudentAccessService implements TalkStudentAccess {
             throw new IllegalArgumentException("켜고 끌 학생이 없다");
         }
         long academyId = students.academyId();
-        store.upsert(academyId, students.ids(), enabled, actorId);
+        store.upsert(students, enabled, actorId);
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("students", students.ids().size());
         detail.put("enabled", enabled);

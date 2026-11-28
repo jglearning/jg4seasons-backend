@@ -8,8 +8,8 @@ import java.util.Set;
  */
 public interface TalkStudentAccess {
 
-    /** 그 학원에서 켜진 학생 id, id 순 */
-    Set<Long> enabledStudents(long academyId);
+    /** 묶음 안에서 켜진 학생 id(수정 불가). 묶음 밖 학생(퇴원생 포함)은 나오지 않는다 */
+    Set<Long> enabledAmong(AcademyStudents students);
 
     /**
      * 묶음의 학생을 모두 켜거나 끄고(같은 값이면 그대로) 감사 기록 TALK_ACCESS_SET 한 건(학원 대상, detail은 학생 수·enabled만). 트랜잭션 안에서 부른다. 빈
