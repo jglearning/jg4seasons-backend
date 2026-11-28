@@ -11,11 +11,12 @@ public record TalkStudentsSetRequest(
                 requiredMode = Schema.RequiredMode.REQUIRED,
                 description = "1~500명. 같은 id는 한 번으로. 그 학원 재원생이 아닌 id가 하나라도 있으면 404이고 아무것도 바뀌지 않는다")
         @NotNull
-        @Size(min = 1, max = MAX_STUDENTS, message = "학생은 1~500명까지 고를 수 있어요")
+        @Size(min = 1, max = MAX_STUDENTS, message = "학생은 {min}~{max}명까지 고를 수 있어요")
         List<@NotNull Long> studentIds,
 
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @NotNull
         Boolean enabled) {
 
+    /** 바꾸면 studentIds의 @Schema 설명(1~500명)도 함께 */
     public static final int MAX_STUDENTS = 500;
 }

@@ -186,6 +186,10 @@ class SystemTalkStudentsTest {
             assertThat(result).hasStatus(400);
             assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
             assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("studentIds");
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.errors[0].message")
+                    .isEqualTo("학생은 1~500명까지 고를 수 있어요");
         }
     }
 
