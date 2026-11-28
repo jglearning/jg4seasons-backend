@@ -108,7 +108,7 @@ public class TalkSessionService {
     }
 
     public Result create(long academyId, long studentId, String clientId, TalkTopic topic) {
-        access.requireEnabled(academyId);
+        access.requireEnabled(academyId, studentId);
         Optional<TalkSessionRow> existing = store.findByClientId(clientId);
         if (existing.isPresent()) {
             return replay(academyId, studentId, existing.get());

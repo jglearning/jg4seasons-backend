@@ -10,6 +10,7 @@ import com.jglearning.jg4seasons.content.api.LessonCatalog;
 import com.jglearning.jg4seasons.content.api.LessonWord;
 import com.jglearning.jg4seasons.infra.web.error.ApiException;
 import com.jglearning.jg4seasons.infra.web.error.CommonErrorCode;
+import com.jglearning.jg4seasons.talk.persistence.TalkStudentAccessStore;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,7 +20,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
- * 프리토킹 공통 앞부분: 학원 활성(401) → 기능 켜짐(404 FEATURE_DISABLED), 학생의 레벨·오늘 회차·회차 단어. 학생·학원은 JWT에서만. 화면에 보이는 단어(config
+ * 프리토킹 공통 앞부분: 학원 활성(401) → 기능 켜짐(404 FEATURE_DISABLED) → 학생 허용(404 FEATURE_DISABLED, ADR 0040), 학생의 레벨·오늘 회차·회차 단어. 학생·학원은 JWT에서만. 화면에 보이는 단어(config
  * lessonWords)와 지시문에 넣는 단어가 같은 목록이 되도록 둘 다 여기서 얻는다(추가 지시 가-1)
  */
 @Component
@@ -45,6 +46,7 @@ class TalkAccess {
     private final StudentClasses studentClasses;
     private final BookDirectory books;
     private final LessonCatalog catalog;
+    private final TalkStudentAccessStore studentAccess;
     private final Clock clock;
 
     TalkAccess(
@@ -52,20 +54,26 @@ class TalkAccess {
             StudentClasses studentClasses,
             BookDirectory books,
             LessonCatalog catalog,
+            TalkStudentAccessStore studentAccess,
             Clock clock) {
         this.academies = academies;
         this.studentClasses = studentClasses;
         this.books = books;
         this.catalog = catalog;
+        this.studentAccess = studentAccess;
         this.clock = clock;
     }
 
-    void requireEnabled(long academyId) {
+    /** 학원 스위치와 학생 허용 둘 다 켜져야 한다(AND). 꺼진 학생은 학원이 꺼진 것과 같은 응답 — 화면은 진입점을 숨긴다 */
+    void requireEnabled(long academyId, long studentId) {
         if (!academies.isActive(academyId)) {
             throw new ApiException(CommonErrorCode.UNAUTHORIZED);
         }
         if (!academies.talkEnabled(academyId)) {
             throw new ApiException(CommonErrorCode.FEATURE_DISABLED, "프리토킹을 쓸 수 없는 학원이에요");
+        }
+        if (!studentAccess.isEnabled(academyId, studentId)) {
+            throw new ApiException(CommonErrorCode.FEATURE_DISABLED, "프리토킹을 쓸 수 없어요");
         }
     }
 

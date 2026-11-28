@@ -27,6 +27,15 @@ final class TalkTestSupport {
                 academyId);
     }
 
+    /** 학생 허용(ADR 0040). 행이 없으면 꺼짐이라 학원을 켠 테스트도 학생마다 넣는다. 바꾼 사람은 학생 자신으로 대신 */
+    static void allow(JdbcTemplate jdbc, long academyId, long studentId) {
+        jdbc.update(
+                "insert into talk_student_access (academy_id, student_id, enabled, changed_by) values (?, ?, true, ?)",
+                academyId,
+                studentId,
+                studentId);
+    }
+
     static MvcTestResult config(MockMvcTester mvc, Cookie access) {
         return mvc.get().uri(CONFIG).cookie(access).exchange();
     }

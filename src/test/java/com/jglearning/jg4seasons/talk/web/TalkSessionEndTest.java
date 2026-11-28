@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.talk.web;
 
+import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.allow;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.assertProblem;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.create;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.features;
@@ -79,6 +80,7 @@ class TalkSessionEndTest {
         features(jdbc, academyId, true, true);
         classId = data.clazz(academyId, "L2-B1", "그린 반", TestData.uniqueAccessCode(), "active");
         studentId = data.student(academyId, "대화 학생");
+        allow(jdbc, academyId, studentId);
         data.enroll(classId, studentId);
         data.session(classId, 1, "L2-B1-03", LocalDate.of(2026, 11, 26), "scheduled");
     }
@@ -183,6 +185,7 @@ class TalkSessionEndTest {
     void 남의_세션_종료와_조회는_404() {
         long id = newSession();
         long friend = data.student(academyId, "친구");
+        allow(jdbc, academyId, friend);
         data.enroll(classId, friend);
         Cookie other = cookies.studentAccess(friend, academyId);
 
@@ -197,6 +200,7 @@ class TalkSessionEndTest {
         long otherAcademy = data.academy("다른 학원");
         features(jdbc, otherAcademy, true, true);
         long stranger = data.student(otherAcademy, "다른 학원 학생");
+        allow(jdbc, otherAcademy, stranger);
         Cookie strangerCookie = cookies.studentAccess(stranger, otherAcademy);
 
         assertProblem(end(strangerCookie, id, body(60, "user", TURNS, null)), HttpStatus.NOT_FOUND, "NOT_FOUND");

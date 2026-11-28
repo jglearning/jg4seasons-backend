@@ -77,7 +77,7 @@ public class TalkEndService {
     }
 
     public Result end(long academyId, long studentId, long sessionId, EndCommand command) {
-        access.requireEnabled(academyId);
+        access.requireEnabled(academyId, studentId);
         Optional<Ended> ended = transactions.execute(status -> {
             TalkSessionRow row = store.lockOwned(sessionId, studentId).orElseThrow(TalkEndService::notFound);
             // 종료할 수 있는 건 created뿐(허용 목록 — 상태가 늘어도 기본은 "그대로", 리뷰 3). 이미 끝남(ended)·대화 없음(failed, 사용자 11/25 A)·
@@ -111,7 +111,7 @@ public class TalkEndService {
 
     /** 본인 세션만(남의 것·없는 것 404). 기능이 꺼진 학원은 404 FEATURE_DISABLED */
     public Result find(long academyId, long studentId, long sessionId) {
-        access.requireEnabled(academyId);
+        access.requireEnabled(academyId, studentId);
         TalkSessionView view = store.findOwned(sessionId, studentId).orElseThrow(TalkEndService::notFound);
         return new Result(view.id(), view.status(), view.durationSec(), view.studentTurnCount(), readSummary(view));
     }

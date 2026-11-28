@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.talk.web;
 
+import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.allow;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.create;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.features;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +76,7 @@ class TalkSessionEndCommitTest {
         features(jdbc, academyId, true, true);
         long classId = data.clazz(academyId, "L2-B1", "커밋 반", TestData.uniqueAccessCode(), "active");
         studentId = data.student(academyId, "동시 종료 학생");
+        allow(jdbc, academyId, studentId);
         data.enroll(classId, studentId);
         data.session(classId, 1, "L2-B1-03", LocalDate.of(2026, 11, 26), "scheduled");
     }
@@ -87,6 +89,7 @@ class TalkSessionEndCommitTest {
                 "delete from talk_turn where session_id in (select id from talk_session where student_id = ?)",
                 studentId);
         jdbc.update("delete from talk_session where student_id = ?", studentId);
+        jdbc.update("delete from talk_student_access where student_id = ?", studentId);
     }
 
     @Test

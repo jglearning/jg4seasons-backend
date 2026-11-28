@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.talk.web;
 
+import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.allow;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.assertProblem;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.create;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.createRaw;
@@ -74,6 +75,7 @@ class TalkSessionCreateTest {
         features(jdbc, academyId, true, true);
         classId = data.clazz(academyId, "L2-B1", "그린 반", TestData.uniqueAccessCode(), "active");
         studentId = data.student(academyId, "대화 학생");
+        allow(jdbc, academyId, studentId);
         data.enroll(classId, studentId);
         data.session(classId, 1, TODAY_LESSON, LocalDate.of(2026, 11, 26), "scheduled");
         data.word(TODAY_LESSON, 1, "cheerful", "book", "adj", false);
@@ -134,6 +136,7 @@ class TalkSessionCreateTest {
     void 네이비_반은_남성_캐릭터_목소리() {
         long navyClass = data.clazz(academyId, "L4-B1", "네이비 반", TestData.uniqueAccessCode(), "active");
         long navyStudent = data.student(academyId, "네이비 학생");
+        allow(jdbc, academyId, navyStudent);
         data.enroll(navyClass, navyStudent);
         data.session(navyClass, 1, "L4-B1-01", LocalDate.of(2026, 11, 26), "scheduled");
         String clientId = UUID.randomUUID().toString();
@@ -234,6 +237,7 @@ class TalkSessionCreateTest {
         String clientId = UUID.randomUUID().toString();
         create(mvc, student(), clientId, "day");
         long other = data.student(academyId, "다른 학생");
+        allow(jdbc, academyId, other);
         data.enroll(classId, other);
 
         assertProblem(
@@ -289,6 +293,7 @@ class TalkSessionCreateTest {
         issuer.failNext();
         issuer.beforeNextIssue(() -> {
             jdbc.update("delete from enrollment where student_id = ?", studentId);
+            jdbc.update("delete from talk_student_access where student_id = ?", studentId);
             jdbc.update("delete from `user` where id = ?", studentId);
         });
 
@@ -371,6 +376,7 @@ class TalkSessionCreateTest {
     @Test
     void 반이_없는_학생은_404_NOT_FOUND() {
         long loner = data.student(academyId, "반 없는 학생");
+        allow(jdbc, academyId, loner);
 
         assertProblem(
                 create(

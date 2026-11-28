@@ -33,7 +33,7 @@ public class TalkConfigService {
     }
 
     public Config config(long academyId, long studentId) {
-        access.requireEnabled(academyId);
+        access.requireEnabled(academyId, studentId);
         boolean entitled = access.entitled(academyId);
         TalkContext context = access.context(academyId, studentId);
         int used = store.countIssuedSince(
