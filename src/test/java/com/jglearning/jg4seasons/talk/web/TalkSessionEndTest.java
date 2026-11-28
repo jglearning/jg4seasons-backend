@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.talk.web;
 
+import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.allow;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.assertProblem;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.create;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.features;
@@ -79,6 +80,7 @@ class TalkSessionEndTest {
         features(jdbc, academyId, true, true);
         classId = data.clazz(academyId, "L2-B1", "그린 반", TestData.uniqueAccessCode(), "active");
         studentId = data.student(academyId, "대화 학생");
+        allow(jdbc, academyId, studentId);
         data.enroll(classId, studentId);
         data.session(classId, 1, "L2-B1-03", LocalDate.of(2026, 11, 26), "scheduled");
     }
@@ -183,6 +185,7 @@ class TalkSessionEndTest {
     void 남의_세션_종료와_조회는_404() {
         long id = newSession();
         long friend = data.student(academyId, "친구");
+        allow(jdbc, academyId, friend);
         data.enroll(classId, friend);
         Cookie other = cookies.studentAccess(friend, academyId);
 
@@ -197,6 +200,7 @@ class TalkSessionEndTest {
         long otherAcademy = data.academy("다른 학원");
         features(jdbc, otherAcademy, true, true);
         long stranger = data.student(otherAcademy, "다른 학원 학생");
+        allow(jdbc, otherAcademy, stranger);
         Cookie strangerCookie = cookies.studentAccess(stranger, otherAcademy);
 
         assertProblem(end(strangerCookie, id, body(60, "user", TURNS, null)), HttpStatus.NOT_FOUND, "NOT_FOUND");
@@ -206,13 +210,31 @@ class TalkSessionEndTest {
     }
 
     @Test
-    void 기능이_꺼진_학원은_404_FEATURE_DISABLED() {
+    void 대화_중에_학원_기능이_꺼져도_진행_중_세션은_종료하고_조회된다() {
+        // #96 리뷰 1(사용자 A): 음성은 브라우저와 모델이 직접 주고받아 종료를 막아도 대화는 멈추지 않는다 — 막으면 기록만 잃는다. 새 대화만 막는다
         long id = newSession();
         features(jdbc, academyId, false, false);
         entities.clear();
 
-        assertProblem(end(student(), id, body(60, "user", TURNS, null)), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
-        assertProblem(get(student(), id), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
+        MvcTestResult ended = end(student(), id, body(60, "user", TURNS, null));
+
+        assertThat(ended).hasStatusOk();
+        assertThat(ended).bodyJson().extractingPath("$.status").isEqualTo("ended");
+        assertThat(get(student(), id)).hasStatusOk();
+        assertThat(turns(id)).isNotEmpty();
+    }
+
+    @Test
+    void 대화_중에_학생_허용이_꺼져도_진행_중_세션은_종료하고_조회된다() {
+        long id = newSession();
+        jdbc.update("update talk_student_access set enabled = false where student_id = ?", studentId);
+
+        MvcTestResult ended = end(student(), id, body(60, "user", TURNS, null));
+
+        assertThat(ended).hasStatusOk();
+        assertThat(ended).bodyJson().extractingPath("$.status").isEqualTo("ended");
+        assertThat(get(student(), id)).hasStatusOk();
+        assertThat(turns(id)).isNotEmpty();
     }
 
     @Test

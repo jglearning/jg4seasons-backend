@@ -1,5 +1,6 @@
 package com.jglearning.jg4seasons.talk.web;
 
+import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.allow;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.assertProblem;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.config;
 import static com.jglearning.jg4seasons.talk.web.TalkTestSupport.create;
@@ -63,6 +64,7 @@ class TalkConfigTest {
         features(jdbc, academyId, true, true);
         classId = data.clazz(academyId, "L2-B1", "그린 반", TestData.uniqueAccessCode(), "active");
         studentId = data.student(academyId, "대화 학생");
+        allow(jdbc, academyId, studentId);
         data.enroll(classId, studentId);
         data.session(classId, 1, "L2-B1-02", LocalDate.of(2026, 11, 24), "scheduled");
         data.session(classId, 2, TODAY_LESSON, LocalDate.of(2026, 11, 26), "scheduled");
@@ -151,6 +153,7 @@ class TalkConfigTest {
     void 다른_학생의_세션과_발급에_실패한_세션은_남은_횟수에서_빠지지_않는다() {
         // 리뷰 7: 표에 학원 칸이 없어 학생 조건이 유일한 격리 — 같은 반 친구가 쓴 횟수가 내 한도를 깎지 않게
         long friend = data.student(academyId, "친구");
+        allow(jdbc, academyId, friend);
         data.enroll(classId, friend);
         create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day");
         create(mvc, cookies.studentAccess(friend, academyId), UUID.randomUUID().toString(), "day");
@@ -180,6 +183,7 @@ class TalkConfigTest {
     @Test
     void 반이_없는_학생은_404() {
         long loner = data.student(academyId, "반 없는 학생");
+        allow(jdbc, academyId, loner);
 
         assertProblem(config(mvc, cookies.studentAccess(loner, academyId)), HttpStatus.NOT_FOUND, "NOT_FOUND");
     }

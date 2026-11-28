@@ -3,12 +3,15 @@ package com.jglearning.jg4seasons.system.web;
 import com.jglearning.jg4seasons.infra.security.Principals;
 import com.jglearning.jg4seasons.system.SystemAcademyService;
 import com.jglearning.jg4seasons.system.SystemLicenseService;
+import com.jglearning.jg4seasons.system.SystemTalkService;
 import com.jglearning.jg4seasons.system.web.dto.AcademyCreateRequest;
 import com.jglearning.jg4seasons.system.web.dto.AcademyCreatedResponse;
 import com.jglearning.jg4seasons.system.web.dto.AcademyDetailResponse;
 import com.jglearning.jg4seasons.system.web.dto.AcademyListResponse;
 import com.jglearning.jg4seasons.system.web.dto.LicenseItem;
 import com.jglearning.jg4seasons.system.web.dto.LicenseSetRequest;
+import com.jglearning.jg4seasons.system.web.dto.TalkStudentListResponse;
+import com.jglearning.jg4seasons.system.web.dto.TalkStudentsSetRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
@@ -25,7 +28,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 7.1~7.4 운영자 학원·교재 사용권(O-01~O-03, SYS-07). 운영자만(ADR 0032 — 역할 계층 밖이라 관리자·교사는 403). 운영자는 학원이 없어 JWT에서 사용자만 읽는다.
+ * 7.1~7.6 운영자 학원·교재 사용권(O-01~O-03, SYS-07)·학생별 프리토킹 허용(O-04, ADR 0040). 운영자만(ADR 0032 — 역할 계층 밖이라 관리자·교사는 403). 운영자는 학원이 없어 JWT에서 사용자만 읽는다.
  * 비활성 운영자의 남은 access는 401.
  */
 @RestController
@@ -35,10 +38,12 @@ public class SystemAcademyController {
 
     private final SystemAcademyService service;
     private final SystemLicenseService licenses;
+    private final SystemTalkService talk;
 
-    SystemAcademyController(SystemAcademyService service, SystemLicenseService licenses) {
+    SystemAcademyController(SystemAcademyService service, SystemLicenseService licenses, SystemTalkService talk) {
         this.service = service;
         this.licenses = licenses;
+        this.talk = talk;
     }
 
     @Operation(summary = "학원 목록", description = "id 순")
@@ -77,5 +82,28 @@ public class SystemAcademyController {
             @PathVariable String bookCode,
             @Valid @RequestBody LicenseSetRequest request) {
         return licenses.setLicense(Principals.userId(jwt), id, bookCode, request);
+    }
+
+    @Operation(
+            summary = "학생별 프리토킹 허용 목록",
+            description =
+                    "재원생만, 반 이름 → 이름 순, 반 없는 학생(class null)은 맨 뒤. 페이지 없음. 학생이 쓰려면 학원 스위치(features.talk)도 켜져 있어야 한다."
+                            + " 없는 학원 404")
+    @GetMapping("/{id}/talk/students")
+    public TalkStudentListResponse listTalkStudents(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
+        return talk.list(Principals.userId(jwt), id);
+    }
+
+    @Operation(
+            summary = "학생별 프리토킹 켜기·끄기",
+            description = "한 명·여러 명 한 번에, 같은 값이면 그대로. 응답은 요청한 학생만(목록과 같은 순서·모양)."
+                    + " 그 학원 재원생이 아닌 id가 하나라도 있으면 404이고 아무것도 바뀌지 않는다. 없는 학원 404."
+                    + " 꺼진 학생의 프리토킹 API는 404 FEATURE_DISABLED. 감사 기록 TALK_ACCESS_SET. X-CSRF 필요")
+    @PutMapping("/{id}/talk/students")
+    public TalkStudentListResponse setTalkStudents(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable long id,
+            @Valid @RequestBody TalkStudentsSetRequest request) {
+        return talk.set(Principals.userId(jwt), id, request);
     }
 }

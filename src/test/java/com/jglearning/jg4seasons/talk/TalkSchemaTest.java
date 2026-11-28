@@ -104,6 +104,17 @@ class TalkSchemaTest {
                 "ck_talk_session_end_reason");
     }
 
+    @Test
+    void 학생_허용은_학생마다_한_줄() {
+        // V17(ADR 0040): 행 없음 = 꺼짐, 학생 고유
+        long academyId = jdbc.queryForObject("select academy_id from `user` where id = ?", Long.class, studentId);
+        String insert =
+                "insert into talk_student_access (academy_id, student_id, enabled, changed_by) values (?, ?, ?, ?)";
+        jdbc.update(insert, academyId, studentId, true, studentId);
+
+        violates(() -> jdbc.update(insert, academyId, studentId, false, studentId), "uk_talk_student_access_student");
+    }
+
     private long session(String clientId, String topic, String voice, String status) {
         jdbc.update(
                 "insert into talk_session (client_session_id, student_id, lesson_id, level_code, topic, voice, status,"
