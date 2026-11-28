@@ -210,13 +210,31 @@ class TalkSessionEndTest {
     }
 
     @Test
-    void 기능이_꺼진_학원은_404_FEATURE_DISABLED() {
+    void 대화_중에_학원_기능이_꺼져도_진행_중_세션은_종료하고_조회된다() {
+        // #96 리뷰 1(사용자 A): 음성은 브라우저와 모델이 직접 주고받아 종료를 막아도 대화는 멈추지 않는다 — 막으면 기록만 잃는다. 새 대화만 막는다
         long id = newSession();
         features(jdbc, academyId, false, false);
         entities.clear();
 
-        assertProblem(end(student(), id, body(60, "user", TURNS, null)), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
-        assertProblem(get(student(), id), HttpStatus.NOT_FOUND, "FEATURE_DISABLED");
+        MvcTestResult ended = end(student(), id, body(60, "user", TURNS, null));
+
+        assertThat(ended).hasStatusOk();
+        assertThat(ended).bodyJson().extractingPath("$.status").isEqualTo("ended");
+        assertThat(get(student(), id)).hasStatusOk();
+        assertThat(turns(id)).isNotEmpty();
+    }
+
+    @Test
+    void 대화_중에_학생_허용이_꺼져도_진행_중_세션은_종료하고_조회된다() {
+        long id = newSession();
+        jdbc.update("update talk_student_access set enabled = false where student_id = ?", studentId);
+
+        MvcTestResult ended = end(student(), id, body(60, "user", TURNS, null));
+
+        assertThat(ended).hasStatusOk();
+        assertThat(ended).bodyJson().extractingPath("$.status").isEqualTo("ended");
+        assertThat(get(student(), id)).hasStatusOk();
+        assertThat(turns(id)).isNotEmpty();
     }
 
     @Test

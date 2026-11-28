@@ -35,7 +35,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 캐릭터 프리토킹 학생 API(1단계, 계약 D). 학생만. 학원·학생은 access 쿠키(JWT)에서만. 그 학원에서 기능이 꺼져 있으면 모두 404 FEATURE_DISABLED. 쓰기는 X-CSRF
+ * 캐릭터 프리토킹 학생 API(1단계, 계약 D). 학생만. 학원·학생은 access 쿠키(JWT)에서만. 새 대화(설정·세션 시작)는 학원 기능과 학생 허용(ADR 0040)이 모두 켜져야 하고 아니면 404 FEATURE_DISABLED. 이미 시작한 세션의 종료·조회는 꺼져도 된다. 쓰기는 X-CSRF
  * 필요. 음성은 브라우저와 모델이 직접 주고받고 서버는 지시문을 묶은 임시 키만 준다
  */
 @RestController
@@ -60,7 +60,7 @@ public class TalkController {
     @Operation(
             summary = "프리토킹 설정",
             description = "시작 화면 재료: 구독 여부, 레벨, 시간 제한, 오늘 남은 횟수, 주제 카드, 오늘 회차 단어."
-                    + " 구독이 없으면 200에 entitled false(lessonWords는 빈 배열). 기능 꺼짐 404 FEATURE_DISABLED(진입 버튼을 숨길 신호),"
+                    + " 구독이 없으면 200에 entitled false(lessonWords는 빈 배열). 학원 기능·학생 허용(ADR 0040) 꺼짐 404 FEATURE_DISABLED(진입 버튼을 숨길 신호),"
                     + " 반이 없으면 404 NOT_FOUND")
     @GetMapping("/api/v1/talk/config")
     public TalkConfigResponse talkConfig(@AuthenticationPrincipal Jwt jwt) {
@@ -84,7 +84,7 @@ public class TalkController {
                     + " 같은 clientSessionId를 다시 보내면 새로 만들지 않는다: 그 세션이 created이고 만든 지 60초(임시 키 수명) 안이면"
                     + " 임시 키만 새로 200, 그 밖(끝난 세션·60초 지남)은 200에 realtime null(새 clientSessionId로 다시 시작),"
                     + " 다른 학생이 쓴 값이면 400 VALIDATION."
-                    + " 기능 꺼짐 404 FEATURE_DISABLED, 구독 없음 403 SUBSCRIPTION_REQUIRED, 반이 없으면 404 NOT_FOUND,"
+                    + " 학원 기능·학생 허용 꺼짐 404 FEATURE_DISABLED, 구독 없음 403 SUBSCRIPTION_REQUIRED, 반이 없으면 404 NOT_FOUND,"
                     + " 사용 기간 아님 403 LICENSE_INACTIVE, 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT(발급에 실패한 세션·연결 전에 떠난 0초 세션은 세지 않음),"
                     + " 모델 서비스에서 임시 키를 받지 못하면 503 REALTIME_UNAVAILABLE")
     @ApiResponses({
@@ -118,7 +118,7 @@ public class TalkController {
                     + " 저장은 공백 줄을 버리고 앞에서부터 200줄·한 줄 500자, durationSec는 maxSeconds까지 자른다."
                     + " 요약을 만들지 못하면 summary null(세션은 ended). 종료할 수 있는 건 created뿐 — 이미 ended면 저장된 결과를 그대로 200(다시 저장·요약하지 않음),"
                     + " 발급에 실패한(failed)·정리된(expired) 세션도 저장하지 않고 그대로. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND),"
-                    + " 기능 꺼짐 404 FEATURE_DISABLED, 입력 형식 400 VALIDATION(usage는 JSON 객체 16KB까지)")
+                    + " 대화 중에 학원 기능·학생 허용이 꺼져도 저장한다, 입력 형식 400 VALIDATION(usage는 JSON 객체 16KB까지)")
     @PostMapping("/api/v1/talk/sessions/{id}/end")
     public TalkSessionResultResponse endTalkSession(
             @AuthenticationPrincipal Jwt jwt,
@@ -141,7 +141,7 @@ public class TalkController {
     @Operation(
             summary = "프리토킹 세션 조회",
             description = "종료 응답과 같은 모양. 종료 전이면 durationSec·studentTurnCount·summary null, 종료 직후 요약 중이면 summary null."
-                    + " 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 기능 꺼짐 404 FEATURE_DISABLED")
+                    + " 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 학원 기능·학생 허용이 꺼져도 조회된다")
     @GetMapping("/api/v1/talk/sessions/{id}")
     public TalkSessionResultResponse getTalkSession(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
         return response(ends.find(Principals.academyId(jwt), Principals.userId(jwt), id));

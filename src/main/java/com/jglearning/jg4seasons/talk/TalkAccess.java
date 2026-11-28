@@ -64,16 +64,26 @@ class TalkAccess {
         this.clock = clock;
     }
 
-    /** 학원 스위치와 학생 허용 둘 다 켜져야 한다(AND). 꺼진 학생은 학원이 꺼진 것과 같은 응답 — 화면은 진입점을 숨긴다 */
+    /**
+     * 새 대화(설정 조회·세션 생성) 앞. 학원 스위치와 학생 허용 둘 다 켜져야 한다(AND). 꺼진 학생은 학원이 꺼진 것과 같은 응답 — 화면은 진입점을 숨긴다
+     */
     void requireEnabled(long academyId, long studentId) {
-        if (!academies.isActive(academyId)) {
-            throw new ApiException(CommonErrorCode.UNAUTHORIZED);
-        }
+        requireActive(academyId);
         if (!academies.talkEnabled(academyId)) {
             throw new ApiException(CommonErrorCode.FEATURE_DISABLED, "프리토킹을 쓸 수 없는 학원이에요");
         }
         if (!studentAccess.isEnabled(academyId, studentId)) {
             throw new ApiException(CommonErrorCode.FEATURE_DISABLED, "프리토킹을 쓸 수 없어요");
+        }
+    }
+
+    /**
+     * 이미 시작한 세션의 종료·조회 앞. 학원 활성만 본다 — 음성은 브라우저와 모델이 직접 주고받아 대화 중에 기능을 꺼도 대화는 멈추지 않고, 종료를 막으면 기록만 잃는다(ADR
+     * 0040, #96 리뷰 1)
+     */
+    void requireActive(long academyId) {
+        if (!academies.isActive(academyId)) {
+            throw new ApiException(CommonErrorCode.UNAUTHORIZED);
         }
     }
 
