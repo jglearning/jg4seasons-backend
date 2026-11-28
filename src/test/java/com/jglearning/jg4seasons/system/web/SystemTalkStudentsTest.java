@@ -78,6 +78,7 @@ class SystemTalkStudentsTest {
     void 목록은_재원생만_반_이름_이름_순이고_반_없는_학생은_class_null로_맨_뒤() {
         long out = data.student(academyId, "마");
         jdbc.update("update `user` set status = 'inactive' where id = ?", out);
+        long gaga = data.student(academyId, "가가"); // 반 없는 학생 둘: id는 라보다 크지만 이름이 앞
 
         MvcTestResult result = list(operator(), academyId);
 
@@ -86,7 +87,7 @@ class SystemTalkStudentsTest {
                 .bodyJson()
                 .extractingPath("$.items[*].id")
                 .asArray()
-                .containsExactly((int) na, (int) ga, (int) da, (int) ra);
+                .containsExactly((int) na, (int) ga, (int) da, (int) gaga, (int) ra);
         assertThat(result)
                 .bodyJson()
                 .extractingPath("$.items[0]")
@@ -100,6 +101,7 @@ class SystemTalkStudentsTest {
                         "talkEnabled",
                         false));
         assertThat(result).bodyJson().extractingPath("$.items[3].class").isNull();
+        assertThat(result).bodyJson().extractingPath("$.items[4].class").isNull();
     }
 
     @Test
@@ -124,18 +126,43 @@ class SystemTalkStudentsTest {
                 .extractingPath("$.items[*].talkEnabled")
                 .asArray()
                 .containsExactly(true, false, true, false);
-        assertThat(jdbc.queryForList(
-                        "select detail from audit_log where academy_id = ? and action = 'TALK_ACCESS_SET'",
-                        String.class,
-                        academyId))
-                .singleElement()
-                .satisfies(
-                        detail -> assertThat(detail).contains("\"students\": 2").contains("\"enabled\": true"));
+        assertThat(audits(academyId)).containsExactly("[\"enabled\", \"students\"] 2 true");
 
         assertThat(mvc.get().uri("/api/v1/talk/config").cookie(cookies.studentAccess(na, academyId)))
                 .hasStatusOk();
-        assertThat(mvc.get().uri("/api/v1/talk/config").cookie(cookies.studentAccess(ga, academyId)))
-                .hasStatus(404);
+        MvcTestResult off = mvc.get()
+                .uri("/api/v1/talk/config")
+                .cookie(cookies.studentAccess(ga, academyId))
+                .exchange();
+        assertThat(off).hasStatus(404);
+        assertThat(off).bodyJson().extractingPath("$.code").isEqualTo("FEATURE_DISABLED");
+    }
+
+    @Test
+    void 켜진_학생을_PUT으로_끄면_학생_설정_조회가_404_FEATURE_DISABLED() {
+        jdbc.update(
+                "update academy set settings = ? where id = ?",
+                "{\"timezone\":\"Asia/Seoul\",\"features\":{\"talk\":true,\"talkEntitled\":true}}",
+                academyId);
+        assertThat(put(operator(), academyId, "{\"studentIds\":[" + na + "],\"enabled\":true}"))
+                .hasStatusOk();
+
+        MvcTestResult result = put(operator(), academyId, "{\"studentIds\":[" + na + "],\"enabled\":false}");
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.items[0].talkEnabled").isEqualTo(false);
+        assertThat(list(operator(), academyId))
+                .bodyJson()
+                .extractingPath("$.items[0].talkEnabled")
+                .isEqualTo(false);
+        MvcTestResult config = mvc.get()
+                .uri("/api/v1/talk/config")
+                .cookie(cookies.studentAccess(na, academyId))
+                .exchange();
+        assertThat(config).hasStatus(404);
+        assertThat(config).bodyJson().extractingPath("$.code").isEqualTo("FEATURE_DISABLED");
+        assertThat(audits(academyId))
+                .containsExactly("[\"enabled\", \"students\"] 1 true", "[\"enabled\", \"students\"] 1 false");
     }
 
     @Test
@@ -173,8 +200,12 @@ class SystemTalkStudentsTest {
     void 퇴원생_id면_404() {
         jdbc.update("update `user` set status = 'inactive' where id = ?", da);
 
-        assertThat(put(operator(), academyId, "{\"studentIds\":[" + da + "],\"enabled\":true}"))
-                .hasStatus(404);
+        MvcTestResult result = put(operator(), academyId, "{\"studentIds\":[" + da + "],\"enabled\":true}");
+
+        assertThat(result).hasStatus(404);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("NOT_FOUND");
+        assertThat(count("select count(*) from talk_student_access where student_id = ?", da))
+                .isZero();
     }
 
     @Test
@@ -186,10 +217,7 @@ class SystemTalkStudentsTest {
             assertThat(result).hasStatus(400);
             assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("VALIDATION");
             assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("studentIds");
-            assertThat(result)
-                    .bodyJson()
-                    .extractingPath("$.errors[0].message")
-                    .isEqualTo("학생은 1~500명까지 고를 수 있어요");
+            assertThat(result).bodyJson().extractingPath("$.errors[0].message").isEqualTo("학생은 1~500명까지 고를 수 있어요");
         }
     }
 
@@ -244,6 +272,16 @@ class SystemTalkStudentsTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
                 .exchange();
+    }
+
+    /** 감사 detail: 키 목록(학생 id·이름 없음) · 학생 수 · enabled, 기록 순 */
+    private List<String> audits(long academy) {
+        return jdbc.queryForList(
+                "select concat(json_keys(detail), ' ', json_extract(detail, '$.students'), ' ',"
+                        + " json_extract(detail, '$.enabled')) from audit_log where academy_id = ?"
+                        + " and action = 'TALK_ACCESS_SET' order by id",
+                String.class,
+                academy);
     }
 
     private int count(String sql, Object... args) {
